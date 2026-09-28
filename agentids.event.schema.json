@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/CRPerdue/agentids/schemas/agentids.event.v1.json",
+  "title": "agentids.event/v1",
+  "description": "Wire format for agent-layer detection events. This is the public contract; treat changes as breaking.",
+  "type": "object",
+  "required": ["schema", "event", "ts", "host"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "agentids.event/v1",
+      "description": "Schema version. Bump the trailing version segment for breaking changes."
+    },
+    "event": {
+      "type": "string",
+      "enum": ["identity.drift", "provenance.untrusted", "behavior.rule_match"],
+      "description": "Event class. identity.drift = Layer 1; provenance.* = Layer 2; behavior.* = Layer 3."
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 timestamp, UTC."
+    },
+    "host": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "description": "Stable host identifier (machine-id hash or configured)." },
+        "name": { "type": "string" }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "description": "The agent this event concerns. Null if the collector cannot attribute it.",
+      "properties": {
+        "id": { "type": "string" },
+        "root": { "type": "string", "description": "Agent workspace root path on host." }
+      }
+    },
+    "file": {
+      "type": "object",
+      "description": "Present for file-oriented events (Layer 1/2).",
+      "properties": {
+        "path": { "type": "string" },
+        "sha256_before": { "type": ["string", "null"] },
+        "sha256_after": { "type": ["string", "null"] },
+        "size_before": { "type": ["integer", "null"] },
+        "size_after": { "type": ["integer", "null"] },
+        "diff": { "type": ["string", "null"], "description": "Unified diff, truncated per config." }
+      }
+    },
+    "action": {
+      "type": "object",
+      "description": "Present for behavior events (Layer 3).",
+      "properties": {
+        "type": { "type": "string", "description": "e.g. process.exec, net.egress, file.access, scope.change" },
+        "detail": { "type": "object", "description": "Rule-specific fields." }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "description": "Present when event is a rule match.",
+      "properties": {
+        "id": { "type": "string" },
+        "pack": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    },
+    "actor": {
+      "type": ["object", "null"],
+      "description": "Who performed the action, when attributable. Null if unavailable.",
+      "properties": {
+        "uid": { "type": ["integer", "null"] },
+        "user": { "type": ["string", "null"] },
+        "pid": { "type": ["integer", "null"] }
+      }
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["info", "low", "medium", "high", "critical"]
+    }
+  },
+  "additionalProperties": false
+}

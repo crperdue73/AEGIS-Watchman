@@ -1,0 +1,27 @@
+# agentids collector — example config
+# One collector runs per host. See PHASE0-DISCOVERY.md §0.4.
+
+agent_roots:
+  - path: /home/*/.openclaw/workspace-*
+    include:
+      - SOUL.md
+      - IDENTITY.md
+      - MEMORY.md
+      - skills/**/*.md
+      - "*.config.json"
+    exclude:
+      - "**/*.tmp"
+      - "**/.git/**"
+
+hash: sha256
+
+watch:
+  mode: inotify        # or: poll (fallback for non-Linux / restricted hosts)
+  poll_interval: 60s
+
+report:
+  endpoint: https://central.example/api/v1/events
+  interval: 30s
+
+attribution:
+  source: auditd       # optional; enables "who changed it". null = drift without actor.

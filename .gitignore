@@ -1,0 +1,24 @@
+# Binaries
+bin/
+*.exe
+
+# Go
+/vendor/
+
+# Local config / secrets — never commit these
+*.local.yaml
+*.local.json
+.env
+secrets/
+
+# Local runtime state
+*.db
+*.sqlite
+*.db-journal
+*.log
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
