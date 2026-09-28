@@ -47,6 +47,25 @@ func main() {
 
 	host := resolveHost(*hostID, *hostName)
 
+	// Layer 3: action rules. One engine per agent root so a match is attributed
+	// to the agent it concerns; all share the same audit-log tail position since
+	// they read a single host-wide source. For v1 with a single agent root this
+	// is exactly right; multi-agent attribution needs a per-agent identity file
+	// and is deferred.
+	var behavior *collector.BehaviorEngine
+	if cfg.Behavior.RulesDir != "" {
+		var agent *schema.Agent
+		if len(collected) == 1 {
+			agent = &schema.Agent{ID: filepath.Base(collected[0].Root), Root: collected[0].Root}
+		}
+		behavior, err = collector.NewBehaviorEngine(cfg, host, agent)
+		if err != nil {
+			log.Fatalf("agentids-collector: behavior: %v", err)
+		}
+		log.Printf("agentids-collector: Layer 3 enabled (rules=%s, audit_log=%q)",
+			cfg.Behavior.RulesDir, cfg.Behavior.AuditLog)
+	}
+
 	if *dryRun {
 		out := struct {
 			Host   schema.Host           `json:"host"`
@@ -99,6 +118,10 @@ func main() {
 				log.Printf("collector: DRIFT %s %s (severity=%s)", ev.File.Path, ev.Event, ev.Severity)
 			}
 		}
+		// Layer 3: read new host activity and evaluate rules. Runs after the
+		// file cycle so a persona edit and the action it triggers are seen in
+		// the same tick.
+		behavior.Poll()
 	}
 
 	cycle()

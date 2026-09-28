@@ -17,6 +17,19 @@ type Config struct {
 	Watch       Watch       `yaml:"watch"`
 	Report      Report      `yaml:"report"`
 	Attribution Attribution `yaml:"attribution"`
+	// Behavior configures Layer 3 (action rules) on this host. Absent or with
+	// no rules_dir -> Layer 3 is off and the collector runs Layers 1/2 only.
+	Behavior Behavior `yaml:"behavior"`
+}
+
+// Behavior configures the Layer 3 rules engine on the collector.
+type Behavior struct {
+	// RulesDir is a directory of *.yaml rule packs, loaded sorted by name.
+	RulesDir string `yaml:"rules_dir"`
+	// AuditLog is the auditd log to tail for process.exec actions, e.g.
+	// /var/log/audit/audit.log. Empty -> no telemetry source (rules loaded but
+	// idle, useful for validating a pack without a live feed).
+	AuditLog string `yaml:"audit_log"`
 }
 
 // AgentRoot is one globbed agent workspace to inventory.
@@ -88,6 +101,11 @@ func (c *Config) validate() error {
 	}
 	if err := c.Report.TLS.Validate(); err != nil {
 		return err
+	}
+	if c.Behavior.RulesDir != "" {
+		if _, err := os.Stat(c.Behavior.RulesDir); err != nil {
+			return fmt.Errorf("config: behavior.rules_dir %q: %w", c.Behavior.RulesDir, err)
+		}
 	}
 	return nil
 }

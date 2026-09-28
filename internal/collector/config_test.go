@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/CRPerdue/agentids/internal/schema"
 )
 
 func TestLoadConfigDefaults(t *testing.T) {
@@ -109,5 +111,78 @@ func TestCollectAllNoMatchIsError(t *testing.T) {
 	}
 	if _, err := CollectAll(cfg); err == nil {
 		t.Error("expected error when a glob matches nothing")
+	}
+}
+
+func TestLoadConfigBehaviorRulesDir(t *testing.T) {
+	dir := t.TempDir()
+	rulesDir := filepath.Join(dir, "rules")
+	if err := os.MkdirAll(rulesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(dir, "c.yaml")
+	yaml := `
+agent_roots:
+  - path: /x
+behavior:
+  rules_dir: ` + rulesDir + `
+  audit_log: /var/log/audit/audit.log
+`
+	if err := os.WriteFile(p, []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadConfig(p)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.Behavior.RulesDir != rulesDir {
+		t.Errorf("rules_dir = %q", cfg.Behavior.RulesDir)
+	}
+	if cfg.Behavior.AuditLog != "/var/log/audit/audit.log" {
+		t.Errorf("audit_log = %q", cfg.Behavior.AuditLog)
+	}
+}
+
+func TestLoadConfigRejectsMissingRulesDir(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "c.yaml")
+	yaml := `
+agent_roots:
+  - path: /x
+behavior:
+  rules_dir: ` + filepath.Join(dir, "nope") + `
+`
+	if err := os.WriteFile(p, []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadConfig(p); err == nil {
+		t.Error("expected error when behavior.rules_dir does not exist")
+	}
+}
+
+func TestNewBehaviorEngineDisabledIsNil(t *testing.T) {
+	cfg := &Config{}
+	be, err := NewBehaviorEngine(cfg, schema.Host{ID: "h"}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if be != nil {
+		t.Error("engine should be nil when rules_dir is empty")
+	}
+	// A nil engine's Poll must be safe to call (the collector calls it
+	// unconditionally each cycle).
+	if got := be.Poll(); got != nil {
+		t.Errorf("nil engine Poll = %v", got)
+	}
+}
+
+func TestNewBehaviorEngineRejectsBadPack(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "bad.yaml"), []byte("name: bad\nrules:\n  - id: nope\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &Config{Behavior: Behavior{RulesDir: dir}}
+	if _, err := NewBehaviorEngine(cfg, schema.Host{ID: "h"}, nil); err == nil {
+		t.Error("expected error for a malformed rule pack")
 	}
 }
