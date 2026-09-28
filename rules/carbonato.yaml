@@ -13,7 +13,7 @@
 # itself and its basename.
 
 name: carbonato
-version: "2"
+version: "3"
 
 rules:
   - id: carbonato.tool.scope_new
@@ -264,6 +264,9 @@ rules:
     description: >
       An agent-bound process that starts listening (nc -l, socat, python -m
       http.server) is establishing a foothold or a beacon, not doing its job.
+      This rule catches the intent from the command line; the net.listen rule
+      below catches it from the kernel, so a listener whose argv is hidden
+      (python -c, a script, a renamed binary) still fires.
     match:
       type: process.exec
       argv_any:
@@ -272,3 +275,19 @@ rules:
         - "*socat*"
         - "*http.server*"
         - "*--listen*"
+
+  - id: carbonato.net.listener_bound
+    title: Process binds a listening socket
+    severity: medium
+    technique: phase3/command-and-control
+    description: >
+      The auditd bind syscall carries the local address a process is listening
+      on, whether or not the command line says so. This is the kernel-side
+      counterpart to carbonato.net.new_listener: it fires for a listener
+      started by a wrapped or renamed binary, where argv_any would miss. A
+      bind to a wildcard or a high port under an agent account is a foothold,
+      not a service.
+    match:
+      type: net.listen
+      detail_non_empty:
+        - "listen"

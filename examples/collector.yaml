@@ -54,7 +54,10 @@ behavior:
 #
 #   -a always,exit -F arch=b64 -S execve -k agentids
 #   -a always,exit -F arch=b64 -S connect -k agentids
+#   -a always,exit -F arch=b64 -S bind -k agentids
+#   -a always,exit -F arch=b64 -S listen -k agentids
 #   # ...plus the 32-bit variants on a mixed-arch host
 #
 # `augenrules --load` (or `service auditd restart`) to apply. Without the
-# connect line the collector still runs, but only process.exec fires.
+# connect line only process.exec fires; without bind/listen the kernel-side
+# listener rule (carbonato.net.listener_bound) cannot.

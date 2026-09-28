@@ -85,3 +85,33 @@ func TestShippedCarbonatoFiresOnExfilChain(t *testing.T) {
 		t.Errorf("benign ls fired rules: %v", got)
 	}
 }
+
+// TestShippedCarbonatoFiresOnListener proves the R1 rule fires on a net.listen
+// action — the kernel-side counterpart to the argv-based listener rule. This is
+// what turns carbonato.net.listener_bound from dead code into a live detection.
+func TestShippedCarbonatoFiresOnListener(t *testing.T) {
+	p, err := LoadPack(filepath.Join("..", "..", "rules", "carbonato.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := NewEngine(p)
+
+	var ids []string
+	for _, ev := range e.Match(schema.Host{ID: "h"}, nil,
+		schema.Action{Type: "net.listen", Detail: map[string]any{
+			"listen":  "0.0.0.0:4444",
+			"syscall": "bind",
+			"exe":     "/usr/bin/nc",
+		}}, nil, timeNow()) {
+		ids = append(ids, ev.Rule.ID)
+	}
+	found := false
+	for _, id := range ids {
+		if id == "carbonato.net.listener_bound" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("net.listen did not fire listener_bound: %v", ids)
+	}
+}

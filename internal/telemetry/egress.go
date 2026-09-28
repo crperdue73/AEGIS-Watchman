@@ -14,6 +14,16 @@ import (
 // EgressConnect is the syscall this adapter understands.
 const EgressConnect = "connect"
 
+// ListenBind and ListenListen are the listener syscalls. A process that binds
+// a socket and then listens is opening a foothold — a reverse-shell handler, a
+// beacon, or a service that has no business running under an agent. On Linux,
+// `bind` carries the local address in SOCKADDR; `listen` on a socket already
+// bound in a previous call carries none, so `bind` is the record that matters.
+const (
+	ListenBind   = "bind"
+	ListenListen = "listen"
+)
+
 // ParseAuditConnectLog parses a stream of auditd lines and returns the records
 // that represent an outbound connection (syscall=connect with a SOCKADDR).
 //
@@ -60,11 +70,17 @@ func ParseAuditConnectLog(r io.Reader) ([]*AuditRecord, error) {
 	var out []*AuditRecord
 	for _, serial := range order {
 		rec := bySerial[serial]
-		if rec.Syscall != EgressConnect {
+		switch rec.Syscall {
+		case EgressConnect:
+			if rec.SockAddr == "" {
+				continue // no address -> nothing to match an endpoint rule against
+			}
+		case ListenBind, ListenListen:
+			if rec.BindAddr == "" {
+				continue // a listen on an already-bound socket carries no address
+			}
+		default:
 			continue
-		}
-		if rec.SockAddr == "" {
-			continue // no address -> nothing to match an endpoint rule against
 		}
 		out = append(out, rec)
 	}
@@ -74,6 +90,12 @@ func ParseAuditConnectLog(r io.Reader) ([]*AuditRecord, error) {
 // applyConnectLine folds one auditd line into a record for connect parsing.
 // It shares the auditField/splitAuditFields helpers with the execve parser but
 // keeps its own field handling for SOCKADDR.
+// applyConnectLine folds a connect-or-bind record into an AuditRecord. Both
+// syscalls are emitted by auditd as a SYSCALL line plus a SOCKADDR line, so
+// this one function serves both adapters. The SOCKADDR is filed under the
+// field matching the syscall: a connect's address is a PEER (SockAddr), a
+// bind's address is LOCAL (BindAddr). Keeping them apart stops a listener from
+// being reported as "connected to 0.0.0.0:4444".
 func applyConnectLine(rec *AuditRecord, typ, line string) {
 	switch typ {
 	case "SYSCALL":
@@ -87,10 +109,38 @@ func applyConnectLine(rec *AuditRecord, typ, line string) {
 		rec.UID = auditInt(line, "uid")
 		rec.AUid = auditInt(line, "auid")
 	case "SOCKADDR":
-		if v := auditField(line, "saddr"); v != "" {
+		v := auditField(line, "saddr")
+		if v == "" {
+			return
+		}
+		if rec.Syscall == ListenBind || rec.Syscall == ListenListen {
+			rec.BindAddr = v
+		} else {
 			rec.SockAddr = v
 		}
 	}
+}
+
+// ListenAction converts a bind/listen record into a net.listen action. It
+// returns false if the record has no usable local address. The address is
+// decoded into "host:port" (a wildcard bind shows as 0.0.0.0 or ::), so a rule
+// can match on "anything that listens" or on a specific port.
+func (r *AuditRecord) ListenAction() (schema.Action, *schema.Actor, bool) {
+	addr, ok := decodeSockAddr(r.BindAddr)
+	if !ok || addr == "" {
+		return schema.Action{}, nil, false
+	}
+	detail := map[string]any{
+		"listen":  addr,
+		"syscall": r.Syscall,
+	}
+	if r.Exe != "" {
+		detail["exe"] = r.Exe
+	}
+	if r.PID != 0 {
+		detail["pid"] = r.PID
+	}
+	return schema.Action{Type: NetListen, Detail: detail}, actorOf(r), true
 }
 
 // EgressAction converts a connect record into a net.egress action. It returns

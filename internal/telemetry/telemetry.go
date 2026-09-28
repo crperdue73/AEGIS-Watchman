@@ -42,6 +42,13 @@ const (
 	ScopeChange = "scope.change"
 )
 
+// NetListen is emitted by the bind/listen adapter — an agent-bound process
+// opening a listening socket (a beacon, a reverse-shell handler, a foothold).
+// It is a sibling of NetEgress: both come from auditd SYSCALL+SOCKADDR records,
+// distinguished by the syscall, and both carry the address in the same decoded
+// "host:port" form.
+const NetListen = "net.listen"
+
 // AuditRecord is one parsed auditd event (a group of same-serial messages).
 //
 // Not every field is present in every record: auditd splits one logical event
@@ -68,8 +75,14 @@ type AuditRecord struct {
 	Cwd   string
 	Paths []string
 
-	// From type=SOCKADDR (connect records): the peer address, hex-encoded.
+	// From type=SOCKADDR (connect/bind records): the peer address, hex-encoded.
 	SockAddr string
+
+	// From type=SOCKADDR on a bind/listen record: the LOCAL address the socket
+	// was bound to, hex-encoded. Kept apart from SockAddr because on a listener
+	// the address is local (e.g. 0.0.0.0:4444) — reporting it as a "peer" would
+	// mislabel whose address it is.
+	BindAddr string
 }
 
 // Action converts an execve-ish audit record into a scheme.Action. It returns
@@ -130,13 +143,18 @@ func (r *AuditRecord) user() string {
 }
 
 // AnyAction converts any actionable audit record into the right schema.Action:
-// net.egress for connect records, process.exec otherwise. This is the single
-// dispatch point FileSource uses so one audit tail yields both telemetry shapes.
+// net.egress for connect records, net.listen for bind/listen records,
+// process.exec otherwise. This is the single dispatch point FileSource uses so
+// one audit tail yields every telemetry shape.
 func (r *AuditRecord) AnyAction() (schema.Action, *schema.Actor, bool) {
-	if r.Syscall == EgressConnect {
+	switch r.Syscall {
+	case EgressConnect:
 		return r.EgressAction()
+	case ListenBind, ListenListen:
+		return r.ListenAction()
+	default:
+		return r.Action()
 	}
-	return r.Action()
 }
 
 // ParseAuditStream parses a mixed auditd stream and returns every record that
@@ -185,12 +203,15 @@ func ParseAuditStream(r io.Reader) ([]*AuditRecord, error) {
 	return out, nil
 }
 
-// isActionable reports whether a record is a process execution or a connect
-// with a peer address — i.e. something a rule can match on.
+// isActionable reports whether a record is a process execution, a connect
+// with a peer address, or a bind/listen with a local address — i.e. something a
+// rule can match on.
 func (r *AuditRecord) isActionable() bool {
 	switch r.Syscall {
 	case EgressConnect:
 		return r.SockAddr != ""
+	case ListenBind, ListenListen:
+		return r.BindAddr != ""
 	case "", "execve", "execveat":
 		return r.Exe != "" || len(r.Argv) > 0
 	default:

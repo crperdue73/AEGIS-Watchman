@@ -107,7 +107,7 @@ Built so far:
   that turns matching actions into `behavior.rule_match` events. Telemetry
   adapters read real host activity (auditd `execve` → `process.exec`, auditd
   `connect` → `net.egress`) so rules match what an agent *does*, not just what a
-  file looks like. The seed pack `rules/carbonato.yaml` (v2, 14 rules) encodes
+  file looks like. The seed pack `rules/carbonato.yaml` (v3, 15 rules) encodes
   the CARBONATO exfil chain — secret-store reads, SSH-key argv, chat/C2 egress,
   shell spawn, novel scope, persistence — including two **correlation rules**
   decided against a per-host timeline, e.g. an outbound call within 5m of an

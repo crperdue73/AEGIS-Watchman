@@ -695,3 +695,35 @@
 - **Also:** linked the new doc from `PHASE0-DISCOVERY.md` (now marked as the
   original, pre-code pass) and from the README.
 - **Blocking:** same — repo access + NAME (access was slated for today, Sept 28).
+
+## 2026-09-28 (Mon), ~15:30 ET — Heartbeat 21
+- **R1 landed: auditd bind/listen → `net.listen` action.** The last roadmap item
+  recommended as "trivial, turns dead code live." Until now the seed packs's
+  `carbonato.net.new_listener` matched `process.exec` argv only — a listener
+  started by a wrapped or renamed binary (`python -c`, a script, a stripped
+  binary) left no argv to match, so the rule could be walked past. Now the
+  kernel says it directly.
+- **`internal/telemetry`:** new `NetListen` action type; `ListenBind`/`ListenListen`
+  syscall consts; `ListenAction()` decodes the local `saddr` into `host:port`;
+  `AnyAction()` is now a three-way dispatch (connect→net.egress, bind/listen→
+  net.listen, else process.exec). `ParseAuditConnectLog` (renamed intent, kept
+  name for compatibility) now yields both shapes.
+- **The subtlety that mattered:** a connect's address is a *peer*; a bind's
+  address is *local*. Filing both in one field would report a listener as
+  "connected to 0.0.0.0:4444" — wrong question, wrong answer. Added a separate
+  `BindAddr` field so the two never conflate. Tested explicitly
+  (`TestBindAddressIsLocalNotPeer`).
+- **Pack v3 (15 rules):** added `carbonato.net.listener_bound` — a `net.listen`
+  rule with `detail_non_empty: [listen]`, the kernel-side counterpart to the
+  existing argv rule. Old rule kept: argv catches intent, the kernel catches a
+  hidden one; both are honest signals.
+- **`examples/collector.yaml`:** auditd snippet now includes
+  `-S bind` and `-S listen`, with a note on what breaks without them.
+- **Verification:** gofmt + vet clean; **164 tests pass** (+5: bind parses to a
+  net.listen action with the right address/actor; bind address is local not peer;
+  a listen with no address is not actionable; AnyAction dispatches bind; the
+  shipped pack fires `listener_bound` on a net.listen action).
+- **Next step (heartbeat 22):** **R4** — central-side uid→name resolution so
+  alerts name a person, not `uid:1000`. Then re-read `PHASE0-COVERAGE.md` and
+  tick A7 (listener) off the gap list.
+- **Blocking:** same — repo access + NAME (access was slated for today, Sept 28).

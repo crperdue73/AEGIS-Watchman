@@ -216,3 +216,74 @@ func TestFileSourceEmitsEgress(t *testing.T) {
 		t.Fatalf("expected 2 net.egress events from the file source, got %d (%+v)", egress, evs)
 	}
 }
+
+// --- R1: bind/listen -> net.listen -------------------------------------
+
+// wildcardSaddr is AF_INET 0.0.0.0:4444 -> family 0002, port 115c, addr 00000000.
+const wildcardSaddr = "0200115c00000000"
+
+const bindChain = `type=SYSCALL msg=audit(1790597004.100:980): arch=x86_64 syscall=bind success=yes pid=5150 ppid=1 uid=1000 auid=1000 exe="/usr/bin/nc"
+type=SOCKADDR msg=audit(1790597004.100:980): saddr=0200115c00000000
+`
+
+func TestParseBindYieldsListen(t *testing.T) {
+	recs, err := ParseAuditConnectLog(strings.NewReader(bindChain))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recs) != 1 {
+		t.Fatalf("expected 1 bind record, got %d", len(recs))
+	}
+	act, actor, ok := recs[0].ListenAction()
+	if !ok {
+		t.Fatal("bind should convert to a listen action")
+	}
+	if act.Type != NetListen {
+		t.Errorf("action type = %q, want %q", act.Type, NetListen)
+	}
+	if got, _ := act.Detail["listen"].(string); got != "0.0.0.0:4444" {
+		t.Errorf("listen = %q, want 0.0.0.0:4444 (LOCAL address, not a peer)", got)
+	}
+	if act.Detail["syscall"] != "bind" {
+		t.Errorf("syscall = %v", act.Detail["syscall"])
+	}
+	if actor == nil || actor.PID == nil || *actor.PID != 5150 {
+		t.Errorf("actor = %+v", actor)
+	}
+}
+
+// A bind's address must land in BindAddr (local), never SockAddr (peer) — the
+// two are different questions and conflating them mislabels whose address it is.
+func TestBindAddressIsLocalNotPeer(t *testing.T) {
+	recs, _ := ParseAuditStream(strings.NewReader(bindChain))
+	if len(recs) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(recs))
+	}
+	if recs[0].SockAddr != "" {
+		t.Errorf("bind put its address in SockAddr (peer) = %q", recs[0].SockAddr)
+	}
+	if recs[0].BindAddr != wildcardSaddr {
+		t.Errorf("BindAddr = %q, want %q", recs[0].BindAddr, wildcardSaddr)
+	}
+}
+
+// A listener with no usable address (listen on an already-bound socket) is not
+// actionable — a rule must not fire on it.
+func TestListenWithoutAddressNotActionable(t *testing.T) {
+	rec := &AuditRecord{Syscall: ListenListen}
+	if rec.isActionable() {
+		t.Error("listen with no address should not be actionable")
+	}
+	if _, _, ok := rec.ListenAction(); ok {
+		t.Error("listen with no address should not convert")
+	}
+}
+
+// AnyAction routes by syscall: connect -> net.egress, bind -> net.listen, else
+// process.exec. One dispatch table, no ambiguity.
+func TestAnyActionDispatchesListen(t *testing.T) {
+	act, _, ok := (&AuditRecord{Syscall: ListenBind, BindAddr: wildcardSaddr}).AnyAction()
+	if !ok || act.Type != NetListen {
+		t.Errorf("bind dispatch = %+v, ok=%v", act, ok)
+	}
+}
