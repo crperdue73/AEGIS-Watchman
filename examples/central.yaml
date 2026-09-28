@@ -1,0 +1,20 @@
+# agentids central — example config
+# Copy to central.yaml next to the binary. A missing file uses these defaults,
+# so the service runs out of the box.
+
+addr: ":8080"
+
+# Durable baseline store. Survives restarts; file is created 0600.
+store: /var/lib/agentids/baselines.json
+
+# Cap on the unified diff attached to each drift event. 0 = hash-only
+# (no file bodies in alerts). Does not affect what is stored as baseline.
+max_diff_bytes: 4096
+
+alerts:
+  # Any HTTP endpoint that accepts a JSON POST. Slack incoming webhooks,
+  # PagerDuty Events API v2, a ticket bot, or a tiny shell receiver.
+  # The body is an agentids Alert: {when, host, agent, events[]}.
+  webhook: https://hooks.example/agentids
+  # Also write a one-line summary per alert to the service log. Default: true.
+  log: true

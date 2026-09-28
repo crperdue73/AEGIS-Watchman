@@ -67,12 +67,28 @@ Details: [`PHASE0-DISCOVERY.md`](PHASE0-DISCOVERY.md).
 
 ## Status
 
-**Phase 0 — Discovery.** Target environments enumerated, telemetry inventory
-drafted, architecture sketched, Layer-1 collector spec + event schema drafted.
+**Phase 1 — Layer 1 MVP, working end to end.** The full path is real and
+verified with the shipped binaries: a markdown edit to an agent's persona file
+produces an `identity.drift` event carrying a unified diff, the baseline
+survives a central restart, and the event fires a webhook within seconds. That
+is the CARBONATO TTP caught, with the payload visible in the alert.
 
-**Phase 1 (next)** — Layer 1 MVP: a markdown edit to an agent's persona file
-produces an `identity.drift` event that reaches the central service and fires a
-webhook **within seconds**. That alone matches the CARBONATO TTP.
+Built so far:
+
+- **Collector** — globbed agent roots, include/exclude, sha256 inventory, HTTP
+  submission, poll loop, `-once` / `-dry-run`.
+- **Drift** — added/removed/changed file detection, stable ordering, severity
+  per file class, and a bounded **unified diff** attached to each event.
+- **Central** — `Store` interface with an in-memory and a durable JSON-file
+  backend (atomic writes, `0600`, survives restart).
+- **Alerting** — `Alerter` interface with a **webhook** (JSON POST, batched one
+  per ingest cycle) and a **log** sink, composed via `MultiAlerter`; configured
+  in `central.yaml`. Delivery failures are logged, never fatal.
+
+The public event schema stays additive-only across all of this.
+
+**Next** — Layer 2 (provenance/attestation) and the Layer 3 rules engine, plus
+mTLS on the collector→central hop and a fleet view.
 
 ## Event schema
 
@@ -91,7 +107,7 @@ internal/rules/     Layer 3 rule format + engine
 rules/              example rule packs
 deploy/docker/      collector + central containers
 docs/               architecture + schema docs
-examples/           sample collector config, sample events
+examples/           sample collector + central config, sample events
 testdata/           fixtures
 ```
 

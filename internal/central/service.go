@@ -2,7 +2,9 @@ package central
 
 import (
 	"context"
+	"log"
 	"sort"
+	"time"
 
 	"github.com/CRPerdue/agentids/internal/collector"
 	"github.com/CRPerdue/agentids/internal/schema"
@@ -15,12 +17,29 @@ type Service struct {
 	store Store
 	// MaxDiffBytes caps the unified diff attached to each event (0 = unlimited).
 	MaxDiffBytes int
+	// alerter is notified of drift events after a baseline is stored. Nil
+	// disables alerting (the reference behavior in tests and -dry-run setups).
+	alerter Alerter
+	// logger receives non-fatal alert-delivery failures. Nil is safe.
+	logger *log.Logger
 }
+
+// Logger is the minimal logging surface config wiring needs, so callers can
+// pass *log.Logger (or a test double) without importing log in the config path.
+type Logger = *log.Logger
 
 // NewService wires a Service to a Store.
 func NewService(store Store) *Service {
 	return &Service{store: store, MaxDiffBytes: 4096}
 }
+
+// SetAlerter installs an Alerter that is called once per ingest cycle with the
+// full set of drift events (a single batched call, not one call per event).
+// Passing nil disables alerting.
+func (s *Service) SetAlerter(a Alerter) { s.alerter = a }
+
+// SetLogger installs a logger for non-fatal delivery failures.
+func (s *Service) SetLogger(l *log.Logger) { s.logger = l }
 
 // IngestResult is what a collector gets back for one inventory submission.
 type IngestResult struct {
@@ -60,7 +79,21 @@ func (s *Service) Ingest(ctx context.Context, host schema.Host, agent schema.Age
 		return nil, err
 	}
 
+	// Alert after the baseline is durable, so a failed alert never loses the
+	// new baseline. Delivery failures are logged, never fatal: the collector
+	// still gets its events, and the store is already correct.
+	if s.alerter != nil && len(events) > 0 {
+		s.alert(ctx, host, agent, events)
+	}
+
 	return &IngestResult{FirstSeen: !found, Events: events}, nil
+}
+
+func (s *Service) alert(ctx context.Context, host schema.Host, agent schema.Agent, events []schema.Event) {
+	a := Alert{When: time.Now().UTC(), Host: host, Agent: agent, Events: events}
+	if err := s.alerter.Alert(ctx, a); err != nil && s.logger != nil {
+		s.logger.Printf("central: alert delivery failed: %v", err)
+	}
 }
 
 func pathOf(e schema.Event) string {
