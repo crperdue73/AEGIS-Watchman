@@ -27,6 +27,20 @@ type Alerts struct {
 	Webhook string `yaml:"webhook"`
 	// Log writes a one-line summary per alert to the service log.
 	Log bool `yaml:"log"`
+	// Email, when set, delivers each alert as a plain-text SMTP message.
+	Email Email `yaml:"email"`
+}
+
+// Email configures the SMTP sink. Absent/empty Host disables it.
+type Email struct {
+	// Host is "host:port". Port 465 uses implicit TLS; other ports use STARTTLS.
+	Host     string   `yaml:"host"`
+	Username string   `yaml:"username"`
+	Password string   `yaml:"password"`
+	From     string   `yaml:"from"`
+	To       []string `yaml:"to"`
+	// AllowPlaintext permits sending without STARTTLS (not recommended).
+	AllowPlaintext bool `yaml:"allow_plaintext"`
 }
 
 // DefaultConfig returns the Phase-1 defaults, matching the built-in flag
@@ -71,15 +85,30 @@ func (c Config) validate() error {
 	if c.MaxDiffBytes < 0 {
 		return fmt.Errorf("config: max_diff_bytes must be >= 0")
 	}
+	if c.Alerts.Email.Host != "" {
+		if c.Alerts.Email.From == "" {
+			return fmt.Errorf("config: alerts.email.from is required when email.host is set")
+		}
+		if len(c.Alerts.Email.To) == 0 {
+			return fmt.Errorf("config: alerts.email.to requires at least one recipient")
+		}
+	}
 	return nil
 }
 
 // Alerter builds the Alerter described by the config, or nil when no sink is
-// enabled. Webhook and log sinks compose via MultiAlerter.
+// enabled. Webhook, log, and email sinks compose via MultiAlerter.
 func (c Config) Alerter(logger Logger) Alerter {
 	var sinks []Alerter
 	if c.Alerts.Webhook != "" {
 		sinks = append(sinks, NewWebhookAlerter(c.Alerts.Webhook))
+	}
+	if e := c.Alerts.Email; e.Host != "" {
+		em := NewEmailAlerter(e.Host, e.From, e.To)
+		em.Username = e.Username
+		em.Password = e.Password
+		em.AllowPlaintext = e.AllowPlaintext
+		sinks = append(sinks, em)
 	}
 	if c.Alerts.Log && logger != nil {
 		sinks = append(sinks, &LogAlerter{Logger: logger})

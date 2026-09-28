@@ -81,9 +81,10 @@ Built so far:
   per file class, and a bounded **unified diff** attached to each event.
 - **Central** — `Store` interface with an in-memory and a durable JSON-file
   backend (atomic writes, `0600`, survives restart).
-- **Alerting** — `Alerter` interface with a **webhook** (JSON POST, batched one
-  per ingest cycle) and a **log** sink, composed via `MultiAlerter`; configured
-  in `central.yaml`. Delivery failures are logged, never fatal.
+- **Alerting** — `Alerter` interface with three sinks, composed via
+  `MultiAlerter`: a **webhook** (JSON POST), the **service log**, and **email**
+  (SMTP, port 465 implicit TLS or STARTTLS). Alerts are batched one per ingest
+  cycle. Configured in `central.yaml`; delivery failures are logged, never fatal.
 
 The public event schema stays additive-only across all of this.
 

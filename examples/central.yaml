@@ -18,3 +18,11 @@ alerts:
   webhook: https://hooks.example/agentids
   # Also write a one-line summary per alert to the service log. Default: true.
   log: true
+  # Email each alert as a plain-text SMTP message. Delete this block to disable.
+  email:
+    host: smtp.example.com:587   # port 465 = implicit TLS; others use STARTTLS
+    username: agentids
+    password: change-me
+    from: agentids@example.com
+    to: [oncall@example.com]
+    # allow_plaintext: true     # needed only for a trusted local relay without TLS
