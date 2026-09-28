@@ -42,6 +42,9 @@ func Drift(host schema.Host, agent schema.Agent, baseline, current *Inventory, m
 				SHA256Before: b.SHA256,
 				SizeBefore:   ptr(b.Size),
 			}
+			if maxDiffBytes != 0 {
+				ev.File.Diff = UnifiedDiff(path, b.Content, "", maxDiffBytes)
+			}
 			ev.Severity = severityFor(path)
 			events = append(events, *ev)
 			continue
@@ -57,6 +60,9 @@ func Drift(host schema.Host, agent schema.Agent, baseline, current *Inventory, m
 			SHA256After:  c.SHA256,
 			SizeBefore:   ptr(b.Size),
 			SizeAfter:    ptr(c.Size),
+		}
+		if maxDiffBytes != 0 {
+			ev.File.Diff = UnifiedDiff(path, b.Content, c.Content, maxDiffBytes)
 		}
 		ev.Severity = severityFor(path)
 		events = append(events, *ev)
@@ -74,11 +80,13 @@ func Drift(host schema.Host, agent schema.Agent, baseline, current *Inventory, m
 			SHA256After: c.SHA256,
 			SizeAfter:   ptr(c.Size),
 		}
+		if maxDiffBytes != 0 {
+			ev.File.Diff = UnifiedDiff(path, "", c.Content, maxDiffBytes)
+		}
 		ev.Severity = severityFor(path)
 		events = append(events, *ev)
 	}
 
-	_ = maxDiffBytes // diff content is attached by the caller with file reads
 	return events
 }
 

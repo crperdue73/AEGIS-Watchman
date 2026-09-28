@@ -17,11 +17,16 @@ import (
 )
 
 // FileState is the immutable snapshot of one file at one point in time.
+//
+// Content is optional: collectors include it only for small text files so the
+// central service can produce a human-readable diff. It is omitted from the
+// baseline when empty and is never required for change detection (the hash is).
 type FileState struct {
 	Path    string    `json:"path"`
 	SHA256  string    `json:"sha256"`
 	Size    int64     `json:"size"`
 	ModTime time.Time `json:"mod_time"`
+	Content string    `json:"content,omitempty"`
 }
 
 // Inventory is the full set of hashed files for one agent root.
@@ -30,7 +35,40 @@ type Inventory struct {
 	Files []FileState `json:"files"`
 }
 
-// HashFile returns the sha256 hex digest and size of the file at path.
+// MaxContentBytes bounds how much file content a collector reads and ships.
+// Larger files are still hashed and reported; only the diff body is unavailable.
+const MaxContentBytes = 512 * 1024
+
+// isProbablyText applies a cheap heuristic: NUL byte in the first 8 KiB means
+// binary, and we do not ship binary blobs. Good enough to avoid diffing PNGs.
+func isProbablyText(b []byte) bool {
+	n := len(b)
+	if n > 8192 {
+		n = 8192
+	}
+	for i := 0; i < n; i++ {
+		if b[i] == 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// readContent reads a file for diffing, returning "" if it is binary or too
+// large. A read error is non-fatal — the hash-based detection still stands.
+func readContent(path string, size int64) string {
+	if size > MaxContentBytes || size < 0 {
+		return ""
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	if !isProbablyText(b) {
+		return ""
+	}
+	return string(b)
+}
 func HashFile(path string) (string, int64, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -176,6 +214,7 @@ func WalkRoot(root string, include, exclude []string) (*Inventory, error) {
 			SHA256:  sum,
 			Size:    size,
 			ModTime: mt,
+			Content: readContent(path, size),
 		})
 		return nil
 	})
