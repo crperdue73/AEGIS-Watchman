@@ -35,8 +35,23 @@ Fires when a hashed persona/skill/config file changes.
 
 ## Layer 2 — `provenance.untrusted`
 
-Fires when a file is unsigned or fails verification against the approved
-manifest. Populated in Phase 2.
+Fires when an agent file is not accounted for by the approved, signed manifest,
+or when its bytes no longer match the approved hash. Layer 1 asks "did it
+change?"; Layer 2 asks "was this ever ours?"
+
+- `file.path`, `file.sha256_before` (the **approved** hash, empty if the file is
+  not listed), `file.sha256_after` (the **on-host** hash, empty if the file was
+  deleted).
+- `severity`: `high` for an unlisted file (the CARBONATO "drop a new skill"
+  case — nothing has drifted, so Layer 1 alone is blind to it), `medium` for a
+  listed-but-modified file, `low` for a listed-but-absent file.
+- The approval manifest is an Ed25519-signed inventory of `path -> sha256` for
+  one agent root (`agentids.manifest/v1`, see `internal/provenance`). It is
+  offline-verifiable, so an operator can approve a workspace on a laptop and
+  ship the manifest to the fleet. Because the source is a signed manifest,
+  Layer 2 detection is **not evadable by rewriting the hash** the way a naive
+  "trust-on-first-use" baseline is.
+- Built and checked with `agentids-manifest` (`keygen` / `sign` / `verify`).
 
 ## Layer 3 — `behavior.rule_match`
 

@@ -90,6 +90,13 @@ Built so far:
   requires and verifies every collector's cert (`RequireAndVerifyClientCert`, so
   an unauthenticated client is refused at the handshake). TLS 1.2 minimum.
   `deploy/gen-certs.sh` generates the CA and leaf material.
+- **Layer 2 — provenance / attestation** (`internal/provenance/`): an
+  **Ed25519-signed approval manifest** of `path -> sha256` per agent root, and
+  `agentids-manifest keygen/sign/verify` for the operator workflow. Catches what
+  Layer 1 cannot: a **brand-new dropped skill** (nothing drifted, but the file
+  was never ours) as `provenance.untrusted`, plus in-place modification and
+  deletion. Because the source of truth is *signed*, it is not evadable by
+  rewriting a baseline hash.
 
 The public event schema stays additive-only across all of this.
 
@@ -106,10 +113,12 @@ The public contract, versioned from day one. See
 ```
 cmd/collector/      per-host collector entrypoint
 cmd/central/        central rule/alert service entrypoint
+cmd/manifest/       Layer 2 provenance approval tool (keygen/sign/verify)
 internal/schema/    versioned event wire format (the public contract)
 internal/collector/ Layer 1 hashing/watching + telemetry adapters
 internal/central/   baseline store, drift compute, alerting, mTLS wiring
 internal/mtls/      mutual-TLS config loaders (shared by both ends)
+internal/provenance/ Layer 2 signed approval manifests + verification
 internal/rules/     Layer 3 rule format + engine
 rules/              example rule packs
 deploy/docker/      collector + central containers

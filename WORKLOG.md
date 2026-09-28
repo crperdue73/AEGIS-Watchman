@@ -304,3 +304,44 @@
   `internal/provenance/`: per-file signature manifest + an `untrusted` event when
   a persona/skill file is unsigned or unaccounted for.
 - **Blocking:** same — repo access + NAME. (Access was slated for today.)
+
+## 2026-09-28 (Mon), ~05:35 ET — Heartbeat 11
+- **Phase 2 begins — Layer 2 provenance/attestation.** Layer 1 asks "did it
+  change?"; Layer 2 asks "was this file ever ours?" A CARBONATO operator does not
+  need to modify an existing file — **dropping a new skill is enough**, and
+  nothing has drifted. Layer 1 alone is blind to that. New `internal/provenance/`.
+- Model: an **Ed25519-signed approval manifest**, `path -> sha256` per agent root
+  (`agentids.manifest/v1`). Signature is over a **canonical, key-sorted body**
+  (excluding the signature field), so a manifest survives JSON/YAML round-trips
+  and reformatting and still verifies. Offline-verifiable — approve on a laptop,
+  ship to the fleet; no PKI server.
+- Verdicts per path: `unsigned` (on host, not in manifest — the dropped-skill
+  case), `modified` (listed, hash differs), `missing` (listed, absent), `ok`
+  (silent — a clean file is not news). Severity: unsigned=high, modified=medium,
+  missing=low. `Events()` emits `provenance.untrusted` events; `file.sha256_before`
+  = approved hash, `sha256_after` = on-host hash.
+- **Why this is not evadable the way a naive baseline is:** the source of truth
+  is a *signed* manifest, not "first hash we saw." An attacker rewriting a file
+  cannot also produce a valid signature. (Tested: tampering the approval list
+  fails verification; a wrong key fails; an unsigned manifest is rejected.)
+- New CLI `cmd/agentids-manifest` (`keygen` / `sign` / `verify`) for the operator
+  workflow; `deploy/gen-certs.sh`-style ergonomics. `verify` default scan
+  **walks** the workspace (not just the manifest's paths) so a newly dropped
+  directory IS found — globbing the manifest's own paths would never look inside
+  `skills/<new>/`.
+- **Verification:** gofmt + vet clean; **70/70 tests pass** (+20 this heartbeat:
+  sign/verify, tamper rejection, wrong-key, unsigned-manifest, order-independent
+  canonical body, unsigned/modified/missing detection, deterministic ordering,
+  event shape, JSON round-trip, trust-key parsing, manifest load/save incl.
+  garbage rejection, and the walker: nested new skill found, excludes honored,
+  non-matching extensions ignored, missing/not-a-dir roots error).
+- **Live operator workflow proof:** `keygen` → `sign` (3 files) → `verify` clean
+  (exit 0) → CARBONATO **drops `skills/c2/SKILL.md`** → `verify` reports
+  `unsigned skills/c2/SKILL.md` (exit 1) → in-place `SOUL.md` edit → `modified
+  SOUL.md` too → tampered manifest → `manifest signature invalid`.
+- **Next step (heartbeat 12):** wire Layer 2 into the live path — the collector
+  ships the workspace file set (already does, via the inventory) and **central**
+  verifies it against per-agent manifests loaded from disk, emitting
+  `provenance.untrusted` through the same alerting path. Config:
+  `manifests: {dir, trust_keys}`.
+- **Blocking:** same — repo access + NAME. (Access was slated for today.)
