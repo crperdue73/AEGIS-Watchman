@@ -830,3 +830,32 @@
   `uname -r`); if not, do R2.3 (deploy docs) and pivot to R3 (Docker events),
   both of which need no kernel, and leave R2.2 for a host that can verify it.
 - **Blocking:** same — repo access + NAME (access was slated for today, Sept 28).
+
+## 2026-09-28 (Mon), ~19:30 ET — Heartbeat 25
+- **R2.3 landed: the collector deploy guide (`docs/deploy-collector.md`).** The
+  artifact an operator needs regardless of when R2.2 lands, and the one that
+  answers the question they actually ask before granting anything: *what does
+  this need from my kernel, and what happens if it doesn't get it?*
+- **Contents:** the auditd rules per action type with a table of which rules
+  they feed (and the blunt note that without `connect`, the rule this project
+  was built for cannot fire); the optional eBPF source with its kernel
+  requirements as a checkable table (`uname -r`, `/sys/kernel/btf/vmlinux`,
+  `capsh --print`); the exact "degrades" log line an operator will see; the
+  central `uid_map`; and a post-deploy checklist.
+- **The through-line stated plainly in the doc itself:** everything degrades,
+  nothing is a hard dependency. A collector with no telemetry source is worse at
+  its job but still runs. That is the whole design, written for the person who
+  has to trust it.
+- **Verified the claims against the code** before shipping the doc: `-once` /
+  `-dry-run` are real flags (`cmd/collector/main.go`), the correlation rule id
+  is real, the auditd `-S bind`/`-S listen` rules match the shipped adapter.
+  A deploy doc that lies is worse than none.
+- **Linked** from the README ("Deploying").
+- **No code change** — doc + README link only; `go test` unchanged at 187 green.
+- **Next step (heartbeat 26):** **R3 — Docker events adapter**, the other
+  kernel-free gap (G4: container-runtime telemetry, the CARBONATO *entry
+  vector* — a privileged, host-mounted container). First step: a `DockerSource`
+  behind the existing `telemetry.Source` interface reading `docker events`,
+  emitting a `scope.change`/container action, and a rule for a privileged
+  container launch. Then back to the coverage matrix.
+- **Blocking:** same — repo access + NAME (access was slated for today, Sept 28).
