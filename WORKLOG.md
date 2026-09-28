@@ -665,3 +665,33 @@
   environments + telemetry sources to confirm coverage, and prioritise the next
   adapter (eBPF for file.access/scope.change) as the first post-Phase-3 item.
 - **Blocking:** same — repo access + NAME (access was slated for today, Sept 28).
+
+## 2026-09-28 (Mon), ~14:30 ET — Heartbeat 20
+- **Phase 0 re-run against the finished engine — `PHASE0-COVERAGE.md` (new).**
+  The original discovery pass guessed at telemetry before any code existed. With
+  Layers 1–3 now complete, discovery's question changed from "what could we
+  build on?" to "for every action a CARBONATO-class attacker MUST take, is there
+  a live source?" Wrote the answer down as a forced-action coverage matrix.
+- **The matrix:** 10 forced actions (A1–A10) from "persona file edited" to
+  "container escape." **6 of 10 are detected today on real telemetry** (file
+  drift, provenance, execve, argv-based secret reads, connect/egress, argv-based
+  persistence). **2 are half-wired** — a rule or schema exists with no live feed
+  (`net.new_listener`, `scope.change`). **2 are named gaps** (uid→name
+  attribution, container-runtime events).
+- **The key finding:** none of the gaps are architectural. Every source
+  implements one interface — `Source.Actions() ([]Event, error)`. Closing a gap
+  is adding a file, not touching the engine, timeline, spool, central, or tests.
+  That validates the brief's "integrate existing telemetry, own the rules layer"
+  lean: auditd carried execve AND connect with zero engine change.
+- **Gap register G1–G6 + roadmap R1–R6,** each with owner and priority. Quiet
+  risk surfaced: detection is strong but *attribution* is best-effort numeric
+  (`uid:1000`) — an alert naming a uid reads as unfinished to a human operator.
+  Two blind spots (managed/cloud agents; container-runtime events) are called
+  out to be **documented in the README, not hidden.**
+- **Next concrete adapter:** R4 (central-side uid→name resolution, trivial) then
+  R1 (auditd `bind`/`listen` → turns the existing `net.new_listener` rule from
+  dead code into a live detection). R2 (eBPF `file.access`) is the strategic bet
+  — its own phase, not a heartbeat step.
+- **Also:** linked the new doc from `PHASE0-DISCOVERY.md` (now marked as the
+  original, pre-code pass) and from the README.
+- **Blocking:** same — repo access + NAME (access was slated for today, Sept 28).

@@ -6,6 +6,13 @@
 **Owner:** Vivi (Software Developer)
 **Repo:** GitHub access expected Sept 28, 2026 — PUBLIC, Apache-2.0
 
+> **Update (Sept 28):** the engine is now functionally complete, so discovery
+> was re-run *against the code* rather than against a guess. The result is
+> [`PHASE0-COVERAGE.md`](PHASE0-COVERAGE.md) — a forced-action coverage matrix,
+> a gap register (G1–G6), and a prioritised adapter roadmap (R1–R6). Read that
+> for the current state; this file is the original, pre-code pass and is kept
+> for how the architecture was decided.
+
 ---
 
 ## Purpose

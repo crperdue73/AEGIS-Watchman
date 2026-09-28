@@ -63,7 +63,9 @@ exactly: signatures name the payload, good rule engines name the intent.
       └─────────────────────────────────┘
 ```
 
-Details: [`PHASE0-DISCOVERY.md`](PHASE0-DISCOVERY.md).
+Details: [`PHASE0-DISCOVERY.md`](PHASE0-DISCOVERY.md) (the original design pass)
+and [`PHASE0-COVERAGE.md`](PHASE0-COVERAGE.md) (what is covered today, what is
+not, and the adapter roadmap).
 
 ## Status
 
