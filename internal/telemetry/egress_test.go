@@ -123,6 +123,76 @@ type=SOCKADDR msg=audit(1790597003.200:971): saddr=020001bb037881e2
 	}
 }
 
+// TestFileSourceCursorResumesAcrossRestart proves a restarted tail does not
+// replay the log — without this, every restart re-fires the rules its retained
+// lines still match.
+func TestFileSourceCursorResumesAcrossRestart(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/audit.log"
+	cursor := dir + "/audit.cursor"
+	if err := os.WriteFile(path, []byte(connectChain), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// First tail reads both frames and records its offset.
+	s1 := NewFileSource(path)
+	s1.SetCursor(cursor)
+	evs, err := s1.Actions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evs) != 2 {
+		t.Fatalf("first pass = %d events, want 2", len(evs))
+	}
+
+	// Second tail over the same file, same cursor: nothing new, no replay.
+	s2 := NewFileSource(path)
+	s2.SetCursor(cursor)
+	evs, err = s2.Actions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evs) != 0 {
+		t.Fatalf("restart replayed %d events, want 0", len(evs))
+	}
+
+	// Appending more is then seen exactly once.
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString(connectChain); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	s3 := NewFileSource(path)
+	s3.SetCursor(cursor)
+	evs, err = s3.Actions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evs) != 2 {
+		t.Fatalf("appended frames = %d, want 2", len(evs))
+	}
+}
+
+func TestFileSourceNoCursorReplays(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/audit.log"
+	if err := os.WriteFile(path, []byte(connectChain), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Without a cursor, a fresh source replays (the documented old behavior).
+	s := NewFileSource(path)
+	if evs, _ := s.Actions(); len(evs) != 2 {
+		t.Fatalf("first pass = %d, want 2", len(evs))
+	}
+	s2 := NewFileSource(path)
+	if evs, _ := s2.Actions(); len(evs) != 2 {
+		t.Fatalf("no-cursor restart = %d, want 2 (replay)", len(evs))
+	}
+}
+
 // TestFileSourceEmitsEgress proves the single-tail source now carries connect
 // records, which is what makes the correlation rule reachable on a live host.
 func TestFileSourceEmitsEgress(t *testing.T) {

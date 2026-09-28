@@ -2,8 +2,12 @@ package telemetry
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/CRPerdue/agentids/internal/rules"
@@ -90,22 +94,61 @@ func (e *Engine) Matches() ([]schema.Event, error) {
 	return out, nil
 }
 
-// FileSource reads an auditd log once and is exhausted. A production collector
-// would tail the file (offset tracking); for the first cut, reading the whole
-// file on each poll with a "seen offset" is out of scope and a re-read of an
-// unchanged file simply produces no new matches once dedup lands on central.
-//
-// To keep v1 honest and simple, FileSource reads from a starting offset and
-// remembers where it stopped, so repeated polls continue rather than replay.
+// FileSource tails an auditd log, remembering where it stopped so repeated
+// polls continue rather than replay. The offset can optionally be persisted to
+// disk (SetCursor), which makes it survive a collector restart too — without
+// that, a restart re-reads the whole audit log and re-fires every rule that its
+// retained lines still match. For a long audit log that is a flood of duplicate
+// alerts, so persistence is the difference between "at-least-once" and
+// "once-per-restart-and-growing".
 type FileSource struct {
 	path   string
 	offset int64
+	// cursor is an optional file where the offset is persisted after each read.
+	cursor string
 }
 
 // NewFileSource creates a source that tails an auditd-style log from its
 // current end. If the file does not exist, Actions returns an empty batch (a
 // host without auditd is not a collector error — it just has no Layer 3 input).
 func NewFileSource(path string) *FileSource { return &FileSource{path: path} }
+
+// SetCursor points the source at a small file where it persists its read
+// offset. The first call restores a prior offset if one is present, so a
+// restart resumes rather than replays.
+func (f *FileSource) SetCursor(path string) {
+	f.cursor = path
+	f.loadCursor()
+}
+
+// loadCursor restores the persisted offset, if any. A missing or unreadable
+// cursor is not an error: we start at 0 (replay) rather than refuse to run.
+func (f *FileSource) loadCursor() {
+	if f.cursor == "" {
+		return
+	}
+	b, err := os.ReadFile(f.cursor)
+	if err != nil {
+		return
+	}
+	var off int64
+	if _, err := fmt.Sscanf(strings.TrimSpace(string(b)), "%d", &off); err != nil {
+		return
+	}
+	if off > 0 {
+		f.offset = off
+	}
+}
+
+// saveCursor persists the current offset. Best-effort: a failure to record the
+// cursor costs at most a replay on the next restart, never a missed action.
+func (f *FileSource) saveCursor() {
+	if f.cursor == "" {
+		return
+	}
+	_ = os.MkdirAll(filepath.Dir(f.cursor), 0o750)
+	_ = os.WriteFile(f.cursor, []byte(strconv.FormatInt(f.offset, 10)), 0o640)
+}
 
 // Actions reads new bytes since the last call and returns the actions they
 // encode. Unparsable or incomplete trailing lines are left for the next poll
@@ -155,6 +198,7 @@ func (f *FileSource) Actions() ([]Event, error) {
 	}
 	complete := buf[:lastNL+1]
 	f.offset += int64(len(complete))
+	f.saveCursor()
 
 	recs, err := ParseAuditStream(bytes.NewReader(complete))
 	if err != nil {

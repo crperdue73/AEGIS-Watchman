@@ -599,3 +599,43 @@
   `auditd -S connect` rule into the deploy notes so operators actually enable
   the source.
 - **Blocking:** same — repo access + NAME. (Access was slated for today, Sept 28.)
+
+## 2026-09-28 (Mon), ~12:35 ET — Heartbeat 18
+- **Durable action spool + restart-safe reading.** Until now a rule match was
+  shipped best-effort and dropped if central was down — fine for a debug line,
+  unacceptable for a CRITICAL exfil finding. A match is the one thing in this
+  system you cannot afford to lose.
+- **`internal/collector/spool.go`:** an append-only JSONL backlog. Every match is
+  written to disk and `fsync`'d BEFORE the network call, and removed only once
+  central accepts it. The spool is the single submission path (append → drain),
+  so there is no separate direct-send branch that could double-deliver. Draining
+  stops at the first failure, preserving order and nothing else. Crash-safe by
+  construction: appends can only tear the FINAL line (discarded on read), and
+  truncation is a temp-file + rename.
+- **Bounded:** `spool_max_bytes` (default 16 MiB) drops the OLDEST entries past
+  the cap — a home for the newest evidence beats a home for all of it. A
+  malformed line is dropped, never allowed to wedge the backlog.
+- **Restart-safe reads (`FileSource.SetCursor`):** a real bug caught by the live
+  e2e, not a unit test. The tail began at offset 0 on every process start, so a
+  collector RESTART re-read its whole audit log and re-fired every rule its
+  retained lines still matched — a growing duplicate flood. The read offset is
+  now persisted (derived as `<spool>.cursor`, so a deployment that configured
+  durability for shipping gets restart-safety free). Verified: with a cursor, a
+  second run is silent; without one, it replays (documented old behavior).
+- **Verification:** gofmt + vet clean; **148/148 tests pass** (+9: spool
+  disabled-no-op, append/drain round-trip, durability ACROSS a simulated
+  restart, drain-stops-at-first-failure with order preserved, malformed-line
+  drop, trim-drops-oldest-keeps-newest, engine-spools-then-ships-on-recovery,
+  and cursor resume-vs-replay).
+- **Live e2e (real binaries):** collector run with central DOWN → rule matches
+  land in the spool (`drain paused at 0/1: connection refused`); start central →
+  next run ships the backlog exactly once (`shipped 2 spooled events`, one
+  ALERT); a third run is silent (cursor). Durable at-least-once, no duplicate
+  storm.
+- **Deploy note:** `examples/collector.yaml` now documents the auditd rule to
+  enable the source (`-S execve` + `-S connect`) and the spool/cursor knobs.
+- **Next step (heartbeat 19):** a Layer 3 e2e/integration test in-repo that
+  exercises the whole path (audit stream → rules → spool → central) under
+  `go test`, so the live script becomes a regression test. Then start the
+  PHASE0-DISCOVERY checklist fresh against the now-complete engine.
+- **Blocking:** same — repo access + NAME. (Access was slated for today, Sept 28.)

@@ -27,6 +27,7 @@ type BehaviorEngine struct {
 	host      schema.Host
 	agent     schema.Agent
 	timeline  *rules.Timeline
+	spool     *Spool
 }
 
 // NewBehaviorEngine loads rule packs from cfg.Behavior.RulesDir and returns an
@@ -46,6 +47,9 @@ func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submi
 	eng := rules.NewEngine(packs...)
 	tl := rules.NewTimeline()
 	src := telemetry.NewFileSource(cfg.Behavior.AuditLog)
+	if cur := cursorPath(cfg); cur != "" {
+		src.SetCursor(cur)
+	}
 	a := schema.Agent{}
 	if agent != nil {
 		a = *agent
@@ -56,7 +60,23 @@ func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submi
 		host:      host,
 		agent:     a,
 		timeline:  tl,
+		spool:     NewSpool(cfg.Behavior.Spool, cfg.Behavior.SpoolMaxBytes),
 	}, nil
+}
+
+// cursorPath resolves the audit-log offset cursor path: the explicit
+// behavior.cursor if set, else derived beside the spool, else empty (no
+// persistence). Deriving it from the spool means a deployment that already
+// configured durability for shipping also gets restart-safe reading, with no
+// extra knob.
+func cursorPath(cfg *Config) string {
+	if cfg.Behavior.Cursor != "" {
+		return cfg.Behavior.Cursor
+	}
+	if cfg.Behavior.Spool != "" {
+		return cfg.Behavior.Spool + ".cursor"
+	}
+	return ""
 }
 
 // ObserveDrift feeds Layer 1/2 file events into the timeline so correlation
@@ -77,9 +97,11 @@ func (b *BehaviorEngine) ObserveDrift(events []schema.Event) {
 // and ships the batch to central. Returning the events (rather than only
 // logging) keeps this usable from tests and from a future local-only mode.
 //
-// Shipping is best-effort relative to the log: a central outage logs a warning
-// and drops the batch rather than blocking the collector's file cycle. A
-// durable spool is a later hardening step; for v1 the log line is the record.
+// Shipping is durable: every match is spooled to disk BEFORE any network call,
+// and removed only once central accepts it. A central outage therefore costs
+// latency, not evidence — whatever did not ship rides the next cycle. The spool
+// is the single submission path (append, then drain), so there is no separate
+// direct-send branch that could double-deliver.
 func (b *BehaviorEngine) Poll() []schema.Event {
 	if b == nil {
 		return nil
@@ -92,25 +114,50 @@ func (b *BehaviorEngine) Poll() []schema.Event {
 		log.Printf("collector: behavior poll: %v", err)
 		return nil
 	}
-	if len(events) == 0 {
-		return nil
-	}
-	for _, ev := range events {
-		id := ""
-		if ev.Rule != nil {
-			id = ev.Rule.ID
+	if len(events) > 0 {
+		for _, ev := range events {
+			id := ""
+			if ev.Rule != nil {
+				id = ev.Rule.ID
+			}
+			log.Printf("collector: RULE %s %s (severity=%s)", ev.Action.Type, id, ev.Severity)
 		}
-		log.Printf("collector: RULE %s %s (severity=%s)", ev.Action.Type, id, ev.Severity)
-	}
-	if b.submitter != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		defer cancel()
-		if err := b.submitter.SubmitActions(ctx, ActionsRequest{
-			Host: b.host, Agent: b.agent, Events: events,
-		}); err != nil {
-			log.Printf("collector: submit actions (%d): %v", len(events), err)
+		if b.spool.Enabled() {
+			if err := b.spool.Append(b.host, b.agent, events); err != nil {
+				// A spool failure is loud: it means the durability guarantee is broken.
+				log.Printf("collector: spool append (%d events): %v", len(events), err)
+			}
+		} else if b.submitter != nil {
+			// No spool configured: ship best-effort (no durability, but shipping
+			// still happens so a dev setup behaves like production minus the disk).
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			if err := b.submitter.SubmitActions(ctx, ActionsRequest{Host: b.host, Agent: b.agent, Events: events}); err != nil {
+				log.Printf("collector: submit actions (%d): %v", len(events), err)
+			}
+			cancel()
 		}
 	}
+	// Drain ships this cycle's batch plus any backlog, stopping at the first
+	// failure so nothing is lost when central is unreachable.
+	b.drain()
 	return events
+}
+
+// drain flushes spooled batches to central, stopping at the first failure.
+func (b *BehaviorEngine) drain() {
+	if b == nil || b.submitter == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	n, err := b.spool.Drain(ctx, func(ctx context.Context, req ActionsRequest) error {
+		return b.submitter.SubmitActions(ctx, req)
+	})
+	if err != nil {
+		log.Printf("collector: spool drain: %v", err)
+		return
+	}
+	if n > 0 {
+		log.Printf("collector: shipped %d spooled events", n)
+	}
 }

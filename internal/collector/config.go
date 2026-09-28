@@ -30,6 +30,18 @@ type Behavior struct {
 	// /var/log/audit/audit.log. Empty -> no telemetry source (rules loaded but
 	// idle, useful for validating a pack without a live feed).
 	AuditLog string `yaml:"audit_log"`
+	// Spool is a file path where unmatched rule matches are durably queued
+	// before shipping, so a central outage costs latency, not evidence. Empty
+	// -> no spool (matches are shipped best-effort and dropped on failure).
+	Spool string `yaml:"spool"`
+	// SpoolMaxBytes bounds the spool file; oldest entries are dropped past it.
+	// Zero -> DefaultSpoolMaxBytes (16 MiB).
+	SpoolMaxBytes int64 `yaml:"spool_max_bytes"`
+	// Cursor persists the audit-log read offset so a collector restart resumes
+	// instead of replaying the whole log (which would re-fire every rule its
+	// retained lines still match). Empty -> derived as <spool>.cursor when a
+	// spool is set, else no persistence.
+	Cursor string `yaml:"cursor"`
 }
 
 // AgentRoot is one globbed agent workspace to inventory.

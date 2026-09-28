@@ -43,4 +43,18 @@ attribution:
 # the same alerting path as drift.
 behavior:
   rules_dir: /etc/agentids/rules   # *.yaml rule packs, loaded sorted by name
-  audit_log: /var/log/audit/audit.log   # execve source; empty = rules idle
+  audit_log: /var/log/audit/audit.log   # execve + connect source; empty = rules idle
+  # Durable spool: rule matches are queued here BEFORE shipping, so a central
+  # outage costs latency, not evidence. Recommended on any host you care about.
+  spool: /var/lib/agentids/spool.jsonl
+  spool_max_bytes: 16777216   # 16 MiB; oldest entries dropped past it
+
+# Enable the telemetry source with an auditd rule (only execve is on by
+# default). Drop this in /etc/audit/rules.d/agentids.rules and reload:
+#
+#   -a always,exit -F arch=b64 -S execve -k agentids
+#   -a always,exit -F arch=b64 -S connect -k agentids
+#   # ...plus the 32-bit variants on a mixed-arch host
+#
+# `augenrules --load` (or `service auditd restart`) to apply. Without the
+# connect line the collector still runs, but only process.exec fires.

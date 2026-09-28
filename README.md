@@ -99,17 +99,25 @@ Built so far:
   evadable by rewriting a baseline hash. Central verifies every ingest against
   the manifest for the agent's root; `manifests.require_approval` makes an agent
   with no manifest loud instead of silent.
-- **Layer 3 — behavior rules** (`internal/rules/` + `rules/`): a shareable
-  YAML rule pack (Snort model — `id`, `severity`, `technique`, a `match` block
-  over action fields) and a deterministic evaluator that turns matching actions
-  into `behavior.rule_match` events. The seed pack `rules/carbonato.yaml`
-  encodes the CARBONATO exfil chain: secret-store reads, SSH-key argv, chat/C2
-  egress, shell spawn, novel scope, and persistence.
+- **Layer 3 — behavior rules** (`internal/rules/` + `internal/telemetry/` +
+  `rules/`): a shareable YAML rule pack (Snort model — `id`, `severity`,
+  `technique`, a `match` block over action fields) and a deterministic evaluator
+  that turns matching actions into `behavior.rule_match` events. Telemetry
+  adapters read real host activity (auditd `execve` → `process.exec`, auditd
+  `connect` → `net.egress`) so rules match what an agent *does*, not just what a
+  file looks like. The seed pack `rules/carbonato.yaml` (v2, 14 rules) encodes
+  the CARBONATO exfil chain — secret-store reads, SSH-key argv, chat/C2 egress,
+  shell spawn, novel scope, persistence — including two **correlation rules**
+  decided against a per-host timeline, e.g. an outbound call within 5m of an
+  identity-file change. Matches ship to central's `/api/v1/actions` and, when a
+  `behavior.spool` path is set, are queued on disk first so a central outage
+  costs latency, never evidence.
 
 The public event schema stays additive-only across all of this.
 
-**Next** — Layer 2 (provenance/attestation) and the Layer 3 rules engine, plus
-mTLS on the collector→central hop and a fleet view.
+**Next** — a durable fleet view on central plus a second telemetry adapter
+(eBPF) so `file.access` / `scope.change` come from the kernel instead of the
+control plane.
 
 ## Event schema
 
@@ -129,8 +137,6 @@ internal/mtls/      mutual-TLS config loaders (shared by both ends)
 internal/provenance/ Layer 2 signed approval manifests + verification
 internal/rules/     Layer 3 rule format, parser, and action-matching engine
 rules/              published rule packs (carbonato.yaml seed pack)
-internal/rules/     Layer 3 rule format + engine
-rules/              example rule packs
 deploy/docker/      collector + central containers
 docs/               architecture + schema docs
 examples/           sample collector + central config, sample events
