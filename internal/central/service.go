@@ -28,6 +28,9 @@ type Service struct {
 	// on record, every reported file fires provenance.untrusted instead of being
 	// silently ignored. Off by default so an un-migrated fleet is not drowned.
 	RequireApproval bool
+	// uids resolves numeric actor uids to usernames at alert time. Nil (or a
+	// disabled resolver) leaves uids numeric.
+	uids *UidResolver
 }
 
 // Logger is the minimal logging surface config wiring needs, so callers can
@@ -49,6 +52,23 @@ func (s *Service) SetLogger(l *log.Logger) { s.logger = l }
 
 // SetManifests installs the Layer 2 manifest registry. Nil disables Layer 2.
 func (s *Service) SetManifests(r *ManifestRegistry) { s.manifests = r }
+
+// SetUidResolver installs the uid->name resolver applied to every event's actor
+// before alerting. Nil disables resolution (uids stay numeric).
+func (s *Service) SetUidResolver(r *UidResolver) { s.uids = r }
+
+// resolveActors rewrites the actor on each event so a numeric uid carries its
+// username where known. No-op when no resolver is installed. Applied to both
+// ingest paths at the one point every event passes through on its way to an
+// alert, so no sink has to know about uid mapping.
+func (s *Service) resolveActors(events []schema.Event) {
+	if s.uids == nil || !s.uids.Enabled() {
+		return
+	}
+	for i := range events {
+		s.uids.Apply(&events[i])
+	}
+}
 
 // IngestResult is what a collector gets back for one inventory submission.
 type IngestResult struct {
@@ -100,6 +120,7 @@ func (s *Service) Ingest(ctx context.Context, host schema.Host, agent schema.Age
 	// new baseline. Delivery failures are logged, never fatal: the collector
 	// still gets its events, and the store is already correct.
 	if s.alerter != nil && len(events) > 0 {
+		s.resolveActors(events)
 		s.alert(ctx, host, agent, events)
 	}
 
@@ -142,6 +163,7 @@ func (s *Service) IngestActions(ctx context.Context, host schema.Host, agent sch
 		return 0, nil
 	}
 	if s.alerter != nil {
+		s.resolveActors(accepted)
 		s.alert(ctx, host, agent, accepted)
 	}
 	return len(accepted), nil

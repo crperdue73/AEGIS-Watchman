@@ -26,6 +26,10 @@ type Config struct {
 	// Manifests configures Layer 2 provenance/attestation.
 	Manifests Manifests `yaml:"manifests"`
 
+	// UidMap points at a passwd-style file used to resolve numeric uids in
+	// alerts to usernames. Empty disables resolution (uids stay numeric).
+	UidMap string `yaml:"uid_map"`
+
 	Alerts Alerts `yaml:"alerts"`
 }
 
@@ -127,6 +131,21 @@ func (c Config) validate() error {
 		return fmt.Errorf("config: manifests.trust_keys set but manifests.dir is empty")
 	}
 	return nil
+}
+
+// UidResolverFn builds the uid->name resolver described by the config, or a
+// disabled resolver (nil-behaving) when no map is configured. A configured map
+// that cannot be read is an error: the operator asked for names, so silently
+// falling back to numerics would hide a real misconfiguration.
+func (c Config) UidResolverFn() (*UidResolver, error) {
+	if c.UidMap == "" {
+		return NewUidResolver(nil), nil
+	}
+	m, err := LoadUidMapFromPasswd(c.UidMap)
+	if err != nil {
+		return nil, err
+	}
+	return NewUidResolver(m), nil
 }
 
 // ManifestRegistryFn builds the Layer 2 registry described by the config, or nil

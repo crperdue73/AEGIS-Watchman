@@ -97,14 +97,12 @@ remaining work is adapter work, not architecture work.**
 Each gap gets an ID, an owner layer, and a priority. Priority is value ÷ cost,
 biased toward what the brief calls out as the *reason the tool exists*.
 
-### G1 — Actor attribution is best-effort numeric, not resolved
-- **What's missing:** `Actor.User` is `"uid:1000"` (see `AuditRecord.user()`),
-  not a name. Human-readable attribution ("the deploy user changed SOUL.md")
-  needs either `/etc/passwd` resolution at central, or auditd's `auid` mapped.
-- **Why it matters:** the brief's Layer 1 value prop is *"attributed to a host
-  and a user."* A numeric uid is a host; it barely qualifies as a user.
-- **Priority:** HIGH (cheap). Resolve at central, from an ingested passwd map or
-  the event's `auid`. Does not touch the collector hot path.
+### G1 — Actor attribution — ✅ CLOSED (R4, Sept 28)
+- **Was:** `Actor.User` was `"uid:1000"`, not a name. The brief's Layer 1 value
+  prop is *"attributed to a host and a user"* — a numeric uid is barely a user.
+- **Fix:** central-side `UidResolver` (`internal/central/uidmap.go`) maps a
+  passwd-style `uid_map` to names at ingest, applied to every event before
+  alerting. Best-effort: unknown uids stay numeric; the id is always kept.
 - **Owner:** central.
 
 ### G2 — Listener/bind telemetry — ✅ CLOSED (R1, Sept 28)
@@ -166,7 +164,7 @@ existing one) — no engine work.
 | **R1** | auditd `bind`/`listen` → `net.listen` action | G2 | auditd (already enabled if `-S connect` is) | ✅ DONE |
 | **R2** | eBPF `file.access` (open/openat on secret paths) | G3, A5, A8 | eBPF, kernel-level | HIGH |
 | **R3** | Docker events adapter (privileged + host-mount detection) | G4, A9 | `docker events` stream | MEDIUM |
-| **R4** | central-side uid→name resolution | G1 | ingested passwd map / `auid` | LOW |
+| **R4** | central-side uid→name resolution | G1 | passwd-style `uid_map` file | ✅ DONE |
 | **R5** | agent control-plane shim → `scope.change` | G5, A10 | agent-native log | MEDIUM |
 | **R6** | README "known blind spots" section | G6 | docs | LOW |
 
@@ -199,6 +197,8 @@ a heartbeat step.
 ---
 
 ## Log
+- **2026-09-28** — **R4 done.** G1 closed: uid→name at ingest (`uid_map`).
+  Alerts now name a person, not `uid:1000`. Next: re-scope R2 (eBPF).
 - **2026-09-28** — **R1 done.** G2 closed: auditd `bind`/`listen` → `net.listen`
   action, rule `carbonato.net.listener_bound` (pack v3). Matrix moves 6/10 →
   7/10 detected. Next: R4 (uid→name).

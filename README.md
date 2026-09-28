@@ -106,14 +106,18 @@ Built so far:
   `technique`, a `match` block over action fields) and a deterministic evaluator
   that turns matching actions into `behavior.rule_match` events. Telemetry
   adapters read real host activity (auditd `execve` → `process.exec`, auditd
-  `connect` → `net.egress`) so rules match what an agent *does*, not just what a
-  file looks like. The seed pack `rules/carbonato.yaml` (v3, 15 rules) encodes
+  `connect` → `net.egress`, auditd `bind`/`listen` → `net.listen`) so rules
+  match what an agent *does*, not just what a file looks like. The seed pack `rules/carbonato.yaml` (v3, 15 rules) encodes
   the CARBONATO exfil chain — secret-store reads, SSH-key argv, chat/C2 egress,
   shell spawn, novel scope, persistence — including two **correlation rules**
   decided against a per-host timeline, e.g. an outbound call within 5m of an
   identity-file change. Matches ship to central's `/api/v1/actions` and, when a
   `behavior.spool` path is set, are queued on disk first so a central outage
   costs latency, never evidence.
+- **Alert readability** — central resolves numeric actor uids to usernames at
+  ingest (`uid_map`, a passwd-style file), so an alert names a person
+  (`user=deploy uid=1000`) instead of `uid:1000`. Best-effort: an unknown uid
+  stays numeric, and the numeric id is always preserved alongside the name.
 
 The public event schema stays additive-only across all of this.
 

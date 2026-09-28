@@ -34,6 +34,13 @@ manifests:
   # fleet is not drowned in alerts during rollout.
   require_approval: false
 
+# uid_map — resolve numeric actor uids to usernames in alerts. Points at a
+# passwd-style file (name:passwd:uid:gid:...); auditd gives us a uid, this names
+# it. Resolution is best-effort: an unknown uid stays numeric, because a wrong
+# name is worse than no name. Point this at a copy of /etc/passwd from the
+# fleet's base image. Omit to leave uids numeric.
+uid_map: /etc/agentids/passwd
+
 alerts:
   # Any HTTP endpoint that accepts a JSON POST. Slack incoming webhooks,
   # PagerDuty Events API v2, a ticket bot, or a tiny shell receiver.

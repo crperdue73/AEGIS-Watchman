@@ -62,6 +62,14 @@ func main() {
 	} else {
 		log.Printf("agentids-central: layer 2 provenance disabled (no manifests.dir)")
 	}
+	if uids, err := cfg.UidResolverFn(); err != nil {
+		log.Fatalf("agentids-central: %v", err)
+	} else {
+		svc.SetUidResolver(uids)
+		if uids.Enabled() {
+			log.Printf("agentids-central: uid->name resolution enabled (map=%s)", cfg.UidMap)
+		}
+	}
 	if a := cfg.Alerter(log.Default()); a != nil {
 		svc.SetAlerter(a)
 		if cfg.Alerts.Webhook != "" {

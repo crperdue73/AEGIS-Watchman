@@ -727,3 +727,39 @@
   alerts name a person, not `uid:1000`. Then re-read `PHASE0-COVERAGE.md` and
   tick A7 (listener) off the gap list.
 - **Blocking:** same — repo access + NAME (access was slated for today, Sept 28).
+
+## 2026-09-28 (Mon), ~16:30 ET — Heartbeat 22
+- **R4 landed: uid→name resolution at central.** The last named gap on the
+  *attribution* axis, and the one I called the "quiet risk" this morning — the
+  tool was strong at detecting *what* happened and best-effort at *who* did it.
+  An alert that reads `uid:1000` instead of `user=deploy` looks unfinished to a
+  human operator, and the brief's Layer 1 value prop is "attributed to a host
+  and a user."
+- **`internal/central/uidmap.go`:** a `UidResolver` backed by a passwd-style map
+  (`LoadUidMapFromPasswd`), applied to every event's actor at ingest. Config knob
+  `uid_map: /etc/agentids/passwd`. Wired into both ingest paths at the single
+  point every event passes before alerting, so no sink (webhook/log/email) needs
+  to know about uid mapping.
+- **Design decisions that mattered:**
+  - **Central, not collector.** The collector hot path stays dependency-free and
+    can't fail because /etc/passwd was unreadable at event time. One passwd file
+    describes a fleet instead of one per host.
+  - **Best-effort by design.** An unknown uid stays numeric — a wrong name is
+    worse than no name, and a missing name must never cost us the alert.
+  - **Name alongside id, never instead of it.** The numeric uid is ground truth
+    and survives; a username can be reassigned.
+  - **Configured-but-unreadable map is fatal at startup** (the operator asked
+    for names; silently falling back to numerics would hide the misconfig).
+    No map configured = resolver disabled, every uid stays numeric.
+- **Verification:** gofmt + vet clean; **173 tests pass** (+9: resolve/unknown,
+  nil-resolver safety, name-keeps-uid, unknown-stays-numeric, nil-actor safety,
+  passwd parse with comments/malformed lines, missing-file error, and two
+  end-to-end ingest tests through the real alerter with and without a resolver).
+- **`examples/central.yaml`:** `uid_map` documented.
+- **Gap register:** G1 CLOSED. Matrix still 7/10 on forced *actions* (attribution
+  is orthogonal to action coverage), but the "quiet risk" is retired.
+- **Next step (heartbeat 23):** no high-value cheap adapter left. Re-scope R2
+  (eBPF `file.access`/`open` on secret paths) as its own phase — design the
+  adapter interface extension (eBPF source behind `telemetry.Source`, graceful
+  fallback to auditd) before writing kernel code. Then R3 (Docker events).
+- **Blocking:** same — repo access + NAME (access was slated for today, Sept 28).
