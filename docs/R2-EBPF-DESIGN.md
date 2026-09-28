@@ -171,7 +171,35 @@ eBPF object never lands. Recommended next step (heartbeat 23): R2.0.
 
 ---
 
+## Environment probe (this host, Sept 28)
+
+Before writing R2.2, checked whether this host could build and load an eBPF
+object:
+
+| Check | Result |
+|---|---|
+| Kernel | 6.12.85 (≥ 5.8, so ringbuf + CO-RE fine) |
+| BTF (`/sys/kernel/btf/vmlinux`) | present — CO-RE will work |
+| `CAP_BPF` / `CAP_PERFMON` | present in the bounding set |
+| `clang` | **absent** |
+| `bpftool` | **absent** |
+| libbpf headers (`bpf_helpers.h`) | **absent** |
+
+**Conclusion:** the kernel-side is ready, the toolchain is not. Building the
+CO-RE object needs `clang` + libbpf headers (a `apt install clang llvm
+libbpf-dev bpftool` class of change, and a root install). That is a heavier
+step than a heartbeat should take unilaterally on a shared box.
+
+**Decision:** do **R2.3 (deploy docs)** next — it needs no kernel and no
+toolchain, and it is the artifact an operator needs *regardless* of when R2.2
+lands. Then proceed to **R3 (Docker events)**, also kernel-free, and leave R2.2
+for a host with the toolchain available (or an explicit go-ahead to install it).
+This keeps every heartbeat shipping something real without a risky install.
+
 ## Log
+- **2026-09-28** — Environment probed: kernel + BTF + CAP_BPF ready, clang /
+  bpftool / libbpf headers absent. R2.2 (the object) is blocked on a toolchain
+  install; R2.3 (deploy docs) and R3 (Docker events) are not.
 - **2026-09-28** — **R2.1 shipped.** `EBPFConfig` + `Validate` +
   `DefaultWatchPaths`; build-tagged stub (`!ebpf`) / entry point (`ebpf`); the
   disabled→(nil,nil), enabled-without-support→`ErrEBPFUnsupported` contract; and
