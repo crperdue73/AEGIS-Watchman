@@ -162,7 +162,7 @@ existing one) — no engine work.
 | # | Adapter | Closes | Source of truth | Cost |
 |---|---|---|---|---|
 | **R1** | auditd `bind`/`listen` → `net.listen` action | G2 | auditd (already enabled if `-S connect` is) | ✅ DONE |
-| **R2** | eBPF `file.access` (open/openat on secret paths) | G3, A5, A8 | eBPF, kernel-level | HIGH |
+| **R2** | eBPF `file.access` (open/openat on secret paths) | G3, A5, A8 | eBPF, kernel-level | HIGH — in progress: design + R2.0 (`MultiSource`) done, see `docs/R2-EBPF-DESIGN.md` |
 | **R3** | Docker events adapter (privileged + host-mount detection) | G4, A9 | `docker events` stream | MEDIUM |
 | **R4** | central-side uid→name resolution | G1 | passwd-style `uid_map` file | ✅ DONE |
 | **R5** | agent control-plane shim → `scope.change` | G5, A10 | agent-native log | MEDIUM |
@@ -197,6 +197,9 @@ a heartbeat step.
 ---
 
 ## Log
+- **2026-09-28** — **R2 scoped + R2.0 shipped.** Design doc `docs/R2-EBPF-DESIGN.md`
+  (eBPF additive, collector degrades not fails); `MultiSource` built and wired
+  into the collector, no kernel needed. Next: R2.1 (build-tagged stub).
 - **2026-09-28** — **R4 done.** G1 closed: uid→name at ingest (`uid_map`).
   Alerts now name a person, not `uid:1000`. Next: re-scope R2 (eBPF).
 - **2026-09-28** — **R1 done.** G2 closed: auditd `bind`/`listen` → `net.listen`

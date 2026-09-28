@@ -46,10 +46,15 @@ func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submi
 	}
 	eng := rules.NewEngine(packs...)
 	tl := rules.NewTimeline()
-	src := telemetry.NewFileSource(cfg.Behavior.AuditLog)
+	// Compose telemetry sources through a MultiSource so a second backend (the
+	// eBPF file.access adapter, docs/R2-EBPF-DESIGN.md) can be added here without
+	// the collector or engine changing. Today it carries the auditd tail alone;
+	// a host whose kernel can't load the eBPF object simply stays at one child.
+	auditSrc := telemetry.NewFileSource(cfg.Behavior.AuditLog)
 	if cur := cursorPath(cfg); cur != "" {
-		src.SetCursor(cur)
+		auditSrc.SetCursor(cur)
 	}
+	src := telemetry.NewMultiSource(auditSrc)
 	a := schema.Agent{}
 	if agent != nil {
 		a = *agent

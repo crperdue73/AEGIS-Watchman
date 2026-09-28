@@ -123,7 +123,10 @@ The public event schema stays additive-only across all of this.
 
 **Next** — a durable fleet view on central plus a second telemetry adapter
 (eBPF) so `file.access` / `scope.change` come from the kernel instead of the
-control plane.
+control plane. The eBPF adapter is scoped in
+[`docs/R2-EBPF-DESIGN.md`](docs/R2-EBPF-DESIGN.md); its first, kernel-free piece
+(`MultiSource`, the seam that lets eBPF sit alongside auditd without the
+collector learning about either) is already built and wired.
 
 ## Event schema
 

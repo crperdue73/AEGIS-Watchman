@@ -763,3 +763,36 @@
   adapter interface extension (eBPF source behind `telemetry.Source`, graceful
   fallback to auditd) before writing kernel code. Then R3 (Docker events).
 - **Blocking:** same — repo access + NAME (access was slated for today, Sept 28).
+
+## 2026-09-28 (Mon), ~17:30 ET — Heartbeat 23
+- **R2 scoped as its own phase, then R2.0 shipped.** Two things this hour: a
+  design doc for the eBPF `file.access` adapter (the strategic bet), and the one
+  piece of it that needs no kernel — built and wired.
+- **`docs/R2-EBPF-DESIGN.md`:** the last high-value gap (G3 — no kernel
+  file-access telemetry). The rule, the schema, and the pack entry for
+  `file.access` already exist; only the source is missing. Seven decisions
+  (D1–D7) fixing the two that shape everything: **eBPF is additive, never a
+  replacement** (heterogeneous fleet, modern kernel + CAP_BPF not guaranteed),
+  and **the collector must degrade, not fail** (a source that can't load logs
+  one line and the host keeps running). Program hooks `sys_enter_openat`/
+  `openat2`, filters secret-path prefixes in-kernel, resolves the path in
+  userspace (a wrong path is worse than none), compile-tagged `//go:build linux
+  && ebpf` so a stock checkout builds anywhere. Deliverable order R2.0–R2.4;
+  **R2.0 needs no kernel.**
+- **R2.0 shipped: `internal/telemetry/multi.go` — `MultiSource`.** Composes N
+  sources into one `Source`, concatenating batches in child order. A failing
+  child is logged and skipped, never fatal — one blind backend must not blind
+  the rest; if *every* child fails it summarises into one error. Nil children
+  dropped, so an optional source can be passed unconditionally.
+- **Wired live:** `NewBehaviorEngine` now builds its source through a
+  `MultiSource` (auditd tail as the first child), so the eBPF adapter slots in
+  with no change to the collector or engine. Not indirection for its own sake —
+  it is the seam D1/D6 require, and it makes the type real, not speculative.
+- **Verification:** gofmt + vet clean; **179 tests pass** (+6: concatenation +
+  order, skip-failing-child, all-fail-summarises, nil-dropped, Add chaining,
+  empty-is-no-op).
+- **Next step (heartbeat 24):** **R2.1** — `EBPFConfig`, the non-tagged stub
+  `NewEBPFSource` returning `ErrEBPFUnsupported`, and config wiring, so a
+  misconfigured host gets a clear log line and the build never grows a clang
+  dependency. Still no kernel needed.
+- **Blocking:** same — repo access + NAME (access was slated for today, Sept 28).
