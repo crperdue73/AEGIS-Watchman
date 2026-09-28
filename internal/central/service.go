@@ -113,6 +113,40 @@ func (s *Service) alert(ctx context.Context, host schema.Host, agent schema.Agen
 	}
 }
 
+// IngestActions accepts Layer 3 behavior events (behavior.rule_match) from a
+// collector's action telemetry and alerts on them through the same pipeline as
+// drift. Unlike Ingest, there is no baseline to store or diff — these are
+// already-decided events — so the only work is validation and alerting.
+//
+// The events are stamped with the submitting host/agent if they arrive without
+// one, so an alert is always attributable even if a collector forgot.
+func (s *Service) IngestActions(ctx context.Context, host schema.Host, agent schema.Agent, events []schema.Event) (int, error) {
+	if len(events) == 0 {
+		return 0, nil
+	}
+	accepted := make([]schema.Event, 0, len(events))
+	for _, ev := range events {
+		if ev.Event == "" {
+			continue // not an event; drop rather than alert on garbage
+		}
+		if ev.Host.ID == "" {
+			ev.Host = host
+		}
+		if ev.Agent == nil && agent.ID != "" {
+			a := agent
+			ev.Agent = &a
+		}
+		accepted = append(accepted, ev)
+	}
+	if len(accepted) == 0 {
+		return 0, nil
+	}
+	if s.alerter != nil {
+		s.alert(ctx, host, agent, accepted)
+	}
+	return len(accepted), nil
+}
+
 func pathOf(e schema.Event) string {
 	if e.File != nil {
 		return e.File.Path

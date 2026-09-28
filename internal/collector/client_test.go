@@ -10,59 +10,69 @@ import (
 	"github.com/CRPerdue/agentids/internal/schema"
 )
 
-func TestClientSubmit(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			t.Errorf("method = %s", r.Method)
-		}
-		if r.Header.Get("Content-Type") != "application/json" {
-			t.Errorf("content-type = %q", r.Header.Get("Content-Type"))
-		}
-		var req InventoryRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			t.Errorf("decode: %v", err)
-		}
-		if req.Host.ID != "h-1" {
-			t.Errorf("host id = %q", req.Host.ID)
-		}
-		w.WriteHeader(http.StatusAccepted)
-		_ = json.NewEncoder(w).Encode(IngestResult{
-			FirstSeen: false,
-			Events: []schema.Event{{
-				Schema:   schema.Version,
-				Event:    schema.EventIdentityDrift,
-				Severity: schema.SeverityHigh,
-			}},
-		})
-	}))
-	defer srv.Close()
-
-	c := NewClient(srv.URL)
-	res, err := c.Submit(context.Background(), InventoryRequest{
-		Host:  schema.Host{ID: "h-1"},
-		Agent: schema.Agent{ID: "a-1", Root: "/x"},
-		Inv:   &Inventory{Root: "/x", Files: []FileState{{Path: "SOUL.md", SHA256: "aaa", Size: 1}}},
-	})
-	if err != nil {
-		t.Fatalf("Submit: %v", err)
+func TestActionsEndpoint(t *testing.T) {
+	cases := map[string]string{
+		"http://h:8080/api/v1/events": "http://h:8080/api/v1/actions",
+		"https://h/api/v1/events":     "https://h/api/v1/actions",
+		"http://h:8080/custom":        "http://h:8080/custom",
 	}
-	if len(res.Events) != 1 || res.Events[0].Severity != schema.SeverityHigh {
-		t.Errorf("unexpected result: %+v", res)
+	for in, want := range cases {
+		c := &Client{Endpoint: in}
+		if got := c.ActionsEndpoint(); got != want {
+			t.Errorf("ActionsEndpoint(%q) = %q, want %q", in, got, want)
+		}
 	}
 }
 
-func TestClientSubmitErrorsOnNon2xx(t *testing.T) {
+func TestSubmitActions(t *testing.T) {
+	var gotPath string
+	var gotBody ActionsRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"accepted":1}`))
+	}))
+	defer srv.Close()
+
+	c := &Client{Endpoint: srv.URL + "/api/v1/events", HTTP: srv.Client()}
+	ev := schema.Event{Event: schema.EventBehaviorRuleMatch, Host: schema.Host{ID: "h1"}}
+	if err := c.SubmitActions(context.Background(), ActionsRequest{
+		Host: schema.Host{ID: "h1"}, Agent: schema.Agent{ID: "a1"}, Events: []schema.Event{ev},
+	}); err != nil {
+		t.Fatalf("SubmitActions: %v", err)
+	}
+	if gotPath != "/api/v1/actions" {
+		t.Errorf("path = %q, want /api/v1/actions", gotPath)
+	}
+	if len(gotBody.Events) != 1 || gotBody.Events[0].Event != schema.EventBehaviorRuleMatch {
+		t.Errorf("body events = %#v", gotBody.Events)
+	}
+}
+
+func TestSubmitActionsEmptyIsNoOp(t *testing.T) {
+	called := false
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true }))
+	defer srv.Close()
+	c := &Client{Endpoint: srv.URL + "/api/v1/events", HTTP: srv.Client()}
+	if err := c.SubmitActions(context.Background(), ActionsRequest{Host: schema.Host{ID: "h"}}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if called {
+		t.Error("empty batch should not hit the network")
+	}
+}
+
+func TestSubmitActionsServerError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer srv.Close()
-
-	c := NewClient(srv.URL)
-	_, err := c.Submit(context.Background(), InventoryRequest{
-		Host: schema.Host{ID: "h-1"},
-		Inv:  &Inventory{Root: "/x"},
+	c := &Client{Endpoint: srv.URL + "/api/v1/events", HTTP: srv.Client()}
+	err := c.SubmitActions(context.Background(), ActionsRequest{
+		Host: schema.Host{ID: "h"}, Events: []schema.Event{{Event: "x"}},
 	})
 	if err == nil {
-		t.Error("expected error on 500 response")
+		t.Error("expected error on 500")
 	}
 }

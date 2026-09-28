@@ -22,6 +22,16 @@ type InventoryRequest struct {
 	Inv   *collector.Inventory `json:"inventory"`
 }
 
+// ActionsRequest is the collector -> central submission body for Layer 3
+// behavior events. Separate from InventoryRequest because actions have no
+// inventory and no baseline — a collector may submit actions with no file
+// change at all (the whole point of matching behavior).
+type ActionsRequest struct {
+	Host   schema.Host    `json:"host"`
+	Agent  schema.Agent   `json:"agent"`
+	Events []schema.Event `json:"events"`
+}
+
 // Handler returns the central service's HTTP mux.
 func (s *Service) Handler() http.Handler {
 	mux := http.NewServeMux()
@@ -30,6 +40,7 @@ func (s *Service) Handler() http.Handler {
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 	mux.HandleFunc("/api/v1/events", s.handleIngest)
+	mux.HandleFunc("/api/v1/actions", s.handleActions)
 	return mux
 }
 
@@ -76,6 +87,51 @@ func (s *Service) handleIngest(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	_ = json.NewEncoder(w).Encode(result)
+}
+
+func (s *Service) handleActions(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxBodyBytes+1))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "unreadable body")
+		return
+	}
+	if len(body) > maxBodyBytes {
+		writeErr(w, http.StatusRequestEntityTooLarge, "body too large")
+		return
+	}
+
+	var req ActionsRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	if req.Host.ID == "" {
+		writeErr(w, http.StatusBadRequest, "missing host.id")
+		return
+	}
+	if len(req.Events) == 0 {
+		writeErr(w, http.StatusBadRequest, "missing events")
+		return
+	}
+
+	ctx, cancel := contextWithTimeout(r, 10*time.Second)
+	defer cancel()
+
+	n, err := s.IngestActions(ctx, req.Host, req.Agent, req.Events)
+	if err != nil {
+		log.Printf("central: actions ingest error: %v", err)
+		writeErr(w, http.StatusInternalServerError, "ingest failed")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	_ = json.NewEncoder(w).Encode(map[string]int{"accepted": n})
 }
 
 func writeErr(w http.ResponseWriter, code int, msg string) {

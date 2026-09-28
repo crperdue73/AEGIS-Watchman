@@ -25,19 +25,55 @@ type Alert struct {
 // Count returns the number of events in the alert.
 func (a Alert) Count() int { return len(a.Events) }
 
-// Summary renders a one-line human summary: "3 drifts on h-1:/root (max=high)".
+// Summary renders a one-line human summary.
+//
+//	"3 drift(s) on h-1:/root (max=high)"
+//	"2 rule match(es) on h-1:/root (max=critical)"
+//	"4 event(s) on h-1:/root (max=high)"   (mixed classes)
+//
+// Naming the class matters: a Layer 3 rule match is a different animal from a
+// file drift, and an operator triaging a page needs to know which they got.
 func (a Alert) Summary() string {
 	max := ""
+	classes := map[string]int{}
 	for _, e := range a.Events {
 		if severityRank(e.Severity) > severityRank(max) {
 			max = e.Severity
 		}
+		classes[e.Event]++
 	}
 	where := a.Host.ID
 	if a.Agent.Root != "" {
 		where = a.Host.ID + ":" + a.Agent.Root
 	}
-	return fmt.Sprintf("%d drift(s) on %s (max=%s)", len(a.Events), where, max)
+	return fmt.Sprintf("%d %s on %s (max=%s)", len(a.Events), eventNoun(classes, len(a.Events)), where, max)
+}
+
+// eventNoun returns a human noun for the alert's event classes: the single
+// class name when the batch is homogeneous, else the generic "event".
+func eventNoun(classes map[string]int, total int) string {
+	if len(classes) != 1 {
+		return plural(total, "event", "events")
+	}
+	for class := range classes {
+		switch class {
+		case schema.EventIdentityDrift:
+			return plural(total, "drift", "drifts")
+		case schema.EventProvenanceUntrusted:
+			return plural(total, "provenance alert", "provenance alerts")
+		case schema.EventBehaviorRuleMatch:
+			return plural(total, "rule match", "rule matches")
+		}
+	}
+	return plural(total, "event", "events")
+}
+
+// plural picks the singular or plural form for a count.
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 // Alerter delivers an Alert somewhere a human or system will see it. Implementations

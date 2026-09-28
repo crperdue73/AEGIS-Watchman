@@ -33,3 +33,14 @@ report:
 
 attribution:
   source: auditd       # optional; enables "who changed it". null = drift without actor.
+
+# Layer 3: behavior rules ("Snort for agents"). Rules match on ACTIONS, not
+# files — the CARBONATO edit is a file, but the theft that follows is an action,
+# and only a behavior rule names it. Omit this block (or leave rules_dir empty)
+# to run Layers 1/2 only.
+#
+# Matches ship to <report.endpoint with /events -> /actions> and page through
+# the same alerting path as drift.
+behavior:
+  rules_dir: /etc/agentids/rules   # *.yaml rule packs, loaded sorted by name
+  audit_log: /var/log/audit/audit.log   # execve source; empty = rules idle

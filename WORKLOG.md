@@ -474,3 +474,42 @@
   action events, or reuse the existing ingest), thread the collector's
   `Poll()` events into the alert pipeline so a rule match pages like a drift.
 - **Blocking:** same — repo access + NAME. (Access was slated for today, Sept 28.)
+
+## 2026-09-28 (Mon), ~09:35 ET — Heartbeat 15
+- **Layer 3 matches now reach the central service and page.** The telemetry from
+  heartbeat 14 stopped at the collector's log; this closes the loop.
+- **New ingest path `POST /api/v1/actions`.** Separate from `/api/v1/events`
+  because a behavior event has no inventory and no baseline — an agent can trip
+  a rule with no file changing at all, which is the entire point of Layer 3.
+  `Service.IngestActions` validates, stamps host/agent onto events that arrive
+  without them, drops nameless garbage, and alerts through the *same* pipeline
+  as drift. No baseline store touches this path.
+- **Collector side:** `Client.SubmitActions` + `ActionsEndpoint()` (rewrites the
+  final path segment `/events`→`/actions`, so host/port/base-path ride along and
+  a custom path is left alone), and a `BehaviorEngine` that now takes an
+  `ActionSubmitter`. Poll = evaluate → log → ship. Shipping is best-effort: a
+  central outage logs a warning and drops the batch rather than blocking the
+  file cycle. (A durable spool is a later hardening step; the log line is the
+  v1 record.)
+- **Real-world fix:** central's alert summary said "3 drift(s)" for a Layer 3
+  batch — a Layer 3 rule match is a different animal from a file drift and an
+  operator triaging a page needs to know which they got. `Alert.Summary` now
+  names the class ("3 rule matches", "1 drift", "2 events" when mixed). Caught
+  by the live e2e output, not by a unit test — worth remembering.
+- **Verification:** gofmt + vet clean; **122/122 tests pass** (+10: ActionsEndpoint
+  rewrite matrix, SubmitActions round-trip + empty-no-op + 5xx error, behavior
+  engine ships matches via a fake submitter + quiet-on-no-new-bytes + submit
+  error still returns events, IngestActions alerts + empty no-op + garbage drop,
+  HTTP actions round-trip + 405/400 rejection, alert-summary class naming).
+- **Live e2e (real binaries, central + collector):** central up with log alerts;
+  collector enrolls the agent, then a CARBONATO chain is appended to the audit
+  log; collector logs `RULE ... shell_spawn / ssh_key_heredoc /
+  persist.survives_session` and ships them; central logs
+  **`ALERT: 3 rule matches on debian:<root> (max=high)`**. The whole Layer 3
+  loop — telemetry → rules → central → page — works end to end.
+- **Next step (heartbeat 16):** rule pack v2 — grow the seed pack toward the
+  brief's ~20-30 rule target and add the Layer 2/3 tie-in rule ("identity file
+  changed within N minutes of an outbound call"), which needs a short per-host
+  action timeline in the engine. Also: a durable action spool so a central
+  outage doesn't drop matches.
+- **Blocking:** same — repo access + NAME. (Access was slated for today, Sept 28.)

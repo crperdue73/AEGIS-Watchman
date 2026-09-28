@@ -47,25 +47,6 @@ func main() {
 
 	host := resolveHost(*hostID, *hostName)
 
-	// Layer 3: action rules. One engine per agent root so a match is attributed
-	// to the agent it concerns; all share the same audit-log tail position since
-	// they read a single host-wide source. For v1 with a single agent root this
-	// is exactly right; multi-agent attribution needs a per-agent identity file
-	// and is deferred.
-	var behavior *collector.BehaviorEngine
-	if cfg.Behavior.RulesDir != "" {
-		var agent *schema.Agent
-		if len(collected) == 1 {
-			agent = &schema.Agent{ID: filepath.Base(collected[0].Root), Root: collected[0].Root}
-		}
-		behavior, err = collector.NewBehaviorEngine(cfg, host, agent)
-		if err != nil {
-			log.Fatalf("agentids-collector: behavior: %v", err)
-		}
-		log.Printf("agentids-collector: Layer 3 enabled (rules=%s, audit_log=%q)",
-			cfg.Behavior.RulesDir, cfg.Behavior.AuditLog)
-	}
-
 	if *dryRun {
 		out := struct {
 			Host   schema.Host           `json:"host"`
@@ -93,6 +74,24 @@ func main() {
 	} else {
 		client = collector.NewClient(cfg.Report.Endpoint)
 		log.Printf("agentids-collector: WARNING plaintext report -> %s", cfg.Report.Endpoint)
+	}
+
+	// Layer 3: action rules. One engine, bound to the single agent root when
+	// there is exactly one (the common case) so a match is attributed to the
+	// agent it concerns. All rules share the host-wide audit tail. Multi-agent
+	// attribution needs a per-agent identity file and is deferred.
+	var behavior *collector.BehaviorEngine
+	if cfg.Behavior.RulesDir != "" {
+		var l3agent *schema.Agent
+		if len(collected) == 1 {
+			l3agent = &schema.Agent{ID: filepath.Base(collected[0].Root), Root: collected[0].Root}
+		}
+		behavior, err = collector.NewBehaviorEngine(cfg, host, l3agent, client)
+		if err != nil {
+			log.Fatalf("agentids-collector: behavior: %v", err)
+		}
+		log.Printf("agentids-collector: Layer 3 enabled (rules=%s, audit_log=%q)",
+			cfg.Behavior.RulesDir, cfg.Behavior.AuditLog)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

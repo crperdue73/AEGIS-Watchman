@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/CRPerdue/agentids/internal/mtls"
@@ -89,4 +90,56 @@ func (c *Client) Submit(ctx context.Context, req InventoryRequest) (*IngestResul
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 	return &result, nil
+}
+
+// ActionsRequest is the collector -> central body for Layer 3 behavior events.
+// It mirrors the central service's ActionsRequest (kept in sync by a test in
+// the central package).
+type ActionsRequest struct {
+	Host   schema.Host    `json:"host"`
+	Agent  schema.Agent   `json:"agent"`
+	Events []schema.Event `json:"events"`
+}
+
+// ActionsEndpoint derives the actions URL from the configured events endpoint.
+// The two live side by side (/api/v1/events and /api/v1/actions); we only
+// rewrite the final path segment, so a host/port/base-path change rides along
+// and a custom path is left untouched rather than guessed at.
+func (c *Client) ActionsEndpoint() string {
+	const (
+		eventsPath  = "/api/v1/events"
+		actionsPath = "/api/v1/actions"
+	)
+	if strings.HasSuffix(c.Endpoint, eventsPath) {
+		return strings.TrimSuffix(c.Endpoint, eventsPath) + actionsPath
+	}
+	return c.Endpoint
+}
+
+// SubmitActions sends Layer 3 behavior events to the central actions endpoint.
+// Unlike Submit there is no inventory and no returned events — central
+// validates and alerts. A non-2xx is an error so the caller can log or retry.
+func (c *Client) SubmitActions(ctx context.Context, req ActionsRequest) error {
+	if len(req.Events) == 0 {
+		return nil
+	}
+	body, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("marshal actions: %w", err)
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.ActionsEndpoint(), bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.HTTP.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("post actions: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("central returned %s", resp.Status)
+	}
+	return nil
 }

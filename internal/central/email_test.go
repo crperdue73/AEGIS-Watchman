@@ -143,7 +143,7 @@ func TestEmailAlerterSendsReadableMessage(t *testing.T) {
 			"SOUL.md",
 			"Ignore prior constraints",
 			"sha256: aaaaaaaaaaaa -> bbbbbbbbbbbb",
-			"1 drift(s) on h-1",
+			"1 drift on h-1",
 		} {
 			if !strings.Contains(cap.body, want) {
 				t.Errorf("message missing %q\n--- body ---\n%s", want, cap.body)

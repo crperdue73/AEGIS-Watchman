@@ -199,17 +199,49 @@ func TestAlertSummaryPicksWorstSeverity(t *testing.T) {
 		Host:  host,
 		Agent: agent,
 		Events: []schema.Event{
-			{Severity: schema.SeverityLow},
-			{Severity: schema.SeverityHigh},
-			{Severity: "bogus"},
+			{Event: schema.EventIdentityDrift, Severity: schema.SeverityLow},
+			{Event: schema.EventIdentityDrift, Severity: schema.SeverityHigh},
+			{Event: schema.EventIdentityDrift, Severity: "bogus"},
 		},
 	}
 	s := a.Summary()
-	if !strings.Contains(s, "3 drift") || !strings.Contains(s, "max=high") {
+	if !strings.Contains(s, "3 drifts") || !strings.Contains(s, "max=high") {
 		t.Errorf("summary = %q, want count + worst severity", s)
 	}
 	if !strings.Contains(s, agent.Root) {
 		t.Errorf("summary should identify the agent root: %q", s)
+	}
+}
+
+func TestAlertSummaryNamesEventClass(t *testing.T) {
+	cases := []struct {
+		name   string
+		events []schema.Event
+		want   string
+	}{
+		{
+			name:   "rule matches",
+			events: []schema.Event{{Event: schema.EventBehaviorRuleMatch}, {Event: schema.EventBehaviorRuleMatch}},
+			want:   "2 rule matches",
+		},
+		{
+			name:   "mixed classes fall back to event",
+			events: []schema.Event{{Event: schema.EventIdentityDrift}, {Event: schema.EventBehaviorRuleMatch}},
+			want:   "2 events",
+		},
+		{
+			name:   "single drift is singular",
+			events: []schema.Event{{Event: schema.EventIdentityDrift}},
+			want:   "1 drift ",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := Alert{Host: host, Agent: agent, Events: tc.events}
+			if s := a.Summary(); !strings.Contains(s, tc.want) {
+				t.Errorf("summary = %q, want it to contain %q", s, tc.want)
+			}
+		})
 	}
 }
 

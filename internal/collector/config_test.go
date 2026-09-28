@@ -162,7 +162,7 @@ behavior:
 
 func TestNewBehaviorEngineDisabledIsNil(t *testing.T) {
 	cfg := &Config{}
-	be, err := NewBehaviorEngine(cfg, schema.Host{ID: "h"}, nil)
+	be, err := NewBehaviorEngine(cfg, schema.Host{ID: "h"}, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -182,7 +182,7 @@ func TestNewBehaviorEngineRejectsBadPack(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := &Config{Behavior: Behavior{RulesDir: dir}}
-	if _, err := NewBehaviorEngine(cfg, schema.Host{ID: "h"}, nil); err == nil {
+	if _, err := NewBehaviorEngine(cfg, schema.Host{ID: "h"}, nil, nil); err == nil {
 		t.Error("expected error for a malformed rule pack")
 	}
 }
