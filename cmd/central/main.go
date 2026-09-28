@@ -53,6 +53,15 @@ func main() {
 	svc := central.NewService(store)
 	svc.MaxDiffBytes = cfg.MaxDiffBytes
 	svc.SetLogger(log.Default())
+	if reg, err := cfg.ManifestRegistry(); err != nil {
+		log.Fatalf("agentids-central: %v", err)
+	} else if reg != nil {
+		svc.SetManifests(reg)
+		log.Printf("agentids-central: layer 2 provenance enabled (manifest dir=%s, require_approval=%v)",
+			cfg.Manifests.Dir, cfg.Manifests.RequireApproval)
+	} else {
+		log.Printf("agentids-central: layer 2 provenance disabled (no manifests.dir)")
+	}
 	if a := cfg.Alerter(log.Default()); a != nil {
 		svc.SetAlerter(a)
 		if cfg.Alerts.Webhook != "" {

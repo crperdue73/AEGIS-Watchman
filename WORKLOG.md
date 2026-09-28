@@ -345,3 +345,45 @@
   `provenance.untrusted` through the same alerting path. Config:
   `manifests: {dir, trust_keys}`.
 - **Blocking:** same — repo access + NAME. (Access was slated for today.)
+
+## 2026-09-28 (Mon), ~06:35 ET — Heartbeat 12
+- **Layer 2 wired into the live path.** Heartbeat 11 built `internal/provenance`
+  (signed approval manifests). This heartbeat makes central *use* it: every ingest
+  is checked against the approved manifest for the agent's root, and
+  `provenance.untrusted` flows through the same alerting chain as Layer 1.
+- New `internal/central/manifest.go` — `ManifestRegistry`:
+  - Loads `*.json` manifests from `manifests.dir`, **verifies each one's Ed25519
+    signature at load time** against the configured trust keys. A manifest signed
+    by an unknown key (or unsigned) is refused at startup — a bad approval list
+    is a config fault, not something to skip silently.
+  - `ForRoot()` matches by normalized root (trailing slash tolerated).
+  - `Reload()` re-reads the dir; a bad re-approval leaves the old set intact.
+  - `LoadTrustKeys()` reads `{"name":"base64"}`; a missing file = no key checking.
+- `Service.ProvenanceEvents` runs on **every** ingest, not only when a baseline
+  exists — because the dropped-skill case is exactly "no drift, but unapproved".
+  `manifests.require_approval` flips an **unapproved agent** from silent to
+  fully-untrusted.
+- Config: `manifests: {dir, trust_keys, require_approval}` in central.yaml;
+  validated (`trust_keys` without `dir` is an error). `cmd/central` builds the
+  registry and fails loudly on a bad one.
+- **Bug found & fixed (real, not test-only):** the manifest glob `*.json` also
+  matched the trust-keys file and aborted startup with "unsupported manifest
+  version 0". Added `looksLikeManifest()` — only files with an `agent_id` + a
+  `files` map are treated as manifests, so unrelated JSON in the dir is ignored.
+- **Testing note:** a newly-added file is also an `identity.drift` event — the
+  layers are complementary, not exclusive. Corrected a test that assumed Layer 1
+  would stay silent for an added file; both now fire, which is the right behavior.
+- **Verification:** gofmt + vet clean; **81/81 tests pass** (+11: registry load +
+  signature verify, forged-manifest rejection, no-trust-keys load, trust-key
+  parsing incl. missing/empty, service provenance for an unapproved drop, clean
+  silence, require_approval, no-manifests no-op, runs-on-every-ingest, config
+  registry build + bad-trust-key error).
+- **Live e2e (real binaries):** central with manifests → collector enrolls clean
+  (3 files) → CARBONATO drops `skills/c2/SKILL.md` → collector logs `DRIFT ...
+  identity.drift (medium)` **and** `DRIFT ... provenance.untrusted (severity=high)`
+  → central logs `ALERT: 2 drift(s) ... (max=high)`.
+- **Next step (heartbeat 13):** Phase 3 — Layer 3 behavior rules
+  (`internal/rules/`): rule pack format + a first set of CARBONATO-relevant rules
+  (e.g. process exec of `~/.ssh` reads, egress to a new endpoint after a persona
+  edit, scope expansion). Start with the rule DSL + evaluator + tests.
+- **Blocking:** same — repo access + NAME. (Access was slated for today.)

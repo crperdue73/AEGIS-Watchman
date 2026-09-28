@@ -22,6 +22,12 @@ type Service struct {
 	alerter Alerter
 	// logger receives non-fatal alert-delivery failures. Nil is safe.
 	logger *log.Logger
+	// manifests holds the approved Layer 2 approval lists. Nil disables Layer 2.
+	manifests *ManifestRegistry
+	// RequireApproval makes Layer 2 loud for unapproved agents: with no manifest
+	// on record, every reported file fires provenance.untrusted instead of being
+	// silently ignored. Off by default so an un-migrated fleet is not drowned.
+	RequireApproval bool
 }
 
 // Logger is the minimal logging surface config wiring needs, so callers can
@@ -40,6 +46,9 @@ func (s *Service) SetAlerter(a Alerter) { s.alerter = a }
 
 // SetLogger installs a logger for non-fatal delivery failures.
 func (s *Service) SetLogger(l *log.Logger) { s.logger = l }
+
+// SetManifests installs the Layer 2 manifest registry. Nil disables Layer 2.
+func (s *Service) SetManifests(r *ManifestRegistry) { s.manifests = r }
 
 // IngestResult is what a collector gets back for one inventory submission.
 type IngestResult struct {
@@ -64,16 +73,24 @@ func (s *Service) Ingest(ctx context.Context, host schema.Host, agent schema.Age
 		events = []schema.Event{}
 	} else {
 		events = collector.Drift(host, agent, baseline, inv, s.MaxDiffBytes)
-		// Stable ordering: sort by path, then by event class, so output is
-		// deterministic regardless of map iteration order in Drift.
-		sort.SliceStable(events, func(i, j int) bool {
-			pi, pj := pathOf(events[i]), pathOf(events[j])
-			if pi != pj {
-				return pi < pj
-			}
-			return events[i].Event < events[j].Event
-		})
 	}
+
+	// Layer 2: provenance/attestation runs on EVERY ingest (not just after a
+	// baseline exists), because a brand-new dropped skill is exactly the case
+	// where no drift is seen but the file was never approved.
+	if s.manifests != nil {
+		events = append(events, s.ProvenanceEvents(host, agent, inv)...)
+	}
+
+	// Stable ordering: sort by path, then by event class, so output is
+	// deterministic regardless of map iteration order in Drift/Verify.
+	sort.SliceStable(events, func(i, j int) bool {
+		pi, pj := pathOf(events[i]), pathOf(events[j])
+		if pi != pj {
+			return pi < pj
+		}
+		return events[i].Event < events[j].Event
+	})
 
 	if err := s.store.PutBaseline(ctx, key, inv); err != nil {
 		return nil, err

@@ -23,7 +23,29 @@ type Config struct {
 	// (loopback dev only).
 	TLS mtls.Config `yaml:"tls,omitempty"`
 
+	// Manifests configures Layer 2 provenance/attestation.
+	Manifests Manifests `yaml:"manifests"`
+
 	Alerts Alerts `yaml:"alerts"`
+}
+
+// Manifests configures Layer 2: where the signed approval manifests live and
+// which Ed25519 keys may have signed them.
+//
+//	manifests:
+//	  dir: /etc/agentids/manifests
+//	  trust_keys: /etc/agentids/trust-keys.json   # {"ops-2026-q3": "<base64>"}
+//	  require_approval: false                      # true -> unapproved agents are loud
+//	  on_change: reload                            # reload manifests when the dir changes
+//
+// An empty dir disables Layer 2.
+type Manifests struct {
+	// Dir holds one *.json approval manifest per agent root.
+	Dir string `yaml:"dir"`
+	// TrustKeys is a path to a JSON file of {"name": "base64-ed25519-pubkey"}.
+	TrustKeys string `yaml:"trust_keys"`
+	// RequireApproval treats an agent with no manifest as fully untrusted.
+	RequireApproval bool `yaml:"require_approval"`
 }
 
 // Alerts configures notification delivery for drift events.
@@ -101,7 +123,29 @@ func (c Config) validate() error {
 	if err := c.TLS.Validate(); err != nil {
 		return err
 	}
+	if c.Manifests.Dir == "" && c.Manifests.TrustKeys != "" {
+		return fmt.Errorf("config: manifests.trust_keys set but manifests.dir is empty")
+	}
 	return nil
+}
+
+// ManifestRegistryFn builds the Layer 2 registry described by the config, or nil
+// when Layer 2 is disabled. Load-time manifest/trust-key errors are returned so
+// startup fails loudly on a bad approval list.
+func (c Config) ManifestRegistry() (*ManifestRegistry, error) {
+	if c.Manifests.Dir == "" {
+		return nil, nil
+	}
+	keys, err := LoadTrustKeys(c.Manifests.TrustKeys)
+	if err != nil {
+		return nil, fmt.Errorf("config: load trust keys: %w", err)
+	}
+	r, err := NewManifestRegistry(c.Manifests.Dir, keys)
+	if err != nil {
+		return nil, err
+	}
+	r.requireApproval = c.Manifests.RequireApproval
+	return r, nil
 }
 
 // TLSEnabled reports whether the ingest listener should serve HTTPS.

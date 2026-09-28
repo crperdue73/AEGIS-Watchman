@@ -90,13 +90,15 @@ Built so far:
   requires and verifies every collector's cert (`RequireAndVerifyClientCert`, so
   an unauthenticated client is refused at the handshake). TLS 1.2 minimum.
   `deploy/gen-certs.sh` generates the CA and leaf material.
-- **Layer 2 — provenance / attestation** (`internal/provenance/`): an
-  **Ed25519-signed approval manifest** of `path -> sha256` per agent root, and
-  `agentids-manifest keygen/sign/verify` for the operator workflow. Catches what
-  Layer 1 cannot: a **brand-new dropped skill** (nothing drifted, but the file
-  was never ours) as `provenance.untrusted`, plus in-place modification and
-  deletion. Because the source of truth is *signed*, it is not evadable by
-  rewriting a baseline hash.
+- **Layer 2 — provenance / attestation** (`internal/provenance/` + central
+  wiring): an **Ed25519-signed approval manifest** of `path -> sha256` per agent
+  root, and `agentids-manifest keygen/sign/verify` for the operator workflow.
+  Catches what Layer 1 cannot: a **brand-new dropped skill** (nothing drifted,
+  but the file was never ours) as `provenance.untrusted`, plus in-place
+  modification and deletion. Because the source of truth is *signed*, it is not
+  evadable by rewriting a baseline hash. Central verifies every ingest against
+  the manifest for the agent's root; `manifests.require_approval` makes an agent
+  with no manifest loud instead of silent.
 
 The public event schema stays additive-only across all of this.
 

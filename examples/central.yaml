@@ -19,6 +19,21 @@ tls:
   key: /etc/agentids/leaf.key
   ca: /etc/agentids/ca.crt
 
+# Layer 2 — provenance/attestation. Points at the signed approval manifests
+# (one *.json per agent root, built with `agentids-manifest sign`). When set,
+# each ingest is checked against the approved manifest and any unapproved or
+# modified file raises provenance.untrusted. Delete this block to disable.
+manifests:
+  dir: /etc/agentids/manifests
+  # JSON file of {"name": "base64-ed25519-pubkey"} that may have signed the
+  # manifests. A manifest signed by anything else is refused at load. Omit to
+  # skip signature checking (manifests trusted as shipped).
+  trust_keys: /etc/agentids/trust-keys.json
+  # true -> an agent with NO manifest on record is treated as fully untrusted
+  # (every file raises provenance.untrusted). Off by default so an un-migrated
+  # fleet is not drowned in alerts during rollout.
+  require_approval: false
+
 alerts:
   # Any HTTP endpoint that accepts a JSON POST. Slack incoming webhooks,
   # PagerDuty Events API v2, a ticket bot, or a tiny shell receiver.
