@@ -639,3 +639,29 @@
   `go test`, so the live script becomes a regression test. Then start the
   PHASE0-DISCOVERY checklist fresh against the now-complete engine.
 - **Blocking:** same — repo access + NAME. (Access was slated for today, Sept 28.)
+
+## 2026-09-28 (Mon), ~13:35 ET — Heartbeat 19
+- **Full-path Layer 3 integration test — the live e2e, frozen as a regression.**
+  `internal/collector/e2e_test.go` wires the whole path with no mocks in the
+  middle: an auditd-shaped stream on disk → FileSource → rules engine →
+  BehaviorEngine → real `collector.Client` → real `central.Service` over real
+  HTTP (`httptest`). If Layers 3 ever regress, `go test` catches it — no more
+  relying on an operator running a shell script.
+- **`TestLayer3EndToEnd`:** the brief's canonical chain. An `identity.drift` on
+  SOUL.md is fed to the timeline, then a real execve frame + a real auditd
+  connect frame (AF_INET 3.120.129.226:443 = slack.com) hit the file. Asserts
+  both `carbonato.exec.shell_spawn` AND the
+  `carbonato.exfil.egress_after_identity_change` correlation fire, that the
+  correlation is `critical`, and that central dispatched an alert whose summary
+  names the class (`rule match`, not drift).
+- **`TestLayer3SurvivesCentralOutage`:** through the REAL HTTP path, a server
+  that returns 503 for the first cycle. Matches must be produced, accepted zero
+  times while down, then delivered exactly once when the server recovers on an
+  idle cycle — no loss, no duplicate.
+- **Verification:** gofmt + vet clean; **150/150 tests pass** (+2).
+- **Next step (heartbeat 20):** Layer 3 is now functionally complete (identity,
+  provenance, behavior, telemetry, spool, integration coverage). Start the
+  PHASE0-DISCOVERY checklist fresh against the finished engine — enumerate target
+  environments + telemetry sources to confirm coverage, and prioritise the next
+  adapter (eBPF for file.access/scope.change) as the first post-Phase-3 item.
+- **Blocking:** same — repo access + NAME (access was slated for today, Sept 28).
