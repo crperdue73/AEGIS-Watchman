@@ -75,3 +75,33 @@
   mode that walks + diffs against a local baseline file so we have an
   end-to-end demo before the central service is fully built.
 - **Blocking:** same — repo access + NAME. Placeholder `agentids` still in use.
+
+## 2026-09-27 (Sun), ~22:35 ET — Heartbeat 4
+- **Central service (Phase 1) implemented, tested, AND demoed end-to-end.**
+- New code:
+  - `internal/central/store.go` — `AgentKey{host,root}`, `Store` interface
+    (SQLite/Postgres later), `MemoryStore` (concurrency-safe, returns copies).
+  - `internal/central/service.go` — `Service.Ingest`: diffs an incoming
+    inventory against the stored baseline, re-records the baseline, returns
+    sorted `[]schema.Event`. First sighting = silent enrollment (no false alarm).
+  - `internal/central/http.go` — `POST /api/v1/events` (1 MiB cap, validates
+    host.id + body, 10 s timeout) and `GET /healthz`.
+  - `internal/central/central_test.go` — 6 tests (first-seen silent, drift +
+    rebaseline, path-ordered events, store copy-safety, HTTP round trip, bad input).
+  - `cmd/central/main.go` — real server on `:8080` (flag `-addr`), read header timeout.
+- **Verification:** `gofmt` clean, `go vet` clean, both binaries build,
+  **14/14 tests pass** across collector + central.
+- **Live end-to-end demo (real HTTP, not mocked):** started `agentids-central`,
+  POSTed an inventory → `first_seen:true, events:[]`. Edited SOUL.md (the
+  CARBONATO TTP) → POSTed again → got a `severity:high` `identity.drift` event
+  with before/after sha256 (`5885b1…` → `9300fe…`), size 53→64. Identical
+  resubmission → silent. **This satisfies the Phase-1 acceptance criterion in
+  PHASE0-DISCOVERY.md §0.4.**
+- **Still open on the demo:** the event has the diff field empty and `actor:null`
+  — the collector does not yet read file contents for the unified diff, and
+  auditd attribution is not wired. Those are the next two Layer-1 items.
+- **Next step (heartbeat 5):** make the collector a real client — add a config
+  loader for `examples/collector.yaml`, walk the roots, and POST to central on
+  an interval; attach the `UnifiedDiff` content into the event before sending.
+  Then a `cmd/collector -dry-run` that prints the inventory without a server.
+- **Blocking:** same — repo access + NAME.
