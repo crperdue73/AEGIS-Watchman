@@ -49,3 +49,29 @@
 - **Blocking:** GitHub repo access (expected Sept 28) + NAME (Q1). Everything
   built under `agentids` placeholder; a rename is a find/replace on module path
   + docs.
+
+## 2026-09-27 (Sun), ~21:35 ET — Heartbeat 3
+- **Phase 1 / Layer 1 core implemented and TESTED.** Installed Go 1.22.12 to
+  `/usr/local/go` (was absent) so I could verify for real instead of asserting.
+- New code in `internal/collector/`:
+  - `collector.go` — `FileState`, `Inventory`, `HashFile` (sha256+size),
+    `WalkRoot` (walks agent roots, matches include/exclude globs, hashes,
+    records mtime), + a dependency-free globstar matcher.
+  - `drift.go` — `Drift(baseline, current)` → `[]schema.Event` for
+    changed/added/removed files (persona files default to `high` severity),
+    and `UnifiedDiff` (tiny line-level differ, byte-truncatable).
+  - `collector_test.go` + `drift_test.go` — 8 tests.
+- **Verification (real, not claimed):** `go vet ./...` clean; `make build`
+  produces both binaries; `go test ./...` → **8/8 PASS**.
+- **Bugs caught because I compiled it:**
+  1. unused `io` import in the test file (vet failure);
+  2. globstar matcher had a `HasPrefix(rel, "")` bug that made **every**
+     excluded pattern match **every** file — SOUL.md silently vanished from the
+     inventory. Fixed with a proper prefix/tail split + suffix matching.
+     (This is exactly why "it looks right" isn't verification.)
+- **Next step (heartbeat 4):** `internal/central` — baseline store interface
+  (SQLite dev), receive `[]Event`, persist a baseline per host+agent, and the
+  HTTP ingest endpoint `POST /api/v1/events`. Then wire a 2nd `cmd/collector`
+  mode that walks + diffs against a local baseline file so we have an
+  end-to-end demo before the central service is fully built.
+- **Blocking:** same — repo access + NAME. Placeholder `agentids` still in use.

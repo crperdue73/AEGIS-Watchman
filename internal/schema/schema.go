@@ -12,9 +12,9 @@ const Version = "agentids.event/v1"
 
 // Event class names.
 const (
-	EventIdentityDrift      = "identity.drift"       // Layer 1
+	EventIdentityDrift       = "identity.drift"       // Layer 1
 	EventProvenanceUntrusted = "provenance.untrusted" // Layer 2
-	EventBehaviorRuleMatch  = "behavior.rule_match"  // Layer 3
+	EventBehaviorRuleMatch   = "behavior.rule_match"  // Layer 3
 )
 
 // Severity levels.

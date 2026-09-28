@@ -27,7 +27,7 @@ func buildFixture(t *testing.T) string {
 	write("SOUL.md", "# SOUL\nI am an agent.\n")
 	write("IDENTITY.md", "# IDENTITY\nName: test\n")
 	write("MEMORY.md", "# MEMORY\n")
-	write("config.json", `{"model":"x"}`)          // matches *.config.json? no -> use name
+	write("config.json", `{"model":"x"}`) // matches *.config.json? no -> use name
 	write("skills/one.md", "# skill one\n")
 	write("skills/nested/two.md", "# skill two\n")
 
