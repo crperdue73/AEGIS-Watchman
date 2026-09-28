@@ -18,15 +18,20 @@ import (
 
 func main() {
 	addr := flag.String("addr", ":8080", "listen address")
-	version := flag.Bool("version", false, "print version and exit")
+	storePath := flag.String("store", "agentids-baselines.json", "path to the baseline store file (durable across restarts)")
+	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 
-	if *version {
+	if *showVersion {
 		fmt.Println("agentids-central (phase 1)")
 		return
 	}
 
-	svc := central.NewService(central.NewMemoryStore())
+	store, err := central.NewFileStore(*storePath)
+	if err != nil {
+		log.Fatalf("agentids-central: %v", err)
+	}
+	svc := central.NewService(store)
 
 	srv := &http.Server{
 		Addr:              *addr,

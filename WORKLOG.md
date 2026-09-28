@@ -159,3 +159,30 @@
   keep the `Store` interface unchanged. Test: reopen the DB file and still find
   the baseline.
 - **Blocking:** same — repo access + NAME.
+
+## 2026-09-28 (Mon), ~01:35 ET — Heartbeat 7
+- **Durable baseline store — baselines now survive a central-service restart.**
+- Decision: chose a **JSON-file store over SQLite**. I tried `modernc.org/sqlite`
+  first; it pulled a large dependency tree AND silently bumped `go.mod` to
+  `go 1.25`. For a Phase-1 public Apache-2.0 repo, that is the wrong trade —
+  reverted it in favor of a zero-dependency file store. Same `Store` interface,
+  so swapping in SQLite/Postgres later is a one-line wiring change.
+- `internal/central/filestore.go`:
+  - `FileStore` — durable, versioned on-disk doc (`version:1`, items keyed by
+    host:root), atomic writes via temp file + fsync + rename (a crash mid-write
+    cannot corrupt baselines).
+  - Loads existing baselines on open; file created `0600` (persona content is
+    sensitive — owner-only).
+- 3 new tests: persist across a real reopen; **drift detected after a simulated
+  restart**; empty/half-written file opens cleanly.
+- `cmd/central` gains `-store <path>` (default `agentids-baselines.json`).
+- **Verification:** gofmt + vet clean; **26/26 tests pass.**
+- **Live e2e with the real binaries:** enroll → killed central → edited SOUL.md
+  while central was DOWN → restarted with the same `-store` → collector reported
+  `DRIFT SOUL.md identity.drift (severity=high)`. The baseline survived; no
+  false "first seen". The exact scenario a fleet operator would hit.
+- **Next step (heartbeat 8):** alerting — webhook (JSON POST) on drift events,
+  configured in `central.yaml`; `Service` gains an `Alerter` interface; a test
+  with an `httptest` receiver asserting the alert body carries path + severity +
+  diff. Then the email path is a second Alerter implementation.
+- **Blocking:** same — repo access + NAME.
