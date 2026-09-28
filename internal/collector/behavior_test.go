@@ -102,3 +102,38 @@ func TestBehaviorEngine_SubmitErrorDoesNotPanic(t *testing.T) {
 		t.Fatal("events should still be returned even if shipping fails")
 	}
 }
+
+// TestBehaviorEngine_ObserveDriftFeedsTimeline covers the wiring that makes
+// correlation rules possible on a live collector: Layer 1/2 drift events must
+// land in the same timeline Layer 3 consults, or "egress after identity change"
+// can never fire.
+func TestBehaviorEngine_ObserveDriftFeedsTimeline(t *testing.T) {
+	tmp := t.TempDir()
+	audit := filepath.Join(tmp, "audit.log")
+	if err := os.WriteFile(audit, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &Config{Behavior: Behavior{RulesDir: "../../rules", AuditLog: audit}}
+	be, err := NewBehaviorEngine(cfg, schema.Host{ID: "h1"}, &schema.Agent{ID: "a1"}, &fakeSubmitter{})
+	if err != nil {
+		t.Fatalf("NewBehaviorEngine: %v", err)
+	}
+	if be.timeline == nil {
+		t.Fatal("behavior engine must own a timeline")
+	}
+
+	if n := be.timeline.Len("h1"); n != 0 {
+		t.Fatalf("timeline should start empty, len=%d", n)
+	}
+	be.ObserveDrift([]schema.Event{{
+		Event: schema.EventIdentityDrift,
+		Host:  schema.Host{ID: "h1"},
+	}})
+	if n := be.timeline.Len("h1"); n != 1 {
+		t.Fatalf("drift not recorded into timeline, len=%d", n)
+	}
+
+	// Nil engine (Layer 3 off) must no-op rather than panic.
+	var nilBE *BehaviorEngine
+	nilBE.ObserveDrift([]schema.Event{{Event: schema.EventIdentityDrift, Host: schema.Host{ID: "h1"}}})
+}

@@ -116,6 +116,9 @@ func main() {
 			for _, ev := range res.Events {
 				log.Printf("collector: DRIFT %s %s (severity=%s)", ev.File.Path, ev.Event, ev.Severity)
 			}
+			// Feed drift to Layer 3's timeline so correlation rules (egress
+			// shortly after an identity change) can see the file half.
+			behavior.ObserveDrift(res.Events)
 		}
 		// Layer 3: read new host activity and evaluate rules. Runs after the
 		// file cycle so a persona edit and the action it triggers are seen in

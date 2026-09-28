@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"time"
 
 	"github.com/CRPerdue/agentids/internal/rules"
 	"github.com/CRPerdue/agentids/internal/schema"
@@ -34,6 +35,12 @@ type Engine struct {
 	engine *rules.Engine
 	host   schema.Host
 	agent  *schema.Agent
+	// timeline, when set, remembers each action so correlation rules
+	// (prior_event) can see the actions that came before.
+	timeline *rules.Timeline
+	// Now is the clock used to stamp actions and anchor temporal rules. Nil
+	// means time.Now; tests set it for determinism.
+	Now func() time.Time
 }
 
 // NewEngine builds a telemetry-driven rules engine for one host/agent.
@@ -41,17 +48,43 @@ func NewEngine(src Source, eng *rules.Engine, host schema.Host, agent *schema.Ag
 	return &Engine{src: src, engine: eng, host: host, agent: agent}
 }
 
+// WithTimeline attaches a timeline: every action is recorded into it before
+// matching, and correlation rules are evaluated against it.
+func (e *Engine) WithTimeline(t *rules.Timeline) *Engine {
+	e.timeline = t
+	e.engine.WithTimeline(t)
+	return e
+}
+
+// now returns the engine clock, defaulting to time.Now.
+func (e *Engine) now() time.Time {
+	if e.Now != nil {
+		return e.Now()
+	}
+	return time.Now()
+}
+
 // Matches polls the source once and returns the rule-match events for every
 // action that fired at least one rule. Order is deterministic (source order,
 // then rule load order).
+//
+// Actions are recorded into the timeline before matching, so a rule can fire on
+// an action whose temporal predicate is satisfied by an EARLIER action in the
+// same batch — and a self-referential rule (rare, and usually a bug) will see
+// itself. Recording first is the honest choice: the action has happened by the
+// time we judge it.
 func (e *Engine) Matches() ([]schema.Event, error) {
 	events, err := e.src.Actions()
 	if err != nil {
 		return nil, err
 	}
+	asOf := e.now()
 	var out []schema.Event
 	for _, ev := range events {
-		matched := e.engine.Match(e.host, e.agent, ev.Action, ev.Actor)
+		if e.timeline != nil {
+			e.timeline.Record(e.host.ID, asOf, ev.Action.Type, asOf)
+		}
+		matched := e.engine.Match(e.host, e.agent, ev.Action, ev.Actor, asOf)
 		out = append(out, matched...)
 	}
 	return out, nil

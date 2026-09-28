@@ -26,6 +26,7 @@ type BehaviorEngine struct {
 	submitter ActionSubmitter
 	host      schema.Host
 	agent     schema.Agent
+	timeline  *rules.Timeline
 }
 
 // NewBehaviorEngine loads rule packs from cfg.Behavior.RulesDir and returns an
@@ -43,17 +44,33 @@ func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submi
 		return nil, err
 	}
 	eng := rules.NewEngine(packs...)
+	tl := rules.NewTimeline()
 	src := telemetry.NewFileSource(cfg.Behavior.AuditLog)
 	a := schema.Agent{}
 	if agent != nil {
 		a = *agent
 	}
 	return &BehaviorEngine{
-		eng:       telemetry.NewEngine(src, eng, host, agent),
+		eng:       telemetry.NewEngine(src, eng, host, agent).WithTimeline(tl),
 		submitter: submitter,
 		host:      host,
 		agent:     a,
+		timeline:  tl,
 	}, nil
+}
+
+// ObserveDrift feeds Layer 1/2 file events into the timeline so correlation
+// rules can see the file half of a chain. The brief's canonical rule — egress
+// shortly after an identity file changed — cannot be decided by the action
+// stream alone; this is how the two halves meet.
+func (b *BehaviorEngine) ObserveDrift(events []schema.Event) {
+	if b == nil || b.timeline == nil {
+		return
+	}
+	now := time.Now()
+	for _, ev := range events {
+		b.timeline.ObserveEvent(ev, now)
+	}
 }
 
 // Poll evaluates any new telemetry since the last call, logs each rule match,
@@ -66,6 +83,9 @@ func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submi
 func (b *BehaviorEngine) Poll() []schema.Event {
 	if b == nil {
 		return nil
+	}
+	if b.timeline != nil {
+		b.timeline.Prune(time.Now())
 	}
 	events, err := b.eng.Matches()
 	if err != nil {

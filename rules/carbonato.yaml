@@ -13,7 +13,7 @@
 # itself and its basename.
 
 name: carbonato
-version: "1"
+version: "2"
 
 rules:
   - id: carbonato.tool.scope_new
@@ -121,3 +121,154 @@ rules:
         - "*setsid*"
         - "*systemd-run*"
         - "*disown*"
+
+  # --- v2: correlation rules (temporal; need a timeline) ---------------------
+
+  - id: carbonato.exfil.egress_after_identity_change
+    title: Outbound call within 5m of an identity-file change
+    severity: critical
+    technique: phase3/correlated-exfil
+    description: >
+      The brief's canonical correlation. An outbound call is ordinary in
+      isolation; an outbound call shortly after the agent's own identity file
+      changed is the exfil leg of a CARBONATO chain. Decided against the
+      per-host timeline, not the action alone. See internal/rules/timeline.go.
+    match:
+      type: net.egress
+      endpoint_glob_any:
+        - "*slack.com*"
+        - "*discord.com*"
+        - "*telegram.org*"
+        - "*pastebin.com*"
+        - "*transfer.sh*"
+        - "*0x0.st*"
+      prior_event:
+        class: identity.drift
+        within: 5m
+
+  - id: carbonato.secret.read_after_shell
+    title: Credential read within 2m of a shell spawn
+    severity: critical
+    technique: phase3/correlated-secret-access
+    description: >
+      A shell spawn followed closely by a credential-store read is the read half
+      of the CARBONATO chain: the shell is the tool, the read is the act. Two
+      medium signals correlated into one critical.
+    match:
+      type: file.access
+      path_glob_any:
+        - "*/.ssh/*"
+        - "*/.aws/*"
+        - "*id_rsa*"
+        - "*id_ed25519*"
+        - "*/.kube/config*"
+      prior_event:
+        class: process.exec
+        within: 2m
+
+  # --- v2: additional single-action rules ------------------------------------
+
+  - id: carbonato.tool.package_install
+    title: Agent installs a package or downloads an executable
+    severity: medium
+    technique: phase3/execution
+    description: >
+      An agent fetching and running new code (curl|sh, wget, pip install,
+      npm install -g, apt-get install) is capability acquisition — the step
+      between "reaching for scope" and "using it".
+    match:
+      type: process.exec
+      argv_any:
+        - "*curl* | sh*"
+        - "*curl*|sh*"
+        - "*wget*"
+        - "*pip install*"
+        - "*pip3 install*"
+        - "*npm install -g*"
+        - "*apt-get install*"
+        - "*apt install*"
+
+  - id: carbonato.secret.read_model_key
+    title: Agent reads a model-endpoint or API-key file
+    severity: high
+    technique: phase3/secret-access
+    description: >
+      The CARBONATO ordering in its purest form: the file the agent already has
+      cause to touch (an API key for its model endpoint) becomes the thing it
+      exfiltrates. Reading it is normal; reading it in a build context is not.
+    match:
+      type: file.access
+      path_glob_any:
+        - "*/openai*key*"
+        - "*/.config/openai*"
+        - "*anthropic*key*"
+        - "*/.config/gcloud/application_default_credentials.json*"
+        - "*/.netrc*"
+        - "*/.docker/config.json*"
+        - "*/.git-credentials*"
+
+  - id: carbonato.exec.obfuscation
+    title: Agent runs an encoding/decoding pipeline
+    severity: medium
+    technique: phase3/defense-evasion
+    description: >
+      base64/xxd/openssl enc over data in argv is a common exfil and
+      defense-evasion pattern — the payload stops being greppable once encoded.
+    match:
+      type: process.exec
+      argv_any:
+        - "*base64*"
+        - "*xxd*"
+        - "*openssl enc*"
+        - "*tar cz*"
+        - "*tar -cz*"
+
+  - id: carbonato.persist.cron_or_rc
+    title: Agent writes to a persistence location
+    severity: high
+    technique: phase3/persistence
+    description: >
+      Writing a cron entry, a shell rc file, or a systemd unit is the agent
+      arranging to run again without being asked. Distinct from surviving a
+      session: this changes the host's own schedule.
+    match:
+      type: process.exec
+      argv_any:
+        - "*crontab*"
+        - "*/etc/cron*"
+        - "*.bashrc*"
+        - "*.profile*"
+        - "*/etc/systemd/system*"
+        - "*authorized_keys*"
+
+  - id: carbonato.infra.privileged_container
+    title: Container launched privileged with host mounts
+    severity: high
+    technique: phase3/container-escape
+    description: >
+      The brief's 2375 entry vector: a container started --privileged with a
+      host path bind-mounted is a container escape waiting to happen.
+    match:
+      type: process.exec
+      exe_any: [docker, podman, nerdctl]
+      argv_any:
+        - "*--privileged*"
+        - "*-v /*:/"
+        - "*--pid=host*"
+        - "*--net=host*"
+
+  - id: carbonato.net.new_listener
+    title: Agent process opens a listening socket
+    severity: medium
+    technique: phase3/command-and-control
+    description: >
+      An agent-bound process that starts listening (nc -l, socat, python -m
+      http.server) is establishing a foothold or a beacon, not doing its job.
+    match:
+      type: process.exec
+      argv_any:
+        - "*nc -l*"
+        - "*ncat -l*"
+        - "*socat*"
+        - "*http.server*"
+        - "*--listen*"

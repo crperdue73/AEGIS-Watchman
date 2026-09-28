@@ -513,3 +513,49 @@
   action timeline in the engine. Also: a durable action spool so a central
   outage doesn't drop matches.
 - **Blocking:** same — repo access + NAME. (Access was slated for today, Sept 28.)
+
+## 2026-09-28 (Mon), ~10:35 ET — Heartbeat 16
+- **Rule pack v2 + correlation rules (temporal predicates).** The one thing the
+  seed pack could not express was the brief's canonical rule: "the agent's
+  identity file changed within N minutes of an outbound call." That is not a
+  fact about a single action; it is a fact about an action *plus the recent
+  past*. Built the machinery for it.
+- **`internal/rules/timeline.go` — a small, bounded per-host memory.** A ring of
+  `(time, class)` observations, default window 15m / cap 256, with `Record`,
+  `Seen(host, class, within, asOf)`, and `Prune`. Deliberately dumb: a linear
+  scan within a window is trivially fast at these sizes and impossible to get
+  subtly wrong. `Seen` refuses future observations (an event after `asOf` is not
+  "prior"), and the nil timeline is inert.
+- **New predicate `prior_event` on a rule's match:** `{class, within}`. Engine
+  gained an optional timeline (`WithTimeline`); a rule with `prior_event` fires
+  only when a timeline is attached and the reference time is non-zero — with
+  neither, it stays silent rather than guessing. `within: 0s` or a missing
+  `class` is a pack load error (host must not look protected when it is not).
+- **`Match` now takes an `at time.Time`** anchoring temporal rules; the
+  telemetry `Engine` records each action into the timeline before matching, and
+  gained an injectable clock (`Now func() time.Time`) for deterministic tests.
+- **Both halves meet in the collector:** `BehaviorEngine.ObserveDrift(events)`
+  feeds Layer 1/2 file drift into the *same* timeline Layer 3 consults, and
+  `cmd/collector/main.go` calls it on every cycle. Without this, "egress after
+  identity change" could never fire on a live host.
+- **Pack v2: 14 rules** (was 6). Two correlation rules —
+  `carbonato.exfil.egress_after_identity_change` (critical, identity.drift
+  within 5m) and `carbonato.secret.read_after_shell` (critical, process.exec
+  within 2m) — plus six more single-action rules toward the brief's ~20-30
+  target: package install, model-endpoint/API-key read, base64/encoding
+  obfuscation, cron/rc persistence, privileged-container launch (the 2375
+  vector), and new-listener (C2 foothold). README documents the format.
+- **Verification:** gofmt + vet clean; **132/132 tests pass** (+10: timeline
+  record/seen/no-future/evict/cap/prune/observe-event/nil-safe, the full
+  correlation matrix — fires with a recent change, silent without one, silent
+  when stale, silent when no timeline is attached — prior_event validation, and
+  the collector's drift→timeline wiring + nil-engine no-op).
+- **Live e2e (real binaries):** fed the collector a `bash -c "cat
+  ~/.ssh/id_ed25519"` then a `crontab -` action; it fired `shell_spawn`,
+  `ssh_key_heredoc`, and the new `persist.cron_or_rc`, shipping all three to
+  central → `ALERT: 3 rule matches (max=high)`.
+- **Next step (heartbeat 17):** a `net.egress` telemetry source so the
+  correlation rule can fire on real outbound traffic end to end (today the
+  engine is proven but auditd still only emits `process.exec`). Then a durable
+  action spool so a central outage doesn't drop matches.
+- **Blocking:** same — repo access + NAME. (Access was slated for today, Sept 28.)

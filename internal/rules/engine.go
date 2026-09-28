@@ -3,6 +3,7 @@ package rules
 import (
 	"path"
 	"strings"
+	"time"
 
 	"github.com/CRPerdue/agentids/internal/schema"
 )
@@ -10,6 +11,10 @@ import (
 // Engine evaluates a set of rules against observed actions.
 type Engine struct {
 	rules []Rule
+	// timeline is optional. When set, rules with a prior_event predicate can be
+	// evaluated; without it those rules simply never fire (they need memory the
+	// engine does not have).
+	timeline *Timeline
 }
 
 // NewEngine builds an engine from packs (later packs do not override earlier
@@ -29,6 +34,13 @@ func NewEngine(packs ...*Pack) *Engine {
 // NewEngineRules builds an engine directly from rules (used by tests).
 func NewEngineRules(rs []Rule) *Engine { return &Engine{rules: rs} }
 
+// WithTimeline returns the engine with a timeline attached. Correlation rules
+// (prior_event) only fire when a timeline is present.
+func (e *Engine) WithTimeline(t *Timeline) *Engine {
+	e.timeline = t
+	return e
+}
+
 // Len returns the number of loaded rules.
 func (e *Engine) Len() int { return len(e.rules) }
 
@@ -37,11 +49,18 @@ func (e *Engine) Len() int { return len(e.rules) }
 // stable regardless of map iteration.
 //
 // actor is optional (nil when unattributable). agent is optional.
-func (e *Engine) Match(host schema.Host, agent *schema.Agent, action schema.Action, actor *schema.Actor) []schema.Event {
+//
+// at is the wall-clock time of the action; it anchors temporal predicates
+// (prior_event). Zero means "now-ish" and disables temporal rules (they cannot
+// be evaluated without a reference time).
+func (e *Engine) Match(host schema.Host, agent *schema.Agent, action schema.Action, actor *schema.Actor, at time.Time) []schema.Event {
 	var out []schema.Event
 	for i := range e.rules {
 		r := &e.rules[i]
 		if !matches(r.Match, agent, action) {
+			continue
+		}
+		if !e.temporalMatches(r.Match, host, at) {
 			continue
 		}
 		ev := schema.NewEnvelope(schema.EventBehaviorRuleMatch, host)
@@ -57,6 +76,19 @@ func (e *Engine) Match(host schema.Host, agent *schema.Agent, action schema.Acti
 		out = append(out, *ev)
 	}
 	return out
+}
+
+// temporalMatches evaluates a rule's prior_event predicate, if any. A rule with
+// no temporal predicate always passes this stage; a rule with one needs both a
+// timeline and a non-zero reference time.
+func (e *Engine) temporalMatches(m Match, host schema.Host, at time.Time) bool {
+	if m.PriorEvent == nil {
+		return true
+	}
+	if e.timeline == nil || at.IsZero() {
+		return false
+	}
+	return e.timeline.Seen(host.ID, m.PriorEvent.Class, m.PriorEvent.Within, at)
 }
 
 // matches reports whether an action satisfies every predicate in a match block.

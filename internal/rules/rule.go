@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -75,6 +76,23 @@ type Match struct {
 
 	// AgentID matches agent.id exactly, if set.
 	AgentID string `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
+
+	// PriorEvent requires that an event of the named class was observed on the
+	// same host within the given window BEFORE this action. This is the temporal
+	// predicate that makes correlation rules possible — e.g. "an identity.drift
+	// happened within 5m of this outbound call." It is the one predicate that
+	// needs the Timeline rather than the action alone.
+	PriorEvent *PriorEvent `yaml:"prior_event,omitempty" json:"prior_event,omitempty"`
+}
+
+// PriorEvent is a temporal predicate: "an event of Class was seen on this host
+// within Within before the action under evaluation."
+type PriorEvent struct {
+	// Class is an event class the timeline records, e.g. "identity.drift" or a
+	// raw action type like "process.exec".
+	Class string `yaml:"class" json:"class"`
+	// Within is the look-back window, e.g. "5m". Required and positive.
+	Within time.Duration `yaml:"within" json:"within"`
 }
 
 // Pack is a named, versioned collection of rules loaded from one file or dir.
@@ -186,6 +204,14 @@ func (r *Rule) Validate() error {
 			return fmt.Errorf("rule %q: detail_equals has an empty key", r.ID)
 		}
 	}
+	if pe := r.Match.PriorEvent; pe != nil {
+		if strings.TrimSpace(pe.Class) == "" {
+			return fmt.Errorf("rule %q: prior_event.class is required", r.ID)
+		}
+		if pe.Within <= 0 {
+			return fmt.Errorf("rule %q: prior_event.within must be positive (e.g. 5m)", r.ID)
+		}
+	}
 	return nil
 }
 
@@ -193,5 +219,6 @@ func (r *Rule) Validate() error {
 func isZeroMatch(m Match) bool {
 	return m.Type == "" && m.Exe == "" && len(m.ExeAny) == 0 &&
 		len(m.ArgvAny) == 0 && len(m.PathGlobAny) == 0 && len(m.EndpointGlobAny) == 0 &&
-		len(m.DetailEquals) == 0 && len(m.DetailNonEmpty) == 0 && m.AgentID == ""
+		len(m.DetailEquals) == 0 && len(m.DetailNonEmpty) == 0 && m.AgentID == "" &&
+		m.PriorEvent == nil
 }

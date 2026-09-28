@@ -41,7 +41,7 @@ func TestShippedCarbonatoFiresOnExfilChain(t *testing.T) {
 
 	fired := func(action schema.Action) []string {
 		var ids []string
-		for _, ev := range e.Match(host, nil, action, nil) {
+		for _, ev := range e.Match(host, nil, action, nil, timeNow()) {
 			ids = append(ids, ev.Rule.ID)
 		}
 		return ids

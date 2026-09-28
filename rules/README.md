@@ -40,6 +40,33 @@ Initial rule-set target: ~20–30 rules. Seed ideas from the brief (Part 3):
 - Container launched privileged with host mounts (the 2375 entry vector)
 
 > **Status:** the format, parser, and evaluator are implemented in
-> `internal/rules/`; `carbonato.yaml` is the seed pack. Remaining Phase 3 work:
-> the telemetry adapters that turn real host activity (execve, sockets, file
-> opens) into `action` events, and wiring the engine into the collector.
+> `internal/rules/`; `carbonato.yaml` is the seed pack (v2 — 14 rules, including
+> two correlation rules). The telemetry adapters that turn real host activity
+> (execve, sockets, file opens) into `action` events are implemented for auditd
+> execve in `internal/telemetry/`, and the engine is wired into the collector.
+
+## Correlation rules (temporal predicates)
+
+Most rules match a single action. A few of the most valuable ones are
+**correlations in time** — the brief's canonical example is "the agent's
+identity file changed within N minutes of an outbound call." A rule adds a
+`prior_event` predicate to say that:
+
+```yaml
+  - id: carbonato.exfil.egress_after_identity_change
+    severity: critical
+    match:
+      type: net.egress
+      endpoint_glob_any: ["*slack.com*", "*discord.com*"]
+      prior_event:
+        class: identity.drift   # an event class (or action type)
+        within: 5m              # look-back window, required, positive
+```
+
+The predicate is decided against a per-host `Timeline` (a small bounded ring of
+recent `(time, class)` observations, see `internal/rules/timeline.go`). The
+collector feeds **both** halves in: actions are recorded as they are matched,
+and Layer 1/2 drift events are recorded via `BehaviorEngine.ObserveDrift`. A
+correlation rule fires only when a timeline is attached and the reference time
+is non-zero; without them it stays silent rather than guessing. `within: 0s` or
+a missing `class` is a pack load error.

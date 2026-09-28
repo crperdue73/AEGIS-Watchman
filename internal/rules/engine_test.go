@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/CRPerdue/agentids/internal/schema"
 )
@@ -87,7 +88,7 @@ func TestEngineMatchesProcessExec(t *testing.T) {
 	evs := e.Match(host, nil, schema.Action{
 		Type:   "process.exec",
 		Detail: map[string]any{"exe": "/bin/bash"},
-	}, nil)
+	}, nil, timeNow())
 	if len(evs) != 1 || evs[0].Rule.ID != "test.exec.shell" {
 		t.Fatalf("expected shell rule, got %+v", evs)
 	}
@@ -113,7 +114,7 @@ func TestEngineNoMatchIsSilent(t *testing.T) {
 	evs := e.Match(schema.Host{ID: "h1"}, nil, schema.Action{
 		Type:   "process.exec",
 		Detail: map[string]any{"exe": "/usr/bin/ls"},
-	}, nil)
+	}, nil, timeNow())
 	if len(evs) != 0 {
 		t.Fatalf("expected no events, got %+v", evs)
 	}
@@ -125,7 +126,7 @@ func TestEngineSecretReadByPath(t *testing.T) {
 		evs := e.Match(schema.Host{ID: "h1"}, nil, schema.Action{
 			Type:   "file.access",
 			Detail: map[string]any{"path": p},
-		}, nil)
+		}, nil, timeNow())
 		if len(evs) != 1 || evs[0].Rule.ID != "test.secret.read" {
 			t.Errorf("path %s: expected secret.read, got %+v", p, evs)
 		}
@@ -138,7 +139,7 @@ func TestEngineEgressEndpoints(t *testing.T) {
 		evs := e.Match(schema.Host{ID: "h1"}, nil, schema.Action{
 			Type:   "net.egress",
 			Detail: map[string]any{"endpoint": ep},
-		}, nil)
+		}, nil, timeNow())
 		if len(evs) != 1 || evs[0].Rule.ID != "test.exfil.chat" {
 			t.Errorf("endpoint %s: expected exfil.chat, got %+v", ep, evs)
 		}
@@ -149,15 +150,15 @@ func TestEngineScopeNovelty(t *testing.T) {
 	e := NewEngine(mustPack(t, samplePack))
 	host := schema.Host{ID: "h1"}
 
-	novel := e.Match(host, nil, schema.Action{Type: "scope.change", Detail: map[string]any{"novel": "true"}}, nil)
+	novel := e.Match(host, nil, schema.Action{Type: "scope.change", Detail: map[string]any{"novel": "true"}}, nil, timeNow())
 	if len(novel) != 1 || novel[0].Rule.ID != "test.scope.new" {
 		t.Errorf("novel scope: expected rule, got %+v", novel)
 	}
-	known := e.Match(host, nil, schema.Action{Type: "scope.change", Detail: map[string]any{"novel": "false"}}, nil)
+	known := e.Match(host, nil, schema.Action{Type: "scope.change", Detail: map[string]any{"novel": "false"}}, nil, timeNow())
 	if len(known) != 0 {
 		t.Errorf("known scope should not fire, got %+v", known)
 	}
-	missing := e.Match(host, nil, schema.Action{Type: "scope.change"}, nil)
+	missing := e.Match(host, nil, schema.Action{Type: "scope.change"}, nil, timeNow())
 	if len(missing) != 0 {
 		t.Errorf("absent novel key should not fire, got %+v", missing)
 	}
@@ -180,7 +181,7 @@ rules:
 			"exe":  "/bin/cat",
 			"argv": []any{"/bin/cat", "/home/vivi/.ssh/id_rsa"},
 		},
-	}, nil)
+	}, nil, timeNow())
 	if len(evs) != 1 {
 		t.Fatalf("expected argv match, got %+v", evs)
 	}
@@ -188,7 +189,7 @@ rules:
 	evs = e.Match(schema.Host{ID: "h1"}, nil, schema.Action{
 		Type:   "process.exec",
 		Detail: map[string]any{"argv": []string{"base64", "/root/id_rsa"}},
-	}, nil)
+	}, nil, timeNow())
 	if len(evs) != 1 {
 		t.Fatalf("expected []string argv match, got %+v", evs)
 	}
@@ -208,13 +209,13 @@ rules:
 	e := NewEngine(p)
 	action := schema.Action{Type: "process.exec", Detail: map[string]any{"exe": "bash"}}
 
-	if evs := e.Match(schema.Host{ID: "h1"}, &schema.Agent{ID: "vivi"}, action, nil); len(evs) != 1 {
+	if evs := e.Match(schema.Host{ID: "h1"}, &schema.Agent{ID: "vivi"}, action, nil, timeNow()); len(evs) != 1 {
 		t.Errorf("vivi should match, got %+v", evs)
 	}
-	if evs := e.Match(schema.Host{ID: "h1"}, &schema.Agent{ID: "other"}, action, nil); len(evs) != 0 {
+	if evs := e.Match(schema.Host{ID: "h1"}, &schema.Agent{ID: "other"}, action, nil, timeNow()); len(evs) != 0 {
 		t.Errorf("other agent should not match, got %+v", evs)
 	}
-	if evs := e.Match(schema.Host{ID: "h1"}, nil, action, nil); len(evs) != 0 {
+	if evs := e.Match(schema.Host{ID: "h1"}, nil, action, nil, timeNow()); len(evs) != 0 {
 		t.Errorf("nil agent should not match a constrained rule, got %+v", evs)
 	}
 }
@@ -238,7 +239,7 @@ rules:
 	evs := e.Match(schema.Host{ID: "h1"}, nil, schema.Action{
 		Type:   "process.exec",
 		Detail: map[string]any{"exe": "bash", "argv": []any{"bash", "-c", "cat secret"}},
-	}, nil)
+	}, nil, timeNow())
 	if len(evs) != 2 {
 		t.Fatalf("expected 2 events, got %+v", evs)
 	}
@@ -254,7 +255,7 @@ func TestEngineActorAttached(t *testing.T) {
 	evs := e.Match(schema.Host{ID: "h1"}, nil, schema.Action{
 		Type:   "process.exec",
 		Detail: map[string]any{"exe": "bash"},
-	}, actor)
+	}, actor, timeNow())
 	if len(evs) != 1 || evs[0].Actor == nil || evs[0].Actor.User != "vivi" {
 		t.Fatalf("actor not attached: %+v", evs)
 	}
@@ -265,7 +266,7 @@ func TestEngineNilPacksSafe(t *testing.T) {
 	if e.Len() != 0 {
 		t.Errorf("expected 0 rules, got %d", e.Len())
 	}
-	if evs := e.Match(schema.Host{ID: "h1"}, nil, schema.Action{Type: "process.exec"}, nil); len(evs) != 0 {
+	if evs := e.Match(schema.Host{ID: "h1"}, nil, schema.Action{Type: "process.exec"}, nil, timeNow()); len(evs) != 0 {
 		t.Errorf("empty engine should never fire, got %+v", evs)
 	}
 }
@@ -315,5 +316,10 @@ func TestLoadPacksEmptyString(t *testing.T) {
 }
 
 func intp(i int) *int { return &i }
+
+// timeNow is a fixed reference time for Match calls in tests. Temporal rules
+// (prior_event) are only exercised in timeline_test.go, where the clock is
+// driven explicitly.
+func timeNow() time.Time { return time.Unix(1790600000, 0).UTC() }
 
 var _ = normalizePathGlobs
