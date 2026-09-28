@@ -99,6 +99,12 @@ Built so far:
   evadable by rewriting a baseline hash. Central verifies every ingest against
   the manifest for the agent's root; `manifests.require_approval` makes an agent
   with no manifest loud instead of silent.
+- **Layer 3 — behavior rules** (`internal/rules/` + `rules/`): a shareable
+  YAML rule pack (Snort model — `id`, `severity`, `technique`, a `match` block
+  over action fields) and a deterministic evaluator that turns matching actions
+  into `behavior.rule_match` events. The seed pack `rules/carbonato.yaml`
+  encodes the CARBONATO exfil chain: secret-store reads, SSH-key argv, chat/C2
+  egress, shell spawn, novel scope, and persistence.
 
 The public event schema stays additive-only across all of this.
 
@@ -121,6 +127,8 @@ internal/collector/ Layer 1 hashing/watching + telemetry adapters
 internal/central/   baseline store, drift compute, alerting, mTLS wiring
 internal/mtls/      mutual-TLS config loaders (shared by both ends)
 internal/provenance/ Layer 2 signed approval manifests + verification
+internal/rules/     Layer 3 rule format, parser, and action-matching engine
+rules/              published rule packs (carbonato.yaml seed pack)
 internal/rules/     Layer 3 rule format + engine
 rules/              example rule packs
 deploy/docker/      collector + central containers

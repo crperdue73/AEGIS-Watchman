@@ -387,3 +387,39 @@
   (e.g. process exec of `~/.ssh` reads, egress to a new endpoint after a persona
   edit, scope expansion). Start with the rule DSL + evaluator + tests.
 - **Blocking:** same — repo access + NAME. (Access was slated for today.)
+
+## 2026-09-28 (Mon), ~07:35 ET — Heartbeat 13
+- **Phase 3 begins — Layer 3 behavior rules.** Layers 1/2 look at files; Layer 3
+  looks at **actions**. New `internal/rules/` + the seed pack `rules/carbonato.yaml`.
+- Format (Snort model, versioned, shareable): YAML pack with `name`/`version` and
+  a list of rules; each rule has a namespaced `id`, `severity`, optional
+  `technique`/`description`, and a `match` block over action fields. A rule fires
+  when **every** predicate matches (AND); `*_any` lists fire if ANY element does.
+  Predicates: `type`, `exe`/`exe_any`, `argv_any`, `path_glob_any`,
+  `endpoint_glob_any`, `detail_equals`, `detail_non_empty`, `agent_id`.
+- Parser is strict on purpose — a malformed rule that silently never fires is
+  worse than a startup error: rejects no-name/no-rules packs, unqualified ids,
+  missing/invalid severity, empty match blocks, duplicate ids within a pack.
+- Engine (`NewEngine(packs...)`) evaluates deterministically in load order and
+  emits `behavior.rule_match` events carrying `action` + `rule{id,pack,version}`
+  plus attached `actor` when available. No regex at match time, no eval.
+- Seed pack `rules/carbonato.yaml` (6 rules) encodes the CARBONATO exfil chain:
+  novel scope request, credential-store read (~/.ssh, ~/.aws, gcloud, kube,
+  *.env), chat/C2 egress (slack/discord/telegram/pastebin/transfer.sh), shell
+  spawn, SSH-key-in-argv, and persistence (nohup/setsid/systemd-run).
+- **Glob semantics fixed (real bug):** `path.Match` does not let `*` cross `/`,
+  so `*/.ssh/*` missed `/root/.ssh/id_ed25519` and `*api.telegram.org*` missed a
+  full URL. `anyGlobMatches` now tries the whole string, every path suffix, the
+  basename, and a substring needle for domain-style globs. Caught by tests before
+  shipping.
+- **Verification:** gofmt + vet clean; **98/98 tests pass** (+17: pack parse +
+  strict rejection matrix, process/file/egress/scope matching, argv as []any and
+  []string, agent-id constraint, multi-rule ordering, actor attachment, nil-pack
+  safety, dir load incl. sorted + bad-pack + empty, AND the shipped pack loads
+  and fires on the full CARBONATO chain while `ls` stays quiet).
+- **Next step (heartbeat 14):** telemetry adapters — turn real host activity into
+  `action` events. Start with a Linux execve/auditd reader (`internal/collector/
+  telemetry` or similar) producing `process.exec` actions, then feed them to the
+  rules engine; wire a `rules.dir` config and emit matches through the same
+  alerting path.
+- **Blocking:** same — repo access + NAME. (Access was slated for today.)

@@ -1,0 +1,197 @@
+// Package rules implements the Layer 3 rule format, parser, and evaluator.
+//
+// Rules match on ACTIONS, not files. A rule is a small, versioned, shareable
+// document (the Snort model): an id, a severity, a match block over the action
+// fields, and a description that ties it to a technique where possible.
+//
+// The engine is deliberately simple and deterministic — no regex compilation at
+// match time, no eval, no external DSL. A rule is a set of conjunctive field
+// predicates; a rule fires when every predicate matches. This keeps the format
+// auditable (you can read a rule and know exactly what it does) and keeps the
+// hot path allocation-light.
+package rules
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"gopkg.in/yaml.v3"
+)
+
+// Format version for the on-disk rule document.
+const FormatVersion = 1
+
+// Rule is one detection rule.
+type Rule struct {
+	// ID is a stable, namespaced identifier, e.g. "carbonato.tool.scope_new".
+	ID string `yaml:"id" json:"id"`
+	// Title is a one-line human summary.
+	Title string `yaml:"title" json:"title"`
+	// Severity: info | low | medium | high | critical.
+	Severity string `yaml:"severity" json:"severity"`
+	// Pack labels the rule family, e.g. "carbonato".
+	Pack string `yaml:"pack,omitempty" json:"pack,omitempty"`
+	// Version is the rule's own revision, e.g. "1".
+	Version string `yaml:"version,omitempty" json:"version,omitempty"`
+	// Technique optionally maps to a ATT&CK-style id or a brief section.
+	Technique string `yaml:"technique,omitempty" json:"technique,omitempty"`
+	// Description explains what the rule catches and why it matters.
+	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+	// Match is the predicate block. A rule fires when ALL present predicates
+	// match the observed action (logical AND). An empty Match never fires.
+	Match Match `yaml:"match" json:"match"`
+}
+
+// Match is the predicate block over an action. Every present field must match;
+// absent fields are ignored. Slices (argv_any, path_glob_any, endpoint_glob_any)
+// match if ANY element matches.
+type Match struct {
+	// Type matches action.type exactly (process.exec, net.egress, ...).
+	Type string `yaml:"type,omitempty" json:"type,omitempty"`
+
+	// Exe matches the executable basename or full path (exact, case-sensitive).
+	Exe string `yaml:"exe,omitempty" json:"exe,omitempty"`
+	// ExeAny matches if the executable is any of these (basename or path).
+	ExeAny []string `yaml:"exe_any,omitempty" json:"exe_any,omitempty"`
+
+	// ArgvAny fires if ANY element of argv matches ANY of these as a glob
+	// (e.g. "*.ssh*", "*id_rsa*"). Globs use path.Match semantics.
+	ArgvAny []string `yaml:"argv_any,omitempty" json:"argv_any,omitempty"`
+
+	// PathGlobAny matches action.detail.path against any glob.
+	PathGlobAny []string `yaml:"path_glob_any,omitempty" json:"path_glob_any,omitempty"`
+
+	// EndpointGlobAny matches action.detail.endpoint (host[:port] or URL) against
+	// any glob.
+	EndpointGlobAny []string `yaml:"endpoint_glob_any,omitempty" json:"endpoint_glob_any,omitempty"`
+
+	// DetailEquals requires action.detail[key] to equal value (string compare).
+	DetailEquals map[string]string `yaml:"detail_equals,omitempty" json:"detail_equals,omitempty"`
+	// DetailNonEmpty requires action.detail[key] to be present and non-empty.
+	DetailNonEmpty []string `yaml:"detail_non_empty,omitempty" json:"detail_non_empty,omitempty"`
+
+	// AgentID matches agent.id exactly, if set.
+	AgentID string `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
+}
+
+// Pack is a named, versioned collection of rules loaded from one file or dir.
+type Pack struct {
+	Name    string `yaml:"name" json:"name"`
+	Version string `yaml:"version,omitempty" json:"version,omitempty"`
+	Rules   []Rule `yaml:"rules" json:"rules"`
+}
+
+// ParsePack parses a YAML rule pack from raw bytes and validates every rule.
+func ParsePack(raw []byte) (*Pack, error) {
+	var p Pack
+	dec := yaml.NewDecoder(strings.NewReader(string(raw)))
+	if err := dec.Decode(&p); err != nil {
+		return nil, fmt.Errorf("rules: parse pack: %w", err)
+	}
+	if p.Name == "" {
+		return nil, fmt.Errorf("rules: pack has no name")
+	}
+	if len(p.Rules) == 0 {
+		return nil, fmt.Errorf("rules: pack %q has no rules", p.Name)
+	}
+	seen := map[string]bool{}
+	for i := range p.Rules {
+		r := &p.Rules[i]
+		if r.Pack == "" {
+			r.Pack = p.Name
+		}
+		if r.Version == "" {
+			r.Version = p.Version
+		}
+		if err := r.Validate(); err != nil {
+			return nil, fmt.Errorf("rules: pack %q: %w", p.Name, err)
+		}
+		if seen[r.ID] {
+			return nil, fmt.Errorf("rules: pack %q: duplicate rule id %q", p.Name, r.ID)
+		}
+		seen[r.ID] = true
+	}
+	return &p, nil
+}
+
+// LoadPack reads and parses a rule pack from a file path.
+func LoadPack(path string) (*Pack, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("rules: read pack %s: %w", path, err)
+	}
+	p, err := ParsePack(raw)
+	if err != nil {
+		return nil, fmt.Errorf("rules: %s: %w", path, err)
+	}
+	return p, nil
+}
+
+// LoadPacks loads every *.yaml/*.yml under dir (non-recursive), sorted by name
+// for determinism. A directory with no packs is not an error.
+func LoadPacks(dir string) ([]*Pack, error) {
+	if dir == "" {
+		return nil, nil
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("rules: read dir %s: %w", dir, err)
+	}
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		n := e.Name()
+		if strings.HasSuffix(n, ".yaml") || strings.HasSuffix(n, ".yml") {
+			names = append(names, n)
+		}
+	}
+	sort.Strings(names)
+	var packs []*Pack
+	for _, n := range names {
+		p, err := LoadPack(filepath.Join(dir, n))
+		if err != nil {
+			return nil, err
+		}
+		packs = append(packs, p)
+	}
+	return packs, nil
+}
+
+// Validate checks a rule's shape. It is strict on purpose: a malformed rule
+// that silently never fires is worse than a startup error.
+func (r *Rule) Validate() error {
+	if r.ID == "" {
+		return fmt.Errorf("rule has no id")
+	}
+	if !strings.Contains(r.ID, ".") {
+		return fmt.Errorf("rule %q: id should be namespaced (e.g. pack.area.name)", r.ID)
+	}
+	switch r.Severity {
+	case "info", "low", "medium", "high", "critical":
+	case "":
+		return fmt.Errorf("rule %q: severity is required", r.ID)
+	default:
+		return fmt.Errorf("rule %q: invalid severity %q", r.ID, r.Severity)
+	}
+	if m := r.Match; isZeroMatch(m) {
+		return fmt.Errorf("rule %q: empty match block (would never fire)", r.ID)
+	}
+	for k := range r.Match.DetailEquals {
+		if k == "" {
+			return fmt.Errorf("rule %q: detail_equals has an empty key", r.ID)
+		}
+	}
+	return nil
+}
+
+// isZeroMatch reports whether a match block has no predicates at all.
+func isZeroMatch(m Match) bool {
+	return m.Type == "" && m.Exe == "" && len(m.ExeAny) == 0 &&
+		len(m.ArgvAny) == 0 && len(m.PathGlobAny) == 0 && len(m.EndpointGlobAny) == 0 &&
+		len(m.DetailEquals) == 0 && len(m.DetailNonEmpty) == 0 && m.AgentID == ""
+}

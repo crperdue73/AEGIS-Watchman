@@ -1,0 +1,123 @@
+# carbonato — Layer 3 rule pack
+#
+# Rules match on ACTIONS (process.exec, net.egress, file.access, scope.change),
+# not on files. A rule fires when every predicate in its `match` block matches;
+# slices (argv_any, path_glob_any, ...) fire if ANY element matches.
+#
+# This pack targets the CARBONATO-class "agent as insider" technique: an
+# operator gets code or text into an agent's context, the agent is then induced
+# to read secrets, reach for new capabilities, or exfiltrate to a new endpoint.
+# Each rule carries a `technique` tying it to the brief where possible.
+#
+# Globs use shell-style path.Match semantics and are checked against the value
+# itself and its basename.
+
+name: carbonato
+version: "1"
+
+rules:
+  - id: carbonato.tool.scope_new
+    title: Agent requests a tool or capability not previously seen
+    severity: high
+    technique: phase3/scope-expansion
+    description: >
+      A scope.change action naming a capability that is not part of the agent's
+      approved set is the CARBONATO "reach for more" signal. The upstream engine
+      is expected to populate detail.novel=true when the capability is new.
+    match:
+      type: scope.change
+      detail_equals:
+        novel: "true"
+
+  - id: carbonato.secret.read_order_follows_constraint
+    title: Agent reads a credential store after a constraint-ignoring prompt
+    severity: critical
+    technique: phase3/secret-access
+    description: >
+      The canonical CARBONATO ordering: a prompt tells the agent to ignore prior
+      constraints and read credentials. A file.access into ~/.ssh, ~/.aws, or a
+      keychain after such a prompt is the exfil precursor.
+    match:
+      type: file.access
+      path_glob_any:
+        - "*/.ssh/*"
+        - "*/.aws/*"
+        - "*id_rsa*"
+        - "*id_ed25519*"
+        - "*/.config/gcloud/*"
+        - "*/.kube/config*"
+        - "*credentials*"
+        - "*.env"
+
+  - id: carbonato.exfil.egress_after_change
+    title: Outbound egress to a chat/C2 endpoint from a build context
+    severity: high
+    technique: phase3/exfiltration
+    description: >
+      An agent making outbound calls to a chat service or a blockchain RPC
+      endpoint from a build/CI context has no legitimate reason to; combined
+      with a recent identity change it is the exfil leg.
+    match:
+      type: net.egress
+      endpoint_glob_any:
+        - "*slack.com*"
+        - "*discord.com*"
+        - "*telegram.org*"
+        - "*hooks.slack.com*"
+        - "*api.telegram.org*"
+        - "*pastebin.com*"
+        - "*transfer.sh*"
+        - "*/api/v2/events*"
+
+  - id: carbonato.exec.shell_spawn
+    title: Agent process spawns a shell or script interpreter
+    severity: medium
+    technique: phase3/execution
+    description: >
+      An agent spawning sh/bash/powershell/python is not automatically hostile,
+      but in a persona-only agent it is a strong escalation signal and correlates
+      with the more specific secret-access rules.
+    match:
+      type: process.exec
+      exe_any:
+        - sh
+        - bash
+        - zsh
+        - dash
+        - powershell
+        - pwsh
+        - python
+        - python3
+        - perl
+        - ruby
+
+  - id: carbonato.exec.ssh_key_heredoc
+    title: Shell command references an SSH private key or known_hosts
+    severity: high
+    technique: phase3/secret-access
+    description: >
+      A command line that names an SSH private key (cat/grep/base64 over
+      ~/.ssh/id_*) is the read half of a key-exfil chain. Bare key-in-argv is
+      rare outside of exfil tooling.
+    match:
+      type: process.exec
+      argv_any:
+        - "*.ssh/id_*"
+        - "*id_rsa*"
+        - "*id_ed25519*"
+        - "*/.ssh/known_hosts*"
+
+  - id: carbonato.persist.survives_session
+    title: Agent process survives its parent user session
+    severity: medium
+    technique: phase3/persistence
+    description: >
+      A process that keeps running after its spawning session exits is a
+      persistence signal (systemd-run, nohup, setsid, disown).
+    match:
+      type: process.exec
+      argv_any:
+        - "*nohup*"
+        - "*setsid*"
+        - "*systemd-run*"
+        - "*disown*"
