@@ -263,3 +263,44 @@
   remaining Phase-1 gap) — client cert on the collector, CA-verified server cert
   on central, `-tls-cert/-tls-key/-tls-ca` flags + config keys.
 - **Blocking:** same — repo access + NAME. (Access was slated for today.)
+
+## 2026-09-28 (Mon), ~04:35 ET — Heartbeat 10
+- **Mutual TLS on the collector→central hop — the last Phase-1 gap.** The
+  inventory names every agent persona file on a host and what changed in it;
+  that is a map of the fleet's soft spots, so the hop is now authenticated in
+  both directions instead of trusting the network.
+- New `internal/mtls/` — shared loaders so neither end reimplements cert parsing:
+  - `ClientConfig()` (collector): presents a client cert, verifies central.
+  - `ServerConfig()` (central): `ClientAuth: RequireAndVerifyClientCert` — an
+    unauthenticated collector is rejected **at the handshake**, before any body
+    is read.
+  - `MinVersion: TLS 1.2`. `ServerName` override for names that differ from the
+    dial host. `InsecureSkipVerify` exists only for tests and is named so it is
+    uncomfortable to set; `Validate()` refuses a TLS config with no CA unless
+    that flag is explicitly on.
+- Wiring: `report.tls` in collector.yaml, top-level `tls` in central.yaml;
+  `collector.NewTLSClient` **fails fast** on bad material rather than silently
+  falling back to plaintext (worst possible failure mode). `cmd/central` uses
+  `ListenAndServeTLS` and logs `mutual TLS required`; plaintext logs an explicit
+  WARNING.
+- `deploy/gen-certs.sh` — one-command CA + leaf generation (SANs include
+  localhost/127.0.0.1), `0600` keys.
+- **Verification:** gofmt + vet clean; **50/50 tests pass** (+8): validation
+  matrix, a **real TLS handshake** over loopback, an **untrusted-client
+  rejection**, a **missing-client-cert rejection**, missing-file and garbage-CA
+  errors, and a full **HTTP ingest over mutual TLS** using the real collector
+  client (enroll silent → drift caught).
+- **Live e2e with real binaries + real certs:** `gen-certs.sh` → central with
+  `tls` → collector `mutual TLS enabled` → enroll silent → CARBONATO edit →
+  `DRIFT SOUL.md severity=high` → `ALERT: 1 drift(s) ... (max=high)`. Then a
+  client with a mismatched `server_name` was refused:
+  `tls: failed to verify certificate: x509: certificate is valid for localhost,
+  not WRONGNAME`.
+- **Phase 1 is complete:** Layer 1 hashing → drift + diff → durable baselines →
+  webhook/email/log alerting → mutual TLS. The CARBONATO TTP is caught end to
+  end over an authenticated, encrypted hop.
+- **Next step (heartbeat 11):** repo-access / naming unblock. If Dad hasn't
+  handed over the GitHub repo yet, start **Phase 2 (provenance/attestation)** in
+  `internal/provenance/`: per-file signature manifest + an `untrusted` event when
+  a persona/skill file is unsigned or unaccounted for.
+- **Blocking:** same — repo access + NAME. (Access was slated for today.)

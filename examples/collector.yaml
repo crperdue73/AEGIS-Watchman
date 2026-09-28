@@ -22,6 +22,14 @@ watch:
 report:
   endpoint: https://central.example/api/v1/events
   interval: 30s
+  # Mutual TLS to the central service. Recommended for any real fleet: the
+  # inventory names every agent persona file on the host, so the hop is
+  # authenticated in both directions. Generate material with deploy/gen-certs.sh.
+  tls:
+    cert: /etc/agentids/leaf.crt
+    key: /etc/agentids/leaf.key
+    ca: /etc/agentids/ca.crt
+    server_name: central.example   # must match the cert SAN; or use localhost
 
 attribution:
   source: auditd       # optional; enables "who changed it". null = drift without actor.

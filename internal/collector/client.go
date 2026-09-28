@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/CRPerdue/agentids/internal/mtls"
 	"github.com/CRPerdue/agentids/internal/schema"
 )
 
@@ -30,6 +31,9 @@ type IngestResult struct {
 type Client struct {
 	Endpoint string
 	HTTP     *http.Client
+	// TLS reports whether this client authenticates with a client cert. Useful
+	// for a startup log line so an operator can see the hop is encrypted.
+	TLS bool
 }
 
 // NewClient returns a client for the given endpoint, with a sane timeout.
@@ -38,6 +42,24 @@ func NewClient(endpoint string) *Client {
 		Endpoint: endpoint,
 		HTTP:     &http.Client{Timeout: 30 * time.Second},
 	}
+}
+
+// NewTLSClient returns a client that speaks mutual TLS to the central service.
+// It fails fast if the configured certificate material is missing or malformed —
+// silently falling back to plaintext would be the worst possible failure mode.
+func NewTLSClient(endpoint string, tlsCfg mtls.Config) (*Client, error) {
+	cfg, err := tlsCfg.ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+	return &Client{
+		Endpoint: endpoint,
+		HTTP: &http.Client{
+			Timeout:   30 * time.Second,
+			Transport: &http.Transport{TLSClientConfig: cfg},
+		},
+		TLS: true,
+	}, nil
 }
 
 // Submit sends one inventory and returns the central service's result.

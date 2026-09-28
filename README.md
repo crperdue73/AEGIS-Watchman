@@ -85,6 +85,11 @@ Built so far:
   `MultiAlerter`: a **webhook** (JSON POST), the **service log**, and **email**
   (SMTP, port 465 implicit TLS or STARTTLS). Alerts are batched one per ingest
   cycle. Configured in `central.yaml`; delivery failures are logged, never fatal.
+- **Transport security** — **mutual TLS** on the collector→central hop
+  (`internal/mtls/`): clients require and verify central's cert, and central
+  requires and verifies every collector's cert (`RequireAndVerifyClientCert`, so
+  an unauthenticated client is refused at the handshake). TLS 1.2 minimum.
+  `deploy/gen-certs.sh` generates the CA and leaf material.
 
 The public event schema stays additive-only across all of this.
 
@@ -103,7 +108,8 @@ cmd/collector/      per-host collector entrypoint
 cmd/central/        central rule/alert service entrypoint
 internal/schema/    versioned event wire format (the public contract)
 internal/collector/ Layer 1 hashing/watching + telemetry adapters
-internal/central/   baseline store, drift compute, alerting
+internal/central/   baseline store, drift compute, alerting, mTLS wiring
+internal/mtls/      mutual-TLS config loaders (shared by both ends)
 internal/rules/     Layer 3 rule format + engine
 rules/              example rule packs
 deploy/docker/      collector + central containers

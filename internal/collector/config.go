@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/CRPerdue/agentids/internal/mtls"
 	"gopkg.in/yaml.v3"
 )
 
@@ -35,6 +36,9 @@ type Watch struct {
 type Report struct {
 	Endpoint string        `yaml:"endpoint"`
 	Interval time.Duration `yaml:"interval"`
+	// TLS enables mutual TLS to the central service. Absent -> plain HTTP
+	// (fine for a loopback dev setup, never for a real fleet).
+	TLS mtls.Config `yaml:"tls,omitempty"`
 }
 
 // Attribution controls "who changed it" enrichment.
@@ -81,6 +85,9 @@ func (c *Config) validate() error {
 	}
 	if c.Report.Interval <= 0 {
 		c.Report.Interval = 30 * time.Second
+	}
+	if err := c.Report.TLS.Validate(); err != nil {
+		return err
 	}
 	return nil
 }

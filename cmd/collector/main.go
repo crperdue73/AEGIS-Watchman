@@ -63,7 +63,18 @@ func main() {
 	if cfg.Report.Endpoint == "" {
 		log.Fatalf("agentids-collector: report.endpoint is required (or use -dry-run)")
 	}
-	client := collector.NewClient(cfg.Report.Endpoint)
+	var client *collector.Client
+	if cfg.Report.TLS.Enabled() {
+		c, err := collector.NewTLSClient(cfg.Report.Endpoint, cfg.Report.TLS)
+		if err != nil {
+			log.Fatalf("agentids-collector: tls: %v", err)
+		}
+		client = c
+		log.Printf("agentids-collector: mutual TLS enabled -> %s", cfg.Report.Endpoint)
+	} else {
+		client = collector.NewClient(cfg.Report.Endpoint)
+		log.Printf("agentids-collector: WARNING plaintext report -> %s", cfg.Report.Endpoint)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

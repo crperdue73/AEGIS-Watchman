@@ -69,6 +69,21 @@ func main() {
 	}
 
 	log.Printf("agentids-central listening on %s (store=%s)", cfg.Addr, cfg.Store)
+
+	if cfg.TLSEnabled() {
+		tlsCfg, err := cfg.TLS.ServerConfig()
+		if err != nil {
+			log.Fatalf("agentids-central: tls: %v", err)
+		}
+		srv.TLSConfig = tlsCfg
+		log.Printf("agentids-central: mutual TLS required on the ingest listener")
+		if err := srv.ListenAndServeTLS("", ""); err != nil {
+			log.Fatalf("agentids-central: %v", err)
+		}
+		os.Exit(0)
+	}
+
+	log.Printf("agentids-central: WARNING plaintext ingest (configure tls for a real fleet)")
 	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("agentids-central: %v", err)
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/CRPerdue/agentids/internal/mtls"
 	"gopkg.in/yaml.v3"
 )
 
@@ -17,6 +18,10 @@ type Config struct {
 	Store string `yaml:"store"`
 	// MaxDiffBytes caps the unified diff attached to each drift event.
 	MaxDiffBytes int `yaml:"max_diff_bytes"`
+
+	// TLS enables mutual TLS on the ingest listener. Absent -> plain HTTP
+	// (loopback dev only).
+	TLS mtls.Config `yaml:"tls,omitempty"`
 
 	Alerts Alerts `yaml:"alerts"`
 }
@@ -93,8 +98,14 @@ func (c Config) validate() error {
 			return fmt.Errorf("config: alerts.email.to requires at least one recipient")
 		}
 	}
+	if err := c.TLS.Validate(); err != nil {
+		return err
+	}
 	return nil
 }
+
+// TLSEnabled reports whether the ingest listener should serve HTTPS.
+func (c Config) TLSEnabled() bool { return c.TLS.Enabled() }
 
 // Alerter builds the Alerter described by the config, or nil when no sink is
 // enabled. Webhook, log, and email sinks compose via MultiAlerter.

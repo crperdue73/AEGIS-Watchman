@@ -11,6 +11,14 @@ store: /var/lib/agentids/baselines.json
 # (no file bodies in alerts). Does not affect what is stored as baseline.
 max_diff_bytes: 4096
 
+# Mutual TLS on the ingest listener. When set, collectors MUST present a
+# cert signed by this CA; unauthenticated clients are rejected at the
+# handshake. Generate material with deploy/gen-certs.sh.
+tls:
+  cert: /etc/agentids/leaf.crt
+  key: /etc/agentids/leaf.key
+  ca: /etc/agentids/ca.crt
+
 alerts:
   # Any HTTP endpoint that accepts a JSON POST. Slack incoming webhooks,
   # PagerDuty Events API v2, a ticket bot, or a tiny shell receiver.
