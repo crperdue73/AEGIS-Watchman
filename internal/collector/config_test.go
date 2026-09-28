@@ -186,3 +186,14 @@ func TestNewBehaviorEngineRejectsBadPack(t *testing.T) {
 		t.Error("expected error for a malformed rule pack")
 	}
 }
+
+// A collector config with a bad eBPF block must fail validation at startup,
+// not silently ignore the operator's intent.
+func TestConfigRejectsBadEBPF(t *testing.T) {
+	c := &Config{}
+	c.Behavior.EBPF.Enabled = true
+	c.Behavior.EBPF.WatchPaths = []string{""}
+	if err := c.validate(); err == nil {
+		t.Error("empty ebpf watch path should fail validation")
+	}
+}

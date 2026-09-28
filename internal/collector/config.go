@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/CRPerdue/agentids/internal/mtls"
+	"github.com/CRPerdue/agentids/internal/telemetry"
 	"gopkg.in/yaml.v3"
 )
 
@@ -42,6 +43,10 @@ type Behavior struct {
 	// retained lines still match). Empty -> derived as <spool>.cursor when a
 	// spool is set, else no persistence.
 	Cursor string `yaml:"cursor"`
+	// EBPF configures the optional kernel-side file.access adapter. It is
+	// always additional to audit_log, never a replacement; a build without eBPF
+	// support or a host that cannot load the object degrades to auditd-only.
+	EBPF telemetry.EBPFConfig `yaml:"ebpf"`
 }
 
 // AgentRoot is one globbed agent workspace to inventory.
@@ -118,6 +123,9 @@ func (c *Config) validate() error {
 		if _, err := os.Stat(c.Behavior.RulesDir); err != nil {
 			return fmt.Errorf("config: behavior.rules_dir %q: %w", c.Behavior.RulesDir, err)
 		}
+	}
+	if err := c.Behavior.EBPF.Validate(); err != nil {
+		return fmt.Errorf("config: behavior.%w", err)
 	}
 	return nil
 }

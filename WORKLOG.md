@@ -796,3 +796,37 @@
   misconfigured host gets a clear log line and the build never grows a clang
   dependency. Still no kernel needed.
 - **Blocking:** same — repo access + NAME (access was slated for today, Sept 28).
+
+## 2026-09-28 (Mon), ~18:30 ET — Heartbeat 24
+- **R2.1 landed: the eBPF adapter's kernel-free scaffolding + graceful-fallback
+  wiring.** Five small files, no kernel, no privileges — and the project now
+  *behaves correctly* the day eBPF lands, instead of needing a second refactor.
+- **`internal/telemetry/ebpf.go`:** `EBPFConfig` (defined on every platform so
+  the collector's config compiles anywhere), `Validate()` (runs even without
+  eBPF support, so a bad config is caught at startup), `DefaultWatchPaths()`
+  (the conservative universal secret-store prefixes — `~/.ssh`, `~/.aws`,
+  `~/.openclaw`, `/etc/shadow`…), and `DefaultRingBufBytes`.
+- **Build-tagged split (D3):** `ebpf_stub.go` (`//go:build !ebpf`) returns
+  `ErrEBPFUnsupported`; `ebpf_linux.go` (`//go:build ebpf`) holds the R2.2
+  entry point. Same signature, so callers compile unchanged. `go build ./...`
+  still needs no clang/libbpf, and `go build -tags ebpf ./...` compiles clean.
+- **The contract that makes degradation work:** a *disabled* config returns
+  `(nil, nil)` on both builds; an *enabled* one on a non-eBPF build returns
+  `ErrEBPFUnsupported`. So the collector's `switch` in `NewBehaviorEngine` has
+  exactly three honest outcomes — attach, log-and-run-degraded, or nothing —
+  and a host can never fail to start over its secondary source (D6).
+- **Wired:** `Behavior.EBPF` config; `NewBehaviorEngine` builds the eBPF source
+  when enabled, attaches it to the `MultiSource` on success, logs one line and
+  continues on any failure.
+- **Verification:** gofmt + vet clean; **187 tests pass** (+8: config validate
+  disabled/negative-ringbuf/empty-path, default vs overridden watch paths, stub
+  returns unsupported, disabled returns nil-nil, collector rejects a bad eBPF
+  block). Tagged build (`-tags ebpf`) also compiles and tests green.
+- **Also:** `examples/collector.yaml` documents the `ebpf:` block and every knob.
+- **Next step (heartbeat 25):** **R2.2** is the kernel-dependent piece (CO-RE
+  object + loader + ringbuf → `file.access`). It needs a host with a modern
+  kernel to *test*, so before writing it, check whether this host can build/load
+  an eBPF object at all (`clang -target bpf`, `/sys/kernel/btf/vmlinux`,
+  `uname -r`); if not, do R2.3 (deploy docs) and pivot to R3 (Docker events),
+  both of which need no kernel, and leave R2.2 for a host that can verify it.
+- **Blocking:** same — repo access + NAME (access was slated for today, Sept 28).

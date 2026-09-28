@@ -55,6 +55,25 @@ func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submi
 		auditSrc.SetCursor(cur)
 	}
 	src := telemetry.NewMultiSource(auditSrc)
+
+	// The eBPF adapter is additive (D1): when configured, try to build it and
+	// attach it alongside auditd. Any failure — no eBPF in this build, an old
+	// kernel, no CAP_BPF — is logged once and the collector runs degraded rather
+	// than refusing to start (D6). A verdict tool that goes blind because its
+	// *second* source is unavailable is worse than one that runs with one eye
+	// and says so.
+	if cfg.Behavior.EBPF.Enabled {
+		ebpfSrc, err := telemetry.NewEBPFSource(cfg.Behavior.EBPF, log.Default())
+		switch {
+		case err != nil:
+			log.Printf("collector: behavior: eBPF file.access adapter unavailable, running auditd-only: %v", err)
+		case ebpfSrc == nil:
+			// Disabled at the source level; nothing to attach.
+		default:
+			src.Add(ebpfSrc)
+			log.Printf("collector: behavior: eBPF file.access adapter attached")
+		}
+	}
 	a := schema.Agent{}
 	if agent != nil {
 		a = *agent

@@ -49,6 +49,20 @@ behavior:
   spool: /var/lib/agentids/spool.jsonl
   spool_max_bytes: 16777216   # 16 MiB; oldest entries dropped past it
 
+  # Optional eBPF file.access adapter. ADDITIVE to audit_log, never a
+  # replacement — it catches a secret read that never names the path on the
+  # command line (a python -c wrapper), which the argv rules cannot. Needs a
+  # modern kernel + CAP_BPF, and a binary built with `-tags ebpf`. If it cannot
+  # load, the collector logs one line and runs auditd-only; it never fails to
+  # start. See docs/R2-EBPF-DESIGN.md.
+  ebpf:
+    enabled: false              # flip on once you have built with -tags ebpf
+    object_path: ""             # empty = the object embedded in the binary
+    # Path prefixes the kernel-side filter keeps (only these reach userspace).
+    # Empty = the built-in secret-store defaults (~/.ssh, ~/.aws, ~/.openclaw...).
+    watch_paths: []
+    ringbuf_bytes: 0            # 0 = 1 MiB per CPU
+
 # Enable the telemetry source with an auditd rule (only execve is on by
 # default). Drop this in /etc/audit/rules.d/agentids.rules and reload:
 #

@@ -172,6 +172,10 @@ eBPF object never lands. Recommended next step (heartbeat 23): R2.0.
 ---
 
 ## Log
+- **2026-09-28** — **R2.1 shipped.** `EBPFConfig` + `Validate` +
+  `DefaultWatchPaths`; build-tagged stub (`!ebpf`) / entry point (`ebpf`); the
+  disabled→(nil,nil), enabled-without-support→`ErrEBPFUnsupported` contract; and
+  the collector wiring that attaches it or logs-and-degrades. No kernel needed.
 - **2026-09-28** — Design written. eBPF scoped as its own phase; the seam is the
   existing `Source` interface. Seven decisions (D1–D7) fixing the two things
   that shape everything: eBPF is additive (D1), and the collector must degrade
