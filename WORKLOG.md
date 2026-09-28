@@ -105,3 +105,33 @@
   an interval; attach the `UnifiedDiff` content into the event before sending.
   Then a `cmd/collector -dry-run` that prints the inventory without a server.
 - **Blocking:** same — repo access + NAME.
+
+## 2026-09-27 (Sun), ~23:35 ET — Heartbeat 5
+- **The collector is a real client now — full two-process system, demoed live.**
+- New code:
+  - `internal/collector/config.go` — YAML config loader (`gopkg.in/yaml.v3`,
+    the project's first dependency) with defaults + validation (requires ≥1
+    agent_root, sha256 only, sensible poll/report intervals).
+  - `internal/collector/run.go` — `CollectAll`: globs each `agent_root` path
+    (`/home/*/.openclaw/workspace-*` → N roots), walks each, deterministic order;
+    errors if a glob matches nothing (catches misconfig).
+  - `internal/collector/client.go` — HTTP `Client.Submit` → POST inventory,
+    decode `IngestResult`, error on non-2xx.
+  - `cmd/collector/main.go` — real binary: `-config`, `-host-id`, `-host-name`,
+    `-dry-run` (prints inventory, contacts nothing), `-once` (one cycle),
+    default = poll loop on `report.interval`, graceful SIGINT/SIGTERM shutdown.
+    Logs enrollments and `DRIFT` lines.
+  - Tests: `config_test.go` (5) + `client_test.go` (2).
+- **Verification:** gofmt + vet clean; both binaries build; **21/21 tests pass.**
+- **Live end-to-end with REAL binaries (collector → central over HTTP):**
+  - `-dry-run` printed the inventory of both agent roots, no server contact.
+  - `-once` enrolled agent-1 (2 files) + agent-2 (1 file), no false alarms.
+  - Edited agent-1 `SOUL.md` (CARBONATO TTP) → `-once` logged
+    `DRIFT SOUL.md identity.drift (severity=high)`.
+  - Unchanged resubmission → silent.
+- **Next step (heartbeat 6):** attach the unified diff — the collector should
+  read changed files and populate `file.diff` before submitting (Drift currently
+  leaves it empty). Add a fixture-based test asserting the diff text appears.
+  Then: SQLite `Store` so baselines survive a central restart (MemoryStore is
+  lost on restart — the biggest gap for a real deployment).
+- **Blocking:** same — repo access + NAME.
