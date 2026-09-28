@@ -43,17 +43,17 @@ it **today**.
 | A4 | The agent **spawns a process** (shell, cat, curl, installer) | 3 | execve + argv | ✅ shipped (auditd) |
 | A5 | The agent **reads a secret** (SSH key, model key, env) | 3 | argv/file access | ✅ via argv · ❌ via file.read (see G3) |
 | A6 | The agent makes an **outbound connection** (chat / C2 / RPC) | 3 | connect + peer classification | ✅ shipped (auditd) |
-| A7 | The agent **opens a listener** (C2 / reverse shell) | 3 | bind/listen | ⚠️ rule exists, no adapter (see G2) |
+| A7 | The agent **opens a listener** (C2 / reverse shell) | 3 | bind/listen | ✅ shipped (R1, auditd bind/listen) |
 | A8 | The intrusion **persists** past session end (cron, rc, unit) | 3 | file write to known paths | ✅ via argv heuristics · ❌ via file.write (see G3) |
 | A9 | The agent **escapes its container** (privileged + host mount) | 3 | container runtime events | ❌ gap (see G4) |
 | A10 | The agent **changes its own scope** (new tool, new API key) | 3 | agent-native control-plane log | ❌ gap (see G5) |
 
-**Reading of the matrix:** 6 of 10 forced actions are detected today on real
-telemetry. Two more (A7, A10) have rule or schema support but no live feed.
+**Reading of the matrix:** 7 of 10 forced actions are detected today on real
+telemetry. One more (A10) has rule and schema support but no live feed.
 Two (A2 attribution, A9 container escape) are genuine gaps with a clear owner
 and a clear adapter — nobody is currently claiming they're covered.
 
-That is the honest Phase 0 statement: **60% covered end to end, 20% half-wired,
+That is the honest Phase 0 statement: **70% covered end to end, 10% half-wired,
 20% named gaps.** For a tool that has not yet shipped v1, that is a strong
 position — and more importantly, none of the gaps are *architectural*. They are
 all "write the next adapter behind the `telemetry.Source` interface."
@@ -107,13 +107,11 @@ biased toward what the brief calls out as the *reason the tool exists*.
   the event's `auid`. Does not touch the collector hot path.
 - **Owner:** central.
 
-### G2 — Listener/bind telemetry has a rule but no feed
-- **What's missing:** `carbonato.net.new_listener` exists in the seed pack, but
-  no adapter emits a `net.listen`-shaped action. The rule cannot fire.
-- **Why it matters:** a reverse shell / C2 listener is a top-tier TTP.
-- **Priority:** HIGH (cheap). auditd can produce it the same way it produces
-  `connect` — a `-S bind`/`-S listen` rule and a parser branch alongside
-  `EgressAction()`. Cheapest high-value win left.
+### G2 — Listener/bind telemetry — ✅ CLOSED (R1, Sept 28)
+- **Was:** `carbonato.net.new_listener` existed but no adapter emitted a
+  listener-shaped action — dead code.
+- **Fix:** `net.listen` action from auditd `bind`/`listen`; rule
+  `carbonato.net.listener_bound` (pack v3). Ships with tests.
 - **Owner:** collector (`internal/telemetry`).
 
 ### G3 — No kernel file-access telemetry (`file.access`)
@@ -165,18 +163,17 @@ existing one) — no engine work.
 
 | # | Adapter | Closes | Source of truth | Cost |
 |---|---|---|---|---|
-| **R1** | auditd `bind`/`listen` → `net.listen` action | G2 | auditd (already enabled if `-S connect` is) | LOW |
+| **R1** | auditd `bind`/`listen` → `net.listen` action | G2 | auditd (already enabled if `-S connect` is) | ✅ DONE |
 | **R2** | eBPF `file.access` (open/openat on secret paths) | G3, A5, A8 | eBPF, kernel-level | HIGH |
 | **R3** | Docker events adapter (privileged + host-mount detection) | G4, A9 | `docker events` stream | MEDIUM |
 | **R4** | central-side uid→name resolution | G1 | ingested passwd map / `auid` | LOW |
 | **R5** | agent control-plane shim → `scope.change` | G5, A10 | agent-native log | MEDIUM |
 | **R6** | README "known blind spots" section | G6 | docs | LOW |
 
-**Recommended next two after the public cut: R4 (trivial, makes every alert
-human-readable) then R1 (trivial, turns an existing rule from dead code into a
-live detection).** Both are small; together they move the matrix from 6/10 to
-7.5/10 detected for maybe a day of work. R2 (eBPF) is the strategic bet and
-should be scoped as its own phase, not a heartbeat step.
+**Recommended next after the public cut: R4 (trivial, makes every alert
+human-readable), then R4-adjacent R2 scoping.** R1 is done (G2 closed, matrix at
+7/10). R2 (eBPF) is the strategic bet and should be scoped as its own phase, not
+a heartbeat step.
 
 ---
 
@@ -202,6 +199,9 @@ should be scoped as its own phase, not a heartbeat step.
 ---
 
 ## Log
+- **2026-09-28** — **R1 done.** G2 closed: auditd `bind`/`listen` → `net.listen`
+  action, rule `carbonato.net.listener_bound` (pack v3). Matrix moves 6/10 →
+  7/10 detected. Next: R4 (uid→name).
 - **2026-09-28** — Coverage matrix + adapter roadmap written against the
   finished engine. 10 forced actions mapped to layers and telemetry; 6 covered
   live, 2 half-wired (rule/schema exists, no feed), 2 named gaps. Gap register
