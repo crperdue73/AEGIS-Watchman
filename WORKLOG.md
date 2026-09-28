@@ -559,3 +559,43 @@
   engine is proven but auditd still only emits `process.exec`). Then a durable
   action spool so a central outage doesn't drop matches.
 - **Blocking:** same — repo access + NAME. (Access was slated for today, Sept 28.)
+
+## 2026-09-28 (Mon), ~11:34 ET — Heartbeat 17
+- **`net.egress` telemetry adapter — the correlation rule now fires on real
+  traffic.** Heartbeat 16 proved the timeline at the engine level; auditd still
+  only emitted `process.exec`, so the highest-value rule could not fire on a
+  live host. Built the missing half.
+- **`internal/telemetry/egress.go`:** `ParseAuditConnectLog` parses auditd
+  `syscall=connect` records (SYSCALL line + `type=SOCKADDR` with the peer
+  address hex-encoded in `saddr=`), and `EgressAction()` turns each into a
+  `net.egress` action. `decodeSockAddr` decodes AF_INET/AF_INET6 raw sockaddr
+  bytes into `host:port`; malformed input returns ok=false so a rule never fires
+  on garbage.
+- **Names from addresses:** auditd records an IP, not a hostname, but the rules
+  are written against chat/C2 domains. `serviceForAddr` reverse-maps a small,
+  explicit set of published ranges (slack.com, api.telegram.org) to a name and
+  appends it to the endpoint detail, so `*slack.com*` fires without DNS. A
+  wrong name is worse than no name — the table is deliberately tiny and fed
+  from published ranges, not guessed.
+- **One tail, two shapes:** `ParseAuditStream` + `AuditRecord.AnyAction()` unify
+  execve and connect into a single record stream. `FileSource` now uses it, so a
+  single audit log carries both `process.exec` and `net.egress` — no second
+  source, no second offset. `ParseAuditLog` (execve-only) is kept for callers
+  that want just that.
+- **Verification:** gofmt + vet clean; **139/139 tests pass** (+7: sockaddr IPv4
+  decode + malformed rejection, service reverse-map incl. unknown→empty, connect
+  parse with named/unnamed endpoints + actor, connect parser ignores execve,
+  mixed-stream dispatch by syscall, FileSource emits egress).
+- **Live e2e — the brief's canonical chain, end to end (long-running
+  collector):** enroll clean baseline → SOUL.md drifted (identity.drift into the
+  timeline) → the agent opened a connection to Slack (connect record). Same
+  process, so the timeline held both halves: it fired
+  `carbonato.exfil.egress_after_change` (high) AND
+  **`carbonato.exfil.egress_after_identity_change` (critical)** — and central
+  paged `2 rule matches (max=critical)`. That is the rule the whole project was
+  built to catch, catching it on real binaries.
+- **Next step (heartbeat 18):** a durable action spool so a central outage
+  doesn't drop matches (today: best-effort, log-and-drop). Then wire the
+  `auditd -S connect` rule into the deploy notes so operators actually enable
+  the source.
+- **Blocking:** same — repo access + NAME. (Access was slated for today, Sept 28.)

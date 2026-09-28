@@ -67,6 +67,9 @@ type AuditRecord struct {
 	// From type=CWD / type=PATH (not used for v1 matching, kept for later).
 	Cwd   string
 	Paths []string
+
+	// From type=SOCKADDR (connect records): the peer address, hex-encoded.
+	SockAddr string
 }
 
 // Action converts an execve-ish audit record into a scheme.Action. It returns
@@ -124,6 +127,75 @@ func (r *AuditRecord) user() string {
 		return "uid:" + strconv.Itoa(r.UID)
 	}
 	return ""
+}
+
+// AnyAction converts any actionable audit record into the right schema.Action:
+// net.egress for connect records, process.exec otherwise. This is the single
+// dispatch point FileSource uses so one audit tail yields both telemetry shapes.
+func (r *AuditRecord) AnyAction() (schema.Action, *schema.Actor, bool) {
+	if r.Syscall == EgressConnect {
+		return r.EgressAction()
+	}
+	return r.Action()
+}
+
+// ParseAuditStream parses a mixed auditd stream and returns every record that
+// represents a usable action — process execution OR outbound connection. It is
+// the one entry point FileSource uses, so a single tail carries both telemetry
+// shapes.
+func ParseAuditStream(r io.Reader) ([]*AuditRecord, error) {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("telemetry: read audit log: %w", err)
+	}
+
+	order := []int{}
+	bySerial := map[int]*AuditRecord{}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		typ := auditLineType(line)
+		if typ == "" {
+			continue
+		}
+		serial := auditSerial(line)
+		if serial == 0 {
+			continue
+		}
+		rec, ok := bySerial[serial]
+		if !ok {
+			rec = &AuditRecord{Serial: serial}
+			bySerial[serial] = rec
+			order = append(order, serial)
+		}
+		applyAuditLine(rec, typ, line)
+		applyConnectLine(rec, typ, line)
+	}
+
+	var out []*AuditRecord
+	for _, serial := range order {
+		rec := bySerial[serial]
+		if !rec.isActionable() {
+			continue
+		}
+		out = append(out, rec)
+	}
+	return out, nil
+}
+
+// isActionable reports whether a record is a process execution or a connect
+// with a peer address — i.e. something a rule can match on.
+func (r *AuditRecord) isActionable() bool {
+	switch r.Syscall {
+	case EgressConnect:
+		return r.SockAddr != ""
+	case "", "execve", "execveat":
+		return r.Exe != "" || len(r.Argv) > 0
+	default:
+		return false
+	}
 }
 
 // ParseAuditLog parses a stream of auditd log lines into records and returns

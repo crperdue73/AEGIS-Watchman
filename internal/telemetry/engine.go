@@ -156,17 +156,17 @@ func (f *FileSource) Actions() ([]Event, error) {
 	complete := buf[:lastNL+1]
 	f.offset += int64(len(complete))
 
-	recs, err := ParseAuditLog(bytes.NewReader(complete))
+	recs, err := ParseAuditStream(bytes.NewReader(complete))
 	if err != nil {
 		return nil, err
 	}
 	var out []Event
 	for _, rec := range recs {
-		act, actor, ok := rec.Action()
+		action, actor, ok := rec.AnyAction()
 		if !ok {
 			continue
 		}
-		out = append(out, Event{Action: act, Actor: actor})
+		out = append(out, Event{Action: action, Actor: actor})
 	}
 	return out, nil
 }
