@@ -87,9 +87,10 @@ opt-in design.
   no live auditd, and no Docker daemon, prints the alerts, then prints the fleet
   rollup.
 - Docs: as-built architecture and event schema, a collector deploy guide with the
-  auditd prerequisite, an eBPF design note, a fleet-view operator guide, a Phase-0
-  coverage matrix (every gap named with an owner), and a Phase-1 plan with
-  acceptance criteria.
+  auditd prerequisite, an eBPF design note, a fleet-view operator guide, a
+  rule-authoring reference (format, every predicate, glob semantics, correlation,
+  and the full pack table), a Phase-0 coverage matrix (every gap named with an
+  owner), and a Phase-1 plan with acceptance criteria.
 - `SECURITY.md` (private vulnerability disclosure + the tool's own posture),
   `CODE_OF_CONDUCT.md`, and `scripts/check-links.py` wired into `make lint`.
 

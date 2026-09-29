@@ -12,6 +12,7 @@ like it's going public, because it is.
 - **One detection layer per change where possible.** Easier to review, easier to
   test.
 - **Every rule needs a test fixture.** A rule without a fixture is a rumor.
+  Write rules per [`docs/rules.md`](docs/rules.md).
 - **No telemetry leaves the host it runs on except to the configured central
   endpoint.** Privacy is a feature.
 

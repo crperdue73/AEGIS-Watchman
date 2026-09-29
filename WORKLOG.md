@@ -1688,3 +1688,45 @@ evidence — and it is the same set of commands.
   Dad's toolchain call) and P2.1c-4 (Postgres, on demand). Remaining pre-public
   polish: a one-page `docs/quickstart.md` (build → run → see an alert) that links
   out rather than duplicating the README. Re-read the plan first.
+
+---
+
+## Heartbeat 46 — `docs/rules.md`: the rule-authoring interface, written down
+
+Checked the plan's P1.4 acceptance criterion before writing more prose: it asked
+for "a table in the docs lists rule → technique → the action it keys on." There
+was **no rules doc at all** — the entire rule format, the `match` predicate
+vocabulary, glob semantics, and correlation were documented only inside Go
+source comments. For a public repo, the authoring interface is the thing
+contributors need most and had the least. That beat a quickstart that would only
+restate the README.
+
+**Shipped `docs/rules.md`:**
+- The rule document, field by field, with what `ParsePack` actually requires.
+- **The full `match` predicate table** — `type`, `exe`/`exe_any`, `argv_any`,
+  `path_glob_any`, `endpoint_glob_any`, `detail_equals`, `detail_non_empty`,
+  `detail_non_empty_any`, `detail_glob_any`, `agent_id`, `prior_event` — each with
+  its AND/OR semantics (AND across predicates; OR within slices; the two
+  detail_non_empty forms contrasted, and why `detail_glob_any` exists).
+- **Glob semantics** spelled out from `engine.go`: `path.Match`, checked whole,
+  by trailing suffix, by basename, plus the `*needle*` contains-fallback.
+- **Temporal correlation** (`prior_event`) and why the collector feeds drift to
+  the timeline before Layer 3 evaluates.
+- **The shipped pack table** — all 18 `carbonato` rules, severity, technique,
+  action type, and what each catches — generated from the YAML, which satisfies
+  P1.4's acceptance criterion.
+- Testing convention (fire-test + quiet-test) and the exact list of things the
+  parser rejects.
+
+**Linked** from the README Layer 3 bullet, `CONTRIBUTING.md`, and the CHANGELOG's
+docs list.
+
+**Verification:** every file `docs/rules.md` links to exists; the pack table was
+extracted from `rules/carbonato.yaml`, not retyped; `make lint` green (44 links);
+`go test` green (7 packages); tree has only the intended changes.
+
+- **Next step (heartbeat 47):** open fronts unchanged — P2.0 (eBPF, blocked on
+  Dad's toolchain call) and P2.1c-4 (Postgres, on demand). Remaining pre-public
+  polish is thinning: a one-page `docs/quickstart.md` (build → run → see an alert)
+  that links out, or a `docs/collector-config.md` reference for `collector.yaml`
+  (the config side still lacks a reference page). Re-read the plan first.

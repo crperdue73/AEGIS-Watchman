@@ -120,7 +120,9 @@ Built so far:
   including **correlation rules** decided against a per-host timeline, e.g. an
   outbound call within 5m of an identity-file change. Matches ship to central's
   `/api/v1/actions` and, when a `behavior.spool` path is set, are queued on disk
-  first so a central outage costs latency, never evidence.
+  first so a central outage costs latency, never evidence. Rule author's
+  reference — the format, every predicate, glob semantics, correlation, and the
+  full pack table: [`docs/rules.md`](docs/rules.md).
 - **Alert readability** — central resolves numeric actor uids to usernames at
   ingest (`uid_map`, a passwd-style file), so an alert names a person
   (`user=deploy uid=1000`) instead of `uid:1000`. Best-effort: an unknown uid
