@@ -1366,3 +1366,52 @@ all cached/clean, no change to tests or code (docs-only commit).
   (run central, ingest, view the fleet page) linked from the README, or a
   `SECURITY.md`/`CODE_OF_CONDUCT.md` pass since the repo publishes public under
   Apache-2.0. Re-read the plan first.
+
+---
+
+## Heartbeat 39 — SECURITY.md: the missing public disclosure channel (docs)
+
+Continued the pre-public-cut polish. Dad still hasn't answered the R2.2 eBPF
+question, and P2.1c-4 (Postgres) remains on-demand, so the highest-value open
+item was a genuine gap for a **public security tool**: it had no private
+vulnerability-disclosure channel.
+
+**Found:** `CONTRIBUTING.md` said "contact the maintainers privately first" —
+and pointed nowhere. No `SECURITY.md`, no `.github/`. For a repo publishing
+public under Apache-2.0, that is the one doc whose absence has real consequences:
+a researcher with a real bug has no private route, so the bug becomes a public
+issue (or a silent miss). A security tool that hides its own attack surface is a
+liability.
+
+**Shipped `SECURITY.md`** (new, ~5 KB):
+- **Reporting** — GitHub **private vulnerability reporting** as the primary
+  channel, with a no-details public-issue fallback if advisories are unavailable.
+  No fabricated email: the channel is a real, standard mechanism.
+- **In scope** — collector/central, rule engine + pack, event schema, mTLS +
+  provenance trust, deploy assets.
+- **By design, not a bug** — alert-only (no remediation), no telemetry exfil,
+  eBPF behind a build tag, auditd-prerequisite dependence. Naming these stops
+  them being re-reported as defects.
+- **Known blind spots** — points at the README section + `PHASE0-COVERAGE.md`,
+  so a *missed detection* is triaged against documented coverage before it is
+  called a bug.
+- **How agentids protects itself** — operator-facing posture: mTLS required on
+  ingest, least-data/least-privilege, atomic `0600` durable state,
+  append-before-send spool, one dependency + no CGO. A deployer should know what
+  they're trusting.
+- **Disclosure** — good-faith, no false SLA, credit on request; supported
+  versions = pre-1.0, fixes land forward on `main`.
+
+**Wired the pointers:** `CONTRIBUTING.md` Security section now links
+`SECURITY.md`; README gained a short **Security** section before License
+(alert-only + no-exfil stated plainly, plus the disclosure link).
+
+**Verification:** `go build` + `go vet` + `go test ./...` green (7 packages ok,
+docs-only commit); every linked path confirmed present; the
+`README.md#known-blind-spots` anchor confirmed against the heading.
+
+- **Next step (heartbeat 40):** remaining open fronts unchanged — P2.0 (eBPF,
+  blocked on Dad) and P2.1c-4 (Postgres, on demand). Continue pre-public-cut
+  polish: add `CODE_OF_CONDUCT.md`, or build the `examples/fleet` runnable
+  walkthrough (run central → ingest → view the fleet page) and link it from the
+  README, which also strengthens definition-of-done req 3. Re-read the plan first.

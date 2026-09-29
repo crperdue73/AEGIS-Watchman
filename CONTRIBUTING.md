@@ -31,5 +31,6 @@ like it's going public, because it is.
 
 ## Security
 
-Found a vulnerability in agentids itself? Do not open a public issue. Contact
-the maintainers privately first.
+Found a vulnerability in agentids itself? Do not open a public issue. Report it
+the way [`SECURITY.md`](SECURITY.md) describes — through GitHub private
+vulnerability reporting — so it can be fixed before it is public.
