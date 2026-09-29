@@ -17,6 +17,10 @@ func TestMemoryRecordStoreAppendAndRecent(t *testing.T) {
 	ctx := context.Background()
 	st := NewMemoryRecordStore(RecordRetention{Window: time.Hour, MaxRecords: 100})
 	base := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+	// Pin the store's clock. Retention prunes against now, so a test that leaves
+	// nowFn as the real clock is a time bomb: it passes only while the hardcoded
+	// base is still inside the window, then fails once wall time moves past it.
+	st.nowFn = func() time.Time { return base.Add(3 * time.Minute) }
 	_ = st.Append(ctx, rec("h1", "high", "r.1", base))
 	_ = st.Append(ctx, rec("h2", "low", "r.2", base.Add(time.Minute)))
 	_ = st.Append(ctx, rec("h1", "critical", "r.3", base.Add(2*time.Minute)))
@@ -155,6 +159,40 @@ func TestIngestRetainsEvenWithoutAlerter(t *testing.T) {
 	}
 }
 
+// TestIngestRetainsRuleTechnique: a rule match carries its technique on the
+// event's Rule, and it must survive into the retained record and the fleet
+// rollup's by_technique — otherwise the advertised technique breakdown is empty.
+func TestIngestRetainsRuleTechnique(t *testing.T) {
+	ctx := context.Background()
+	svc := NewService(NewMemoryStore())
+	rs := NewMemoryRecordStore(DefaultRecordRetention)
+	svc.SetRecordStore(rs)
+
+	host := schema.Host{ID: "h1", Name: "one"}
+	agent := schema.Agent{Root: "/r"}
+	events := []schema.Event{{
+		Schema: schema.Version, Event: schema.EventBehaviorRuleMatch,
+		Severity: schema.SeverityHigh, Host: host,
+		Rule:   &schema.Rule{ID: "carbonato.exfil.egress_after_change", Pack: "carbonato", Technique: "phase3/exfiltration"},
+		Action: &schema.Action{Type: "net.egress"},
+	}}
+	if _, err := svc.IngestActions(ctx, host, agent, events); err != nil {
+		t.Fatal(err)
+	}
+
+	recs, err := rs.Recent(ctx, "h1", 10)
+	if err != nil || len(recs) != 1 {
+		t.Fatalf("records = %d, %v", len(recs), err)
+	}
+	if recs[0].Technique != "phase3/exfiltration" {
+		t.Errorf("record technique = %q, want phase3/exfiltration", recs[0].Technique)
+	}
+	view := buildFleetView(recs, 10)
+	if len(view.Hosts) != 1 || view.Hosts[0].ByTechnique["phase3/exfiltration"] != 1 {
+		t.Errorf("fleet by_technique not populated: %+v", view.Hosts)
+	}
+}
+
 func TestBuildFleetViewRollup(t *testing.T) {
 	base := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
 	// newest-first, as Recent returns.
@@ -223,7 +261,9 @@ func recordStoreImpls(t *testing.T) map[string]func() RecordStore {
 
 func TestQueryTimeRange(t *testing.T) {
 	ctx := context.Background()
-	base := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+	// Clock-relative base: the stores prune against real now, so a hardcoded date
+	// near "today" would make this pass only for a few days after it was written.
+	base := time.Now().UTC().Truncate(time.Second)
 	for name, mk := range recordStoreImpls(t) {
 		t.Run(name, func(t *testing.T) {
 			st := mk()
@@ -252,7 +292,7 @@ func TestQueryTimeRange(t *testing.T) {
 
 func TestQueryMinSeverity(t *testing.T) {
 	ctx := context.Background()
-	base := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+	base := time.Now().UTC().Truncate(time.Second)
 	for name, mk := range recordStoreImpls(t) {
 		t.Run(name, func(t *testing.T) {
 			st := mk()
@@ -279,7 +319,7 @@ func TestQueryMinSeverity(t *testing.T) {
 
 func TestQueryCombinedAndLimit(t *testing.T) {
 	ctx := context.Background()
-	base := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+	base := time.Now().UTC().Truncate(time.Second)
 	for name, mk := range recordStoreImpls(t) {
 		t.Run(name, func(t *testing.T) {
 			st := mk()

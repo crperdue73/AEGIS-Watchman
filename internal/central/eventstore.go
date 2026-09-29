@@ -334,11 +334,16 @@ func RecordFromEvent(host schema.Host, agent schema.Agent, ev schema.Event, when
 	}
 	if ev.Rule != nil {
 		rec.RuleID = ev.Rule.ID
+		rec.Technique = ev.Rule.Technique
 	}
 	if ev.Action != nil {
 		rec.ActionType = ev.Action.Type
-		if t, ok := ev.Action.Detail["technique"].(string); ok {
-			rec.Technique = t
+		// Legacy fallback: an event producer that never carried a rule (or an
+		// older collector) may still put the technique in action.detail.
+		if rec.Technique == "" {
+			if t, ok := ev.Action.Detail["technique"].(string); ok {
+				rec.Technique = t
+			}
 		}
 	}
 	if ev.File != nil {

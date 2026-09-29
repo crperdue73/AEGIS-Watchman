@@ -51,10 +51,12 @@ These close the remaining *cheap* gaps and make the repo honest enough to publis
 - **Done:** `demo/` with captured fixtures (an auditd stream and a `docker
   events` stream), a fake `docker` CLI so the daemon-side path including
   HostConfig enrichment is exercised with no Docker installed, and `run.sh` —
-  one command that starts the real central, runs two real collector passes, and
-  prints the alerts. Verified: **six matches**, two critical, including the
-  privileged/host-mounted container (the entry vector) and, on the second pass,
-  the drift → container-after-identity-change correlation. No root, no daemon,
+  one command that builds, starts the real central, runs two real collector
+  passes, prints the alerts, and prints the fleet rollup. Verified at the time:
+  **six matches**, two critical, including the privileged/host-mounted container
+  (the entry vector) and, on the second pass, the drift →
+  container-after-identity-change correlation (the pack has since grown; see
+  [`demo/README.md`](demo/README.md) for the current set). No root, no daemon,
   deterministic. Linked from the README quick-start.
 - **Cost:** MEDIUM. **Owner:** collector + docs.
 

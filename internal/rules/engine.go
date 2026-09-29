@@ -70,7 +70,7 @@ func (e *Engine) Match(host schema.Host, agent *schema.Agent, action schema.Acti
 		}
 		act := action
 		ev.Action = &act
-		ev.Rule = &schema.Rule{ID: r.ID, Pack: r.Pack, Version: r.Version}
+		ev.Rule = &schema.Rule{ID: r.ID, Pack: r.Pack, Version: r.Version, Technique: r.Technique}
 		ev.Severity = r.Severity
 		ev.Actor = actor
 		out = append(out, *ev)

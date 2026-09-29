@@ -197,8 +197,9 @@ pass instead of the poll loop.
 
 **To see a detection with no root, no live auditd, and no Docker daemon, run the
 demo:** `cd demo && ./run.sh` — it replays captured fixtures through the real
-binaries and prints the alerts, including the critical container-entry-vector
-match. See [`demo/README.md`](demo/README.md).
+binaries, prints the alerts (including the critical container-entry-vector
+match), then prints the fleet rollup from `GET /api/v1/fleet`. See
+[`demo/README.md`](demo/README.md).
 
 ## Known blind spots
 

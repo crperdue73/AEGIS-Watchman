@@ -1415,3 +1415,65 @@ docs-only commit); every linked path confirmed present; the
   polish: add `CODE_OF_CONDUCT.md`, or build the `examples/fleet` runnable
   walkthrough (run central → ingest → view the fleet page) and link it from the
   README, which also strengthens definition-of-done req 3. Re-read the plan first.
+
+---
+
+## Heartbeat 40 — the demo shows the fleet view; two real defects found and fixed
+
+Picked up the pre-public-cut polish from heartbeat 39: make the **P2.1 fleet
+view** verifiable by a stranger from the repo. That turned into fixing two
+genuine defects, which is the better outcome.
+
+**1. The demo now ends at the operator console, not a log grep.**
+`demo/run.sh` already stood up the real central + collector and printed alerts;
+it never asked central for the fleet rollup. Added a final step: `curl
+GET /api/v1/fleet`, pretty-printed (python3, with a raw-JSON fallback) as
+events/hosts/max-severity + breakdown by severity and by technique, plus a
+pointer to the human page at `GET /`. Enabled `records:` in `demo/central.yaml`
+so the rollup comes from the same durable store a deploy uses. `demo/README.md`,
+the main README quick-start, and the P1.2 note in `PHASE1-PLAN.md` were updated
+to match (the demo README still claimed "six matches" from before the pack grew).
+
+**2. Fixed: the fleet's `by_technique` was always empty — a hollow shipped
+feature.** The README/plan advertise a technique breakdown, but `technique`
+never reached a record: the rule engine emitted `Rule{id,pack,version}` without
+copying `Rule.Technique`, and central's `RecordFromEvent` looked for the tag in
+`action.detail["technique"]` (where nothing puts it). Fix, in four places:
+- `internal/schema`: `Rule` gains optional `Technique` (additive per the v1
+  versioning policy — no version bump; `docs/event-schema.md` + the JSON schema
+  updated in step).
+- `internal/rules`: `Match` copies `r.Technique` onto the emitted event.
+- `internal/central`: `RecordFromEvent` reads `ev.Rule.Technique` first, keeping
+  an `action.detail` fallback for any legacy producer.
+- Tests: an engine test that the tag propagates, and an ingest test that it
+  survives into the record and the fleet rollup's `by_technique`.
+The demo now prints a real breakdown (7 techniques across 12 events) where it
+previously printed nothing.
+
+**3. Fixed: time-bombed tests.** `TestMemoryRecordStoreAppendAndRecent` failed
+the moment the wall clock passed its hardcoded `base` (2026-09-29 12:00 UTC),
+because `Append` prunes against the store's real `now`. Confirmed the cause, then
+pinned that store's `nowFn` (the pattern the other store tests already use) and
+made the three `TestQuery*` contract tests clock-relative — they used fixed dates
+with a 7-day retention, so a stranger cloning in October would have seen red for
+no fault of their own. A public repo cannot ship that.
+
+**4. Fixed: the demo could silently run stale binaries.** `run.sh` only built
+when `bin/` was missing, so it happily ran a pre-P2.1 central that 404'd
+`/api/v1/fleet` (exactly how defect #2 stayed hidden). It now always `make
+build` — incremental, and a demo that proves the *current* source.
+
+**5. Fixed: the demo left a dirty git tree.** Pass 2 appends an "attacker" edit
+to the stand-in `demo/agent-root/SOUL.md`; the reset happened only at the *start*
+of the next run, so after any run the working tree was dirty (and my own
+`git add -A` nearly swept the edit into a commit). The cleanup trap now restores
+the file, so the demo is self-contained: `git status` is unchanged after a run.
+
+**Verification:** `gofmt` clean; `go build` + `go vet` + `go test` green in both
+the default and `-tags sqlite` builds, uncached; JSON schema parses;
+`demo/run.sh` runs end-to-end (exit 0) and prints alerts + the fleet rollup.
+
+- **Next step (heartbeat 41):** open fronts unchanged — P2.0 (eBPF, blocked on
+  Dad's toolchain call) and P2.1c-4 (Postgres, on demand). Continue pre-public-cut
+  polish: `CODE_OF_CONDUCT.md`, or a `docs/fleet-view.md` operator page (the
+  endpoint, the filters, the HTML page) linked from the README. Re-read the plan.

@@ -120,6 +120,35 @@ func TestEngineNoMatchIsSilent(t *testing.T) {
 	}
 }
 
+// TestEnginePropagatesTechnique: a rule that declares a technique must ride it
+// onto the emitted event's Rule, so downstream consumers (central's fleet
+// rollup) can group by technique without re-reading the pack.
+func TestEnginePropagatesTechnique(t *testing.T) {
+	pack := `
+name: techpack
+version: "1"
+rules:
+  - id: tech.exec.shell
+    title: shell
+    severity: medium
+    technique: phase3/execution
+    match:
+      type: process.exec
+      exe_any: [bash]
+`
+	e := NewEngine(mustPack(t, pack))
+	evs := e.Match(schema.Host{ID: "h1"}, nil, schema.Action{
+		Type:   "process.exec",
+		Detail: map[string]any{"exe": "/bin/bash"},
+	}, nil, timeNow())
+	if len(evs) != 1 {
+		t.Fatalf("expected 1 event, got %+v", evs)
+	}
+	if evs[0].Rule == nil || evs[0].Rule.Technique != "phase3/execution" {
+		t.Errorf("technique not propagated: %+v", evs[0].Rule)
+	}
+}
+
 func TestEngineSecretReadByPath(t *testing.T) {
 	e := NewEngine(mustPack(t, samplePack))
 	for _, p := range []string{"/home/vivi/.ssh/id_rsa", "/root/.ssh/id_ed25519", "/home/x/id_rsa"} {

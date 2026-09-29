@@ -63,7 +63,8 @@
       "properties": {
         "id": { "type": "string" },
         "pack": { "type": "string" },
-        "version": { "type": "string" }
+        "version": { "type": "string" },
+        "technique": { "type": "string", "description": "ATT&CK-style tag the rule declares, when present." }
       }
     },
     "actor": {

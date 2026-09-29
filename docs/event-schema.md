@@ -59,7 +59,9 @@ Fires when a rule matches an observed action.
 
 - `action.type` ∈ `process.exec · net.egress · file.access · scope.change`.
 - `action.detail` carries rule-specific fields (e.g. endpoint, argv, path, scope).
-- `rule` carries `{ id, pack, version }` so consumers can trace which rule fired.
+- `rule` carries `{ id, pack, version, technique? }` so consumers can trace which
+  rule fired and, when the rule declares one, group by technique. `technique` is
+  an additive optional field (no version bump; consumers ignore it if absent).
 
 ## Versioning policy
 

@@ -73,6 +73,11 @@ type Rule struct {
 	ID      string `json:"id"`
 	Pack    string `json:"pack,omitempty"`
 	Version string `json:"version,omitempty"`
+	// Technique is the rule's ATT&CK-style tag, when the rule declares one. It
+	// rides on the event so consumers (and central's fleet rollup) can group by
+	// technique without re-reading the rule pack. Additive/optional per the v1
+	// versioning policy.
+	Technique string `json:"technique,omitempty"`
 }
 
 // Actor is who performed the action, when attributable. Nil when unavailable.

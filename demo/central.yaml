@@ -3,6 +3,11 @@
 # nothing external to stand up.
 addr: ":18080"
 store: ./out/baselines.json
+# Durable event records behind the fleet view (GET /api/v1/fleet and GET /).
+# The demo run is self-contained, but pointing at a file makes the rollup the
+# demo prints come from the same durable store a real deployment uses.
+records: ./out/records.json
+record_backend: file
 max_diff_bytes: 4096
 alerts:
   log: true

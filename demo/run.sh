@@ -20,11 +20,11 @@ repo="$(cd .. && pwd)"
 bin_dir="$repo/bin"
 port=18080
 
-# --- build if needed ---------------------------------------------------------
-if [[ ! -x "$bin_dir/agentids-central" || ! -x "$bin_dir/agentids-collector" ]]; then
-  echo "== building binaries (make build) =="
-  (cd "$repo" && make build)
-fi
+# --- build (always) ----------------------------------------------------------
+# Always build from the current source. `go build` is incremental, and a demo
+# that silently runs a stale binary is worse than one that takes a second longer.
+echo "== building binaries (make build) =="
+(cd "$repo" && make build)
 
 # --- fresh state -------------------------------------------------------------
 rm -rf out
@@ -38,6 +38,9 @@ cleanup() {
     kill "$central_pid" 2>/dev/null || true
     wait "$central_pid" 2>/dev/null || true
   fi
+  # Restore the stand-in persona file so the demo never leaves a dirty tree —
+  # pass 2 appends an "attacker" edit to it on purpose.
+  git checkout -- agent-root/SOUL.md 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -68,6 +71,30 @@ printf '\n<!-- overwritten by attacker -->\n' >> agent-root/SOUL.md
 echo
 echo "== alerts as central saw them =="
 grep -E "ALERT:" out/central.log | sed 's/^/   /'
+
+echo
+echo "== fleet view: the operator console, not a log grep =="
+echo "   GET /api/v1/fleet"
+fleet_json="$(curl -s "http://127.0.0.1:$port/api/v1/fleet")"
+if command -v python3 >/dev/null 2>&1; then
+  printf '%s' "$fleet_json" | python3 -c '
+import json, sys
+v = json.load(sys.stdin)
+hosts = v.get("hosts", [])
+print("   %d event(s) across %d host(s)" % (v.get("total_events", 0), len(hosts)))
+for h in hosts:
+    name = h.get("host_name") or h.get("host_id")
+    print("   %s (%s): %d event(s), max severity %s" % (
+        name, h.get("host_id"), h.get("total", 0), h.get("max_severity")))
+    tech = h.get("by_technique") or {}
+    if tech:
+        print("      by technique: " + ", ".join(
+            "%s=%d" % (k, tech[k]) for k in sorted(tech)))
+'
+else
+  printf '   %s\n' "$fleet_json"
+fi
+echo "   the same rollup as a human page: http://127.0.0.1:$port/  (GET /)"
 
 echo
 echo "done. full central log: demo/out/central.log"
