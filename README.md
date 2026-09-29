@@ -291,6 +291,12 @@ Participation in this project is covered by [`CODE_OF_CONDUCT.md`](CODE_OF_CONDU
 (Contributor Covenant 2.1). Be decent; report concerns the way that file
 describes.
 
+## Changelog
+
+What's built so far, and what's deliberately not — see
+[`CHANGELOG.md`](CHANGELOG.md). agentids is pre-1.0; changes land on `main`, and
+the event wire format is versioned separately as `agentids.event/v1`.
+
 ## License
 
 Apache-2.0 — see [`LICENSE`](LICENSE).

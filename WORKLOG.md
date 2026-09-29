@@ -1612,3 +1612,43 @@ not claimed). Trusted checks say what they don't cover.
   polish: a `CHANGELOG.md` seeded at the first public cut, or a `docs/quickstart.md`
   walking build → run → see-an-alert in one page. Re-read the plan first. (And:
   the link guard now runs on every `make lint` — keep it green.)
+
+---
+
+## Heartbeat 44 — CHANGELOG seeded; a false positive in the link guard, fixed
+
+Started the next pre-public polish item (a `CHANGELOG.md` seeded at the public
+cut). Writing it immediately surfaced a defect in the guard added last heartbeat
+— the found-defect-beats-polish-item rule again.
+
+**Shipped `CHANGELOG.md`** — Keep a Changelog format, organised by the product's
+actual shape rather than a commit dump: a **Versioning stance** section (pre-1.0,
+changes land on `main`, the event wire format is versioned separately as
+`agentids.event/v1`), an `[Unreleased]` entry grouped as Layer 1 / Layer 2 /
+Layer 3 / Central / Telemetry / Tooling-and-docs (each item tied to what is really
+in the tree — 18 rules, three record backends, the demo, the fleet view), and a
+**Known gaps** list naming the open work (eBPF kernel half, Postgres, G6
+managed agents, Windows/macOS) so the file is honest as well as celebratory.
+Linked from the README (`## Changelog`, before License).
+
+**Fixed the link guard's false positive.** `make lint` went red on
+`WORKLOG.md:1579 -> architecture.md` — but that line *quotes* the very broken
+link heartbeat 43 fixed (`[docs/architecture.md](architecture.md)` shown as an
+example, inside backticks). The guard matched it anyway: `check-links.py` did not
+skip **fenced code blocks** or **inline code spans**. Narrow, and exactly the kind
+of noise that teaches people to ignore a guard. Fix: track ``` / ~~~ fences and
+strip `` `…` `` spans before matching. Docstring's scope section updated to say so.
+
+**Proved the fix, not just asserted it.** Ran the guard after the change
+(`ok`, 37 links); then dropped a scratch file containing a real broken link
+(`[bad](definitely-missing.md)`), a backticked one, and a fenced one — the guard
+flagged **exactly** the real one and exited 1, then the scratch file was removed.
+So the fix removes the false positive *without* buying a false negative.
+
+**Verification:** `make lint` green end to end (vet + 37-link check); `go test`
+green (7 packages); `gofmt` clean; working tree clean after the scratch test.
+
+- **Next step (heartbeat 45):** open fronts unchanged — P2.0 (eBPF, blocked on
+  Dad's toolchain call) and P2.1c-4 (Postgres, on demand). Remaining pre-public
+  polish: a one-page `docs/quickstart.md` (build → run → see an alert), or wire
+  `check-links.py` into CI. Re-read the plan first.

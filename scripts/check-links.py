@@ -8,6 +8,9 @@ extracts inline links, and fails if a relative file target does not exist.
 Scope and limits, stated so the check is trusted rather than assumed:
   - Only inline links `[text](target)` are checked (that is the style this repo
     uses). Reference-style links are not.
+  - Fenced code blocks (``` / ~~~) and inline code spans (`...`) are skipped: a
+    link shown as an example — or quoted to describe a defect — is not a link to
+    follow.
   - http(s)://, mailto:, and pure `#anchor` links are skipped.
   - A `#fragment` on a file link is ignored: this checks that the *file* exists,
     not that the heading anchor does. Anchor validation is a separate, sharper
@@ -26,6 +29,9 @@ import sys
 # [text](target) — capture the target; tolerate an optional title after the
 # target ("path" "Title") which Markdown allows.
 LINK_RE = re.compile(r'\[[^\]]*\]\(\s*([^)\s]+)(?:\s+"[^"]*")?\s*\)')
+# A fence line opens or closes a fenced code block; inline code is a `...` span.
+FENCE_RE = re.compile(r'^\s*(?:```|~~~)')
+INLINE_CODE_RE = re.compile(r'`[^`]*`')
 SKIP_DIRS = {'.git', 'bin', 'node_modules'}
 
 
@@ -50,8 +56,15 @@ def main():
     checked = 0
     for path in iter_markdown(root):
         with open(path, encoding='utf-8', errors='replace') as fh:
+            in_fence = False
             for lineno, line in enumerate(fh, 1):
-                for match in LINK_RE.finditer(line):
+                if FENCE_RE.match(line):
+                    in_fence = not in_fence
+                    continue
+                if in_fence:
+                    continue
+                # Drop inline code spans so an example/quoted link is not checked.
+                for match in LINK_RE.finditer(INLINE_CODE_RE.sub('', line)):
                     target = match.group(1)
                     if is_external(target):
                         continue
