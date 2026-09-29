@@ -5,6 +5,10 @@
 optional eBPF `file.access` adapter (modern kernels). Layers 1/2 need none of
 this; see the README.
 
+> For the **every-key reference** to `collector.yaml` (all fields, defaults, and
+> what the loader rejects), see [`collector-config.md`](collector-config.md).
+> This page is the *why* and the *deploy*; that one is the *what*.
+
 This document exists so an operator can answer one question before they grant
 anything: **what does this collector need from my kernel, and what happens if it
 doesn't get it?**

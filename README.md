@@ -260,7 +260,8 @@ operator setup: the auditd rules per action type, the optional eBPF
 `file.access` source (kernel requirements + how it degrades), the Docker events
 source (the CARBONATO entry vector — a container appearing with host access),
 the central `uid_map`, and a post-deploy checklist. Through-line: everything
-degrades, nothing there is a hard dependency.
+degrades, nothing there is a hard dependency. Every `collector.yaml` key, with
+its default, is in [`docs/collector-config.md`](docs/collector-config.md).
 
 ## Layout
 

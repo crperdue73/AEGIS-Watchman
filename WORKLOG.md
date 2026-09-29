@@ -1730,3 +1730,43 @@ extracted from `rules/carbonato.yaml`, not retyped; `make lint` green (44 links)
   polish is thinning: a one-page `docs/quickstart.md` (build → run → see an alert)
   that links out, or a `docs/collector-config.md` reference for `collector.yaml`
   (the config side still lacks a reference page). Re-read the plan first.
+
+---
+
+## Heartbeat 47 — `docs/collector-config.md`: the collector config, referenced
+
+Continued the pre-public polish. Last heartbeat the *rules* side got its author
+reference; the *collector config* side still had none — every key of
+`collector.yaml` (`agent_roots`, `hash`, `watch`, `report`, `attribution`, and the
+whole `behavior` tree) was documented only in Go source and the sample file.
+`docs/deploy-collector.md` is the *deploy* guide (why/when to enable the sources);
+it was never the key reference, so this is additive, not a duplicate.
+
+**Shipped `docs/collector-config.md`:**
+- Top-level table, then a section per block with **type, default, and meaning** —
+  read out of `internal/collector/config.go` and the embedded telemetry structs,
+  not retyped: `agent_roots` (path/include/exclude), `hash` (sha256 only),
+  `watch` (`mode` default `poll`, `poll_interval` 60s), `report`
+  (`interval` 30s, `tls`), `attribution`.
+- The `behavior` tree in full: `rules_dir`, `audit_log`, `spool`,
+  `spool_max_bytes` (16 MiB), `cursor` (derives `<spool>.cursor`), plus
+  `ebpf` (with the **actual** default watch-list — `/.ssh/`, `/.aws/`,
+  `/.config/gcloud/`, `/.azure/`, `/.kube/`, `/.openclaw/`, `/etc/shadow` — and
+  the 1 MiB/CPU ring), `docker` (`inspect` defaults **off**; the sample turns it
+  on), and `scope` (a tri-state that defaults to "on exactly when Layer 3 is on").
+- A **Validation** section (what `LoadConfig` rejects) and one honest caveat:
+  the loader does **not** reject unknown keys, so a mistyped key is ignored —
+  check spelling against the page.
+
+**Linked** from `deploy-collector.md` (now explicitly "the *why*; that one is the
+*what*"), the README Deploying section, and the CHANGELOG docs list.
+
+**Verification:** every linked path resolves; defaults cross-checked against the
+code (`inspect` off-by-default confirmed at `docker.go:338`); `make lint` green
+(54 links); `go test` green (7 packages); tree has only the intended changes.
+
+- **Next step (heartbeat 48):** open fronts unchanged — P2.0 (eBPF, blocked on
+  Dad's toolchain call) and P2.1c-4 (Postgres, on demand). Remaining pre-public
+  polish is nearly done; the one page left that a stranger hits first is a
+  one-page `docs/quickstart.md` (build → run → see an alert) that links out rather
+  than restating the README. Re-read the plan first.
