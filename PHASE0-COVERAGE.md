@@ -196,9 +196,10 @@ a heartbeat step.
    it"* is best-effort numeric. Fixing G1 is cheap and should precede any demo
    to a human operator — an alert that names a uid instead of a person reads as
    unfinished.
-5. **Two blind spots must be documented, not hidden:** managed/cloud agents
-   (G6) and container-runtime events (G4) until R3 lands. Stating them is a
-   trust feature for a public security tool.
+5. **Blind spots must be documented, not hidden:** managed/cloud agents (G6) and
+   the still-open pieces of scope telemetry. Stating them is a trust feature for
+   a public security tool. (G4 — the container entry vector — is now *closed*,
+   not a blind spot; see R3 in the roadmap.)
 
 ---
 

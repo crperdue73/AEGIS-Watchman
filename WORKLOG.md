@@ -984,3 +984,42 @@
   `apt install clang libbpf-dev` to unblock R2.2; (c) the `scope.change` shim
   (R5, gap G5, the last open gap). Repo access + NAME still the publish blocker.
 - **Blocking:** same — repo access + NAME (access was slated for today, Sept 28).
+
+## 2026-09-28 (Mon), ~23:45 ET — Heartbeat 29
+- **Wrote `PHASE1-PLAN.md` — the ordered v1 backlog with acceptance criteria.**
+  Phase 0 answered *what and why*; this answers *in what order and how we know
+  it is done*. Every item carries the observable acceptance criterion, and the
+  ordering rule is stated: nothing ships to `main` a stranger cannot run and
+  verify — the repo is public from the first cut, so "works on my host" is not
+  done.
+- **v1 definition of done, written first:** a stranger on a fresh Linux host
+  can build from source, run central + one collector, reproduce at least one
+  end-to-end detection from the shipped pack (the CARBONATO chain *and* the
+  container entry vector) using only repo artifacts, and read why the alert says
+  what it says.
+- **"Now" items (to the first public cut):** P1.0 auditd-prerequisite docs in
+  the quick-start (the #1 likely first-run failure is silent rules because
+  `connect` audit is off); P1.1 README "known blind spots" (closes G6);
+  P1.2 a reproducible end-to-end demo from captured auditd + docker-events
+  fixtures (the "verify it yourself" artifact); P1.3 a first heuristic slice of
+  `scope.change` from existing telemetry (partial G5, honestly labelled); P1.4 a
+  rule-pack quality pass (fire + quiet test per rule). **"Next" (scoped):**
+  P2.0 eBPF kernel half, P2.1 durable fleet view. **Not v1:** auto-remediation,
+  non-Linux, a dashboard SPA — each with a one-line reason.
+- **Critical path drawn,** and one item escalated to **Dad**: the eBPF toolchain
+  (`apt install clang libbpf-dev`) — installing system packages is not mine to
+  decide, so it is a question, not an action.
+- **Fixed stale roadmap text** in `PHASE0-COVERAGE.md`: the "recommended next:
+  R4" line was from before R4 (and R1, R3) shipped; replaced with an accurate
+  status and a pointer to the new plan. Conclusion #5 no longer lists G4 as a
+  blind spot (it is closed). README links the plan.
+- **No code change** — docs only. `go test` unchanged at 200 green; all links
+  verified.
+- **Next step (heartbeat 30):** the plan is now the worklist. Highest-value
+  cheap item = **P1.1 (README blind-spots section, closes G6)** or **P1.0
+  (auditd prereq in the quick-start)** — both low-cost, both make the repo
+  honest before publishing. The demo (P1.2) is the bigger, more convincing one
+  once the doc preconditions are in. Repo access + NAME still the publish
+  blocker; eBPF toolchain is the escalated decision for Dad.
+- **Blocking:** same — repo access + NAME (access was slated for today, Sept 28);
+  plus the escalated eBPF-toolchain question for Dad.
