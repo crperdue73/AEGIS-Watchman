@@ -1847,3 +1847,55 @@ the intended docs; committed as `9d01342`.
   backlog is now **empty**; next real work is either the eBPF kernel half (needs
   the toolchain decision) or deepening Layer 3. Re-read `PHASE1-PLAN.md` §open
   decisions first.
+
+---
+
+## Heartbeat 50 — the rule parser now fails loudly on a typo
+
+Pre-public polish was done, so this beat took a real correctness step in the
+moat (Layer 3 / the rule ecosystem). The brief's differentiator is "shareable,
+versioned, auditable rule packs" — a community asset. For that asset, the worst
+possible failure is a rule that *loads* and *reports itself as active* but can
+never fire.
+
+`ParsePack` was already strict about structure (missing `id`, bad `severity`,
+empty `match`, duplicate id, bad `prior_event` — see `docs/rules.md` §"What the
+parser rejects"). But it used a plain `yaml.Decoder`, so an **unknown key was
+silently ignored**. Type `argv_anyy` instead of `argv_any`, or `prior_even`
+instead of `prior_event`, and the pack parses clean, the rule loads, and it
+quietly under-matches forever. That is exactly the "silently never fires" case
+the module's own comment calls "worse than a startup error" — an unenforced
+principle is not a principle.
+
+**Shipped:**
+- `internal/rules/rule.go` — `ParsePack` now decodes with `KnownFields(true)`,
+  so any unknown key at any level (pack, rule, or `match`) is a hard error
+  naming the offending key. Documented in the function comment: same reasoning
+  as `Validate`, plus the forward-safety argument — an older binary refuses a
+  pack that uses a predicate it does not understand, rather than running a
+  weakened version of it (the safe direction for a detector).
+- `internal/rules/engine_test.go` — four new reject cases (unknown `match` key,
+  unknown rule key, unknown pack key, misspelled `prior_event`) added to the
+  existing reject table, plus `TestParsePackUnknownKeyErrorIsActionable`, which
+  pins that the error names the bad key so the fix is obvious.
+- `docs/rules.md` — the parser section now states the unknown-key rule and why.
+- `CHANGELOG.md` — a `### Changed` entry (pre-1.0, but a real behavior change).
+
+**Deliberately not done:** no shipped pack or test fixture needed changing (the
+carbonato pack only uses known keys), so this is behaviour-additive for correct
+packs and loud for broken ones. Did not add a `--lenient` escape hatch — the
+strict default *is* the safety feature, and a bypass invites exactly the silent
+under-match it prevents.
+
+**Verification:** `go test ./...` green (9 packages); `make lint` green (66
+links); `gofmt` clean; `demo/run.sh` exit 0 — the real collector loads the real
+`rules/carbonato.yaml` through the now-strict parser and still fires the full
+chain (12 events, container-escape critical). Tree changed only by the five
+intended files; committed as `b7c842a`.
+
+- **Next step (heartbeat 51):** open fronts unchanged — P2.0 (eBPF, blocked on
+  Dad's toolchain call) and P2.1c-4 (Postgres, on demand). Adjacent rule-
+  ecosystem hardening if it stays blocked: validate globs at load (a bad
+  `path.Match` pattern currently compiles to a never-match, silent in the same
+  way), and detect duplicate rule ids **across** packs in `LoadPacks`. Re-read
+  `PHASE1-PLAN.md` §open decisions first.
