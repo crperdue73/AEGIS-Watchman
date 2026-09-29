@@ -1,5 +1,7 @@
 # agentids — Agent-layer Intrusion Detection
 
+[![CI](https://github.com/CRPerdue/agentids/actions/workflows/ci.yml/badge.svg)](https://github.com/CRPerdue/agentids/actions/workflows/ci.yml)
+
 > **Working name.** Placeholder until Rob picks one (see `PHASE0-DISCOVERY.md` §0.5 Q1).
 
 **Snort for AI agents.** A fleet-wide detection tool for agent-layer intrusions —

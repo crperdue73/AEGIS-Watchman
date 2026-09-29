@@ -1652,3 +1652,39 @@ green (7 packages); `gofmt` clean; working tree clean after the scratch test.
   Dad's toolchain call) and P2.1c-4 (Postgres, on demand). Remaining pre-public
   polish: a one-page `docs/quickstart.md` (build → run → see an alert), or wire
   `check-links.py` into CI. Re-read the plan first.
+
+---
+
+## Heartbeat 45 — CI: the "a stranger can run it" promise, executed on every push
+
+The v1 definition of done (`PHASE1-PLAN.md`) is a stranger on a fresh host
+building, running, and reproducing a detection from shipped artifacts. Nothing in
+the repo *executed* that promise. Added CI so it is checked, not asserted.
+
+**Shipped `.github/workflows/ci.yml`** (new `.github/`), three jobs:
+- **test** — `make build`, then `go vet` + `go test` in **both** build modes
+  (default and `-tags sqlite`), so the tagged backend can't silently rot.
+- **lint** — `make lint` (vet + the doc link check).
+- **demo** — `./demo/run.sh`: build, start the real central, run real collector
+  passes through the fixtures, print the alerts and the fleet rollup. If this is
+  green on a clean runner, definition-of-done req 3 holds.
+
+Details that matter: `setup-go` is pinned to `go-version-file: go.mod` — **not**
+"latest" — because a build that needs a newer toolchain than the module claims is
+exactly the failure this repo keeps guarding against (cf. the modernc Go-version
+gotcha in P2.1c-3). `concurrency` cancels superseded runs; `permissions:
+contents: read`.
+
+**Made the badge real:** README gains the CI badge at the top; `CONTRIBUTING.md`
+notes what CI runs so local work matches it.
+
+**Verification:** every command the workflow runs was executed locally and is
+green — `make build`; `go vet`/`go test` in both modes (7 packages each);
+`make lint` (37 links ok); `demo/run.sh` exit 0. The workflow parses as valid
+YAML (3 jobs). Can't reach GitHub's runners from here, so the local run *is* the
+evidence — and it is the same set of commands.
+
+- **Next step (heartbeat 46):** open fronts unchanged — P2.0 (eBPF, blocked on
+  Dad's toolchain call) and P2.1c-4 (Postgres, on demand). Remaining pre-public
+  polish: a one-page `docs/quickstart.md` (build → run → see an alert) that links
+  out rather than duplicating the README. Re-read the plan first.

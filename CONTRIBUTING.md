@@ -22,6 +22,10 @@ like it's going public, because it is.
 - Toolchain: Go 1.22+.
 - Build: `make build` (see [`Makefile`](Makefile)).
 - Test: `make test`.
+- CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs, on every push
+  and PR: build, `vet` and `test` in **both** build modes (default and
+  `-tags sqlite`), `make lint`, and the end-to-end `demo/run.sh`. Run the same
+  before you push — it is the same thing, just slower.
 - Lint: `make lint` — `go vet` plus `make check-links`, which fails if a
   relative link in any Markdown file does not resolve. A broken doc link is a
   defect a stranger hits on their first read, so it is checked, not trusted.

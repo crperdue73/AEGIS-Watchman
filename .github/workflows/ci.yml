@@ -1,0 +1,68 @@
+name: CI
+
+# Everything in this repo is meant to be run by a stranger on a fresh host, and
+# the v1 definition of done (PHASE1-PLAN.md) is exactly that: build, run, and
+# reproduce a detection from shipped artifacts. CI is that promise, executed.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: build + vet + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          # Pin to the module's own `go` directive, not "latest" — a build that
+          # needs a toolchain newer than go.mod claims is the bug this catches.
+          go-version-file: go.mod
+          cache: true
+      - name: Build
+        run: make build
+      - name: Vet (default and sqlite builds)
+        run: |
+          go vet ./...
+          go vet -tags sqlite ./...
+      - name: Test (default)
+        run: go test ./...
+      - name: Test (sqlite record backend)
+        run: go test -tags sqlite ./...
+
+  lint:
+    name: lint (vet + doc link check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: make lint
+        run: make lint
+
+  demo:
+    name: end-to-end demo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      # The definition-of-done walkthrough: build, start the real central, run
+      # real collector passes through the fixtures, print the alerts and the
+      # fleet rollup — no root, no auditd, no Docker daemon. If this passes on a
+      # clean runner, a stranger can reproduce it.
+      - name: demo/run.sh
+        run: ./demo/run.sh
