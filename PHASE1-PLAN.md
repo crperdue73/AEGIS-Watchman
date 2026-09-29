@@ -28,21 +28,21 @@ Everything below serves that. Items that don't are v2.
 
 These close the remaining *cheap* gaps and make the repo honest enough to publish.
 
-### P1.0 — Declare the auditd prerequisite plainly (docs)
+### P1.0 — Declare the auditd prerequisite plainly (docs) ✅ DONE
 - **Why:** the single most likely first-run failure is "I ran it and no rules
-  fired" because `connect` audit is off by default. The deploy guide covers it,
-  but the README quick-start must too.
-- **Acceptance:** the README quick-start contains the three auditd rules as a
-  copy-paste block, *before* the first command that expects telemetry, and says
-  what silence means if they are absent.
+  fired" because `connect` audit is off by default.
+- **Done:** README gained a **Getting started** section — build, the auditd
+  prerequisite as a copy-paste block *before* any command that expects
+  telemetry, what silence means, and a `-dry-run`/`-once` local run.
 - **Cost:** LOW. **Owner:** docs.
 
-### P1.1 — README "known blind spots" section (closes G6)
+### P1.1 — README "known blind spots" section (closes G6) ✅ DONE
 - **Why:** a public security tool that hides its blind spots is a liability.
-  State managed/cloud agents (G6) and any remaining gaps where the alert stream
-  cannot see, so no operator assumes coverage they lack.
-- **Acceptance:** a README section listing each uncovered action class, the gap
-  id, and why; the claims are checkable against `PHASE0-COVERAGE.md`.
+- **Done:** README gained a **Known blind spots** section naming each uncovered
+  action class with its gap id — managed/cloud agents (G6), `file.access` on a
+  stock build (G3), partial `scope.change` (G5) — and calling out that the Docker
+  adapter is off by default (G4 is closed *when enabled*). Checkable against the
+  coverage matrix.
 - **Cost:** LOW. **Owner:** docs.
 
 ### P1.2 — Reproducible end-to-end demo (the "verify it yourself" path)
@@ -108,9 +108,9 @@ These close the remaining *cheap* gaps and make the repo honest enough to publis
 ## Dependency order (the critical path)
 
 ```
-P1.0 (auditd prereq docs) ─┐
-P1.1 (blind spots docs)   ─┼─► first public cut  ─► P1.2 (demo) ─► P1.4 (rule pass)
-P1.3 (scope shim slice)   ─┘                                      └─► P2.1 (fleet view)
+P1.0 (auditd prereq docs)  ✅
+P1.1 (blind spots docs)    ✅   ──► first public cut ──► P1.2 (demo) ──► P1.4 (rule pass)
+P1.3 (scope shim slice)    ─┘                                          └─► P2.1 (fleet view)
 P2.0 (eBPF) — independent, gated on toolchain; runs in parallel when a host allows.
 ```
 
@@ -131,3 +131,8 @@ One item needs a call, not a code change:
   blind-spots docs, reproducible demo, scope-change first slice, plus a rule-pack
   quality pass), two "Next" items scoped (eBPF kernel half, fleet view), and an
   explicit not-v1 list. One decision escalated to Rob (eBPF toolchain install).
+- **2026-09-29 (Tue), ~00:45 ET** — **P1.0 and P1.1 DONE.** README gained a
+  **Getting started** section (build; the auditd prerequisite as a copy-paste
+  block before anything that expects telemetry, plus what silence means) and a
+  **Known blind spots** section naming G6/G3/G5 and the Docker-off-by-default
+  case (closes R6/G6). Critical path updated.

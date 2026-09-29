@@ -172,7 +172,7 @@ existing one) — no engine work.
 | **R3** | Docker events adapter (privileged + host-mount detection) | G4, A9 | `docker events` stream | ✅ DONE — `internal/telemetry/docker.go`, pack v4 |
 | **R4** | central-side uid→name resolution | G1 | passwd-style `uid_map` file | ✅ DONE |
 | **R5** | agent control-plane shim → `scope.change` | G5, A10 | agent-native log | MEDIUM |
-| **R6** | README "known blind spots" section | G6 | docs | LOW |
+| **R6** | README "known blind spots" section | G6 | docs | ✅ DONE — README "Known blind spots" |
 
 **Recommended next after the public cut: R4 (trivial, makes every alert
 human-readable), then R4-adjacent R2 scoping.** R1 is done (G2 closed, matrix at

@@ -1023,3 +1023,37 @@
   blocker; eBPF toolchain is the escalated decision for Dad.
 - **Blocking:** same — repo access + NAME (access was slated for today, Sept 28);
   plus the escalated eBPF-toolchain question for Dad.
+
+## 2026-09-29 (Tue), ~00:45 ET — Heartbeat 30
+- **P1.0 and P1.1 both landed — the README is now honest enough to publish.**
+  (Two cheap, high-value plan items in one quiet-hours heartbeat.)
+- **P1.0 — Getting started section.** There was *no quick-start at all* before
+  this; the README jumped from Status straight to design. Added: build
+  (`make` + `go test ./...`), and — most importantly — the auditd prerequisite
+  as a copy-paste block **before** any command that expects telemetry, with the
+  blunt line that skipping it means the rules load and *nothing fires* (the #1
+  first-run confusion), plus what each audit rule buys. Ends with a
+  `-dry-run`/`-once` local run.
+- **P1.1 — Known blind spots section (closes G6 / roadmap R6).** Names each
+  uncovered action class with its gap id and why: managed/cloud agents (G6,
+  invisible by construction — no host to read), `file.access` on a stock build
+  (G3, needs the eBPF half), partial `scope.change` (G5), and the
+  Docker-off-by-default case (G4 is closed *when enabled*). A public security
+  tool that hides its blind spots is a liability; now it states them.
+- **Renamed the two colliding `## Architecture` headings** ("Deployment shape"
+  for the box diagram, "Architecture (as built)" for the pointer) — a small
+  clarity fix a reader would otherwise trip on.
+- **Status syncs:** PHASE1-PLAN P1.0/P1.1 marked DONE and the critical path
+  updated; PHASE0-COVERAGE R6 → DONE. These are the first two plan items
+  complete.
+- **No code change** — docs only. `go test` unchanged at 200 green; links
+  verified.
+- **Next step (heartbeat 31):** **P1.2 — the reproducible end-to-end demo**, the
+  bigger and more convincing item: capture auditd + `docker events` fixtures into
+  `testdata/`, add a documented command that reproduces a `carbonato.*` alert
+  through the collector against a local central with no live daemon and no root.
+  This is what makes a stranger able to *verify*, not just read — requirement 3
+  of the v1 definition of done. Repo access + NAME still the publish blocker;
+  eBPF toolchain still the escalated question for Dad.
+- **Blocking:** same — repo access + NAME (access was slated for Mon Sept 28);
+  plus the escalated eBPF-toolchain question.

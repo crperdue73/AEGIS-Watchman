@@ -38,7 +38,7 @@ Layer 3 is the moat. File signatures are evadable by design; you cannot steal
 API keys or take C2 over Slack without an action a rule can name. Snort's lesson
 exactly: signatures name the payload, good rule engines name the intent.
 
-## Architecture
+## Deployment shape
 
 ```
 ┌───────────────────── HOST ─────────────────────┐
@@ -124,9 +124,87 @@ Built so far:
   (`user=deploy uid=1000`) instead of `uid:1000`. Best-effort: an unknown uid
   stays numeric, and the numeric id is always preserved alongside the name.
 
-The public event schema stays additive-only across all of this.
+## Getting started
 
-## Architecture
+Two binaries: `agentids-collector` (one per host) and `agentids-central` (the
+service). Build both from source:
+
+```sh
+git clone <repo> && cd agentids
+make            # builds cmd/collector and cmd/central into ./bin
+go test ./...   # 200 tests, no root, no live daemon required
+```
+
+### The one prerequisite that bites people first: auditd
+
+Layer 3 matches *actions*, and the actions come from auditd — which does **not**
+audit `connect`, `bind`, or `listen` out of the box. Enable them before you
+expect any behavioral rule to fire:
+
+```
+# /etc/audit/rules.d/agentids.rules
+-a always,exit -F arch=b64 -S execve   -k agentids
+-a always,exit -F arch=b64 -S connect  -k agentids
+-a always,exit -F arch=b64 -S bind     -k agentids
+-a always,exit -F arch=b64 -S listen   -k agentids
+```
+
+```sh
+sudo augenrules --load        # or: sudo service auditd restart
+```
+
+Then point the collector at the log:
+
+```yaml
+behavior:
+  rules_dir: /etc/agentids/rules
+  audit_log: /var/log/audit/audit.log
+```
+
+**If you skip this, the collector runs and the rules load — and nothing fires.**
+That silence is the most common first-run confusion. `execve` alone is the
+minimum; `connect` is what makes the flagship correlation rule
+(`egress_after_identity_change`) decidable, and `bind`/`listen` feed the
+listener rule. Full details and the per-rule breakdown:
+[`docs/deploy-collector.md`](docs/deploy-collector.md) §1.
+
+### Run it locally
+
+```sh
+./bin/agentids-central -config examples/central.yaml      # the service
+./bin/agentids-collector -config examples/collector.yaml -once -dry-run
+```
+
+`-dry-run` parses config and loads rules without shipping; `-once` does a single
+pass instead of the poll loop. To see a detection without any live telemetry, use
+the captured fixtures in `testdata/` (see P1.2 in [`PHASE1-PLAN.md`](PHASE1-PLAN.md)).
+
+## Known blind spots
+
+A public detection tool that hides its blind spots is a liability. What this
+**cannot** see today, with the gap id, kept honest against
+[`PHASE0-COVERAGE.md`](PHASE0-COVERAGE.md):
+
+- **Managed / cloud-hosted agents (G6).** An agent that runs inside a provider's
+  control plane emits no host telemetry the collector can read. No host, no
+  auditd, no actions — it is invisible to this tool by construction. Owned here in
+  the docs rather than implied-as-covered.
+- **`file.access` on a stock build (G3).** Reads of a secret file are caught today
+  only when the read is visible in `argv` (e.g. `cat ~/.ssh/id_ed25519`). A
+  process that reads a secret without naming it on a command line needs the eBPF
+  source, whose kernel-dependent half is not built (P2.0).
+- **`scope.change` is partial (G5).** "The agent changed its own scope" is
+  detected heuristically from host actions, not from an agent-native control-plane
+  log. The first slice lands as P1.3; the full signal is still open.
+- **Container telemetry needs Docker enabled (G4 — closed when enabled).** The
+  adapter is off by default; a host with it disabled gets no `container.start`
+  events, and the container rules stay quiet. A config choice, not a gap — but a
+  silent one, so it is named here.
+
+Everything else in the forced-action matrix either fires end to end or is listed
+with an owner in the coverage matrix.
+
+## Architecture (as built)
 
 [`docs/architecture.md`](docs/architecture.md) is the as-built data-flow: the
 one-method `Source` contract every telemetry adapter implements, how
