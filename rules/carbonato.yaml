@@ -13,7 +13,7 @@
 # itself and its basename.
 
 name: carbonato
-version: "4"
+version: "5"
 
 rules:
   - id: carbonato.tool.scope_new
@@ -22,8 +22,13 @@ rules:
     technique: phase3/scope-expansion
     description: >
       A scope.change action naming a capability that is not part of the agent's
-      approved set is the CARBONATO "reach for more" signal. The upstream engine
-      is expected to populate detail.novel=true when the capability is new.
+      approved set is the CARBONATO "reach for more" signal. In v1 the event is
+      DERIVED by the collector's scope shim from first-use telemetry (a new
+      listener, a new outbound endpoint, a new executable under an agent root);
+      detail.source="heuristic" marks it as a derivation, not ground truth, and
+      detail.novel=true is what this rule keys on. When an agent-native control
+      plane exists it will emit the same shape with detail.source="agent" and
+      this rule fires unchanged (coverage gap G5/A10 — partial in v1).
     match:
       type: scope.change
       detail_equals:

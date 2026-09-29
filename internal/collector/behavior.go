@@ -96,8 +96,20 @@ func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submi
 	if agent != nil {
 		a = *agent
 	}
+
+	// The scope.change shim (P1.3, partial G5) wraps the composed stream and
+	// derives "reached for a capability never used before" from the actions the
+	// real sources emit. It is additive and inert when disabled, so it chains here
+	// without any source learning about it. Wrapping last means it sees every
+	// action the other adapters produced this poll. Default-on whenever Layer 3
+	// rules are configured (cfg.Behavior.Scope.IsEnabled).
+	var composed telemetry.Source = src
+	if shim := telemetry.NewScopeSourceFromConfig(cfg.Behavior.Scope, cfg.Behavior.RulesDir != "", src, agent); shim != nil {
+		composed = shim
+		log.Printf("collector: behavior: scope.change heuristic shim attached (derived, detail.source=heuristic)")
+	}
 	return &BehaviorEngine{
-		eng:       telemetry.NewEngine(src, eng, host, agent).WithTimeline(tl),
+		eng:       telemetry.NewEngine(composed, eng, host, agent).WithTimeline(tl),
 		submitter: submitter,
 		host:      host,
 		agent:     a,

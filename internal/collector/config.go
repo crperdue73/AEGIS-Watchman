@@ -51,6 +51,13 @@ type Behavior struct {
 	// entry vector (G4). Like eBPF it is additive and degrades: a host without a
 	// Docker daemon simply has nothing to report. See internal/telemetry/docker.go.
 	Docker telemetry.DockerConfig `yaml:"docker"`
+	// Scope enables the scope.change heuristic shim (P1.3, partial G5): it derives
+	// "the agent reached for a capability it has never used before" from the
+	// actions the other sources already emit. It is a derivation, not a source, so
+	// it wraps the composed stream; it is on by default because it costs nothing
+	// but a map lookup per action and the rule it feeds keys on the explicit
+	// detail.source=heuristic marker. Set scope.enabled: false to disable.
+	Scope telemetry.ScopeConfig `yaml:"scope"`
 }
 
 // AgentRoot is one globbed agent workspace to inventory.

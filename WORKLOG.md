@@ -1057,3 +1057,55 @@
   eBPF toolchain still the escalated question for Dad.
 - **Blocking:** same — repo access + NAME (access was slated for Mon Sept 28);
   plus the escalated eBPF-toolchain question.
+
+## Heartbeat 32 — P1.3: first `scope.change` heuristic slice
+
+**Shipped:** `internal/telemetry/scope.go` (+ `scope_test.go`,
+`scope_acceptance_test.go`), config wiring, and a rule-pack description fix.
+
+- **What it is, honestly.** The CARBONATO objective ordering is "reach for a new
+  capability, then use it." The *pure* signal is an agent-native control-plane
+  event ("agent granted a new tool/key/endpoint"). We do not have that log in v1
+  (gap **G5/A10**). What we *can* do is derive "the agent touched a capability it
+  has never used before" from actions the other sources already emit: a new
+  listener (`net.listen`), a new outbound endpoint (`net.egress`), a new
+  executable under an agent-owned path (`process.exec`).
+- **How it works.** `ScopeSource` is a `Source` decorator that wraps the composed
+  `MultiSource` *last*, so it sees every action the adapters produced this poll.
+  It keeps a per-process `seen` map of capability keys (`kind\x00value`) and emits
+  exactly one synthetic `scope.change` per first sighting. Capability keys are
+  chosen to survive noise: egress is keyed on the **named service**
+  (`slack.com`), not the rotating IP; a set dedupes repeats within one batch.
+- **The honesty marker is load-bearing.** Every derived action carries
+  `detail.source="heuristic"` and `detail.novel="true"`. A downstream reader
+  (rule, operator, blog post) can always tell a *derived* scope change from an
+  *authoritative* one. When a real agent-native adapter exists it emits the same
+  shape with `detail.source="agent"` and the **same rule fires unchanged** — the
+  shim and the real thing are drop-in interchangeable.
+- **What it is NOT** (documented in the file): it cannot see a capability the
+  agent holds but never uses — no inventory exists to diff against. It sees
+  first *use*, a strict subset and a smaller claim. The `seen` memory is
+  per-process and resets on collector restart, so the first sighting after a
+  restart re-reports: a known, benign at-least-once duplicate, stated not hidden
+  (a persistent baseline belongs in the central store, not a stateless shim).
+- **Quiet-on-benign, proven.** Tests assert: repeat listener → no change; same
+  service on a new IP → no change; two sightings in one batch → one change;
+  system binaries (`/usr/bin/ls`, `ls`) → **never** agent scope. The acceptance
+  test (`scope_acceptance_test.go`) runs the derived action through the **real
+  shipped `rules/carbonato.yaml`**, proving `carbonato.tool.scope_new` fires on a
+  novel capability and stays quiet on a benign repeat — so shim and rule cannot
+  drift in a test that still passes.
+- **Config.** `behavior.scope.enabled` is a tri-state pointer: absent → ON
+  whenever a `rules_dir` is configured (a Layer-3 deployment gets the shim
+  without opting in); explicit `false` → off. Wrapping is inert when disabled.
+- **Rule pack v4 → v5:** the `scope_new` description now states the v1 event is
+  *derived* and marks itself `detail.source=heuristic`, and points at G5/A10.
+- **Result:** `go build`, `go vet`, `go test ./...` all green — 200 → **207**
+  tests. First `scope.change` action emitted from existing telemetry, matched by
+  ≥1 rule, with a quiet-on-benign test, labelled heuristic. **P1.3 DONE.**
+- **Next step (heartbeat 33):** **P1.4 — rule-pack quality pass** (the last open
+  Phase 1 item before the eBPF half): re-read all 18 rules against the coverage
+  matrix, tighten descriptions/severities, confirm each has a benign-lookalike
+  case, and prune anything that would false-positive on a stock host.
+- **Blocking:** unchanged — repo access + NAME (publish blocker); eBPF-toolchain
+  question still with Dad.
