@@ -45,15 +45,18 @@ These close the remaining *cheap* gaps and make the repo honest enough to publis
   coverage matrix.
 - **Cost:** LOW. **Owner:** docs.
 
-### P1.2 — Reproducible end-to-end demo (the "verify it yourself" path)
+### P1.2 — Reproducible end-to-end demo (the "verify it yourself" path) ✅ DONE
 - **Why:** requirement 3 of the definition of done. Today a reader can read
-  tests but not *see* an alert. A scripted demo — feed a captured audit log (and
-  a captured `docker events` log) through the collector against a local central,
-  show the alert — is the artifact that makes the whole thing credible.
-- **Acceptance:** `testdata/` carries the two capture fixtures; a documented
-  command reproduces a `carbonato.*` alert end to end with no live daemon and no
-  root; the demo is referenced from the README.
-- **Cost:** MEDIUM. **Owner:** collector.
+  tests but not *see* an alert.
+- **Done:** `demo/` with captured fixtures (an auditd stream and a `docker
+  events` stream), a fake `docker` CLI so the daemon-side path including
+  HostConfig enrichment is exercised with no Docker installed, and `run.sh` —
+  one command that starts the real central, runs two real collector passes, and
+  prints the alerts. Verified: **six matches**, two critical, including the
+  privileged/host-mounted container (the entry vector) and, on the second pass,
+  the drift → container-after-identity-change correlation. No root, no daemon,
+  deterministic. Linked from the README quick-start.
+- **Cost:** MEDIUM. **Owner:** collector + docs.
 
 ### P1.3 — `scope.change` shim, first slice (partially closes G5/A10)
 - **Why:** the last *open* gap that is adapter-shaped. "The agent changed its own
@@ -109,8 +112,9 @@ These close the remaining *cheap* gaps and make the repo honest enough to publis
 
 ```
 P1.0 (auditd prereq docs)  ✅
-P1.1 (blind spots docs)    ✅   ──► first public cut ──► P1.2 (demo) ──► P1.4 (rule pass)
-P1.3 (scope shim slice)    ─┘                                          └─► P2.1 (fleet view)
+P1.1 (blind spots docs)    ✅
+P1.2 (demo)                ✅   ──► first public cut ──► P1.4 (rule pass) ──► P2.1 (fleet view)
+P1.3 (scope shim slice)    ─┘
 P2.0 (eBPF) — independent, gated on toolchain; runs in parallel when a host allows.
 ```
 
@@ -136,3 +140,9 @@ One item needs a call, not a code change:
   block before anything that expects telemetry, plus what silence means) and a
   **Known blind spots** section naming G6/G3/G5 and the Docker-off-by-default
   case (closes R6/G6). Critical path updated.
+- **2026-09-29 (Tue), ~01:40 ET** — **P1.2 DONE.** The runnable demo (`demo/`)
+  reproduces six rule matches through the real binaries with no root/daemon:
+  auditd + docker-events fixtures, a fake `docker` CLI for the enriched
+  container path, and `run.sh`. Second pass shows the drift → container
+  after-identity-change correlation. Linked from the README. Three of four
+  "Now" items are done (P1.3 remains).

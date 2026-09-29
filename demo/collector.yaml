@@ -1,0 +1,21 @@
+# Demo collector config — replays captured fixtures, no root, no live daemons.
+#
+# Points every source at a file under demo/fixtures/ instead of a live system:
+#   - audit_log  : an auditd stream (replayed from the start on first poll)
+#   - docker     : `cat` of a captured `docker events` stream, so the daemon-side
+#                  container.start path is exercised without Docker installed
+report:
+  endpoint: http://127.0.0.1:18080/api/v1/events
+  interval: 2s
+
+agent_roots:
+  - path: ./agent-root
+
+behavior:
+  rules_dir: ../rules
+  audit_log: ./fixtures/audit.log
+  spool: ./out/spool.jsonl
+  docker:
+    enabled: true
+    bin: ./fake-docker.sh     # a docker CLI stand-in: events + inspect, no daemon
+    inspect: true             # enrich with HostConfig so the risk flags fire

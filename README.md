@@ -176,8 +176,12 @@ listener rule. Full details and the per-rule breakdown:
 ```
 
 `-dry-run` parses config and loads rules without shipping; `-once` does a single
-pass instead of the poll loop. To see a detection without any live telemetry, use
-the captured fixtures in `testdata/` (see P1.2 in [`PHASE1-PLAN.md`](PHASE1-PLAN.md)).
+pass instead of the poll loop.
+
+**To see a detection with no root, no live auditd, and no Docker daemon, run the
+demo:** `cd demo && ./run.sh` — it replays captured fixtures through the real
+binaries and prints the alerts, including the critical container-entry-vector
+match. See [`demo/README.md`](demo/README.md).
 
 ## Known blind spots
 

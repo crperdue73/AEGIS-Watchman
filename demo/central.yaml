@@ -1,0 +1,8 @@
+# Demo central config — listens on 18080, prints every alert to its log.
+# No webhook/email: the demo reads alerts from central's own stdout, so there is
+# nothing external to stand up.
+addr: ":18080"
+store: ./out/baselines.json
+max_diff_bytes: 4096
+alerts:
+  log: true
