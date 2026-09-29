@@ -98,6 +98,16 @@ opt-in design.
 - `SECURITY.md` (private vulnerability disclosure + the tool's own posture),
   `CODE_OF_CONDUCT.md`, and `scripts/check-links.py` wired into `make lint`.
 
+### Changed
+
+- **Rule packs parse strictly.** `ParsePack` now rejects *any* unknown key at
+  any level, so a misspelled predicate (`argv_anyy`) is a load error naming the
+  bad key instead of a line quietly ignored. A silently dropped predicate is the
+  worst failure mode for a detector — the rule under-matches while the operator
+  believes they are covered — and it also keeps a pack forward-safe, since an
+  older binary refuses a pack it does not fully understand rather than running a
+  weakened version of it. No shipped pack or test fixture changed.
+
 ### Known gaps (not changed: these are the open work)
 
 - **eBPF `file.access`, kernel-dependent half** (P2.0) — gated on a host with

@@ -1807,3 +1807,43 @@ the new one included); `make lint` green; `demo/run.sh` exit 0 (ci-relevant, sin
   Dad's toolchain call) and P2.1c-4 (Postgres, on demand). Remaining pre-public
   polish: a one-page `docs/quickstart.md` (build → run → see an alert) that links
   out rather than duplicating the README. Re-read the plan first.
+
+---
+
+## Heartbeat 49 — `docs/quickstart.md`: the one page a stranger reads first
+
+Closed the last remaining pre-public polish item from heartbeat 47/48. A
+stranger's first move is not the README's full tour; it is "build it and show me
+a detection." The repo had deploy docs, a rule reference, a config reference, a
+fleet-view guide, and an architecture doc — but no single page that goes
+build → run → alert and then gets out of the way. `demo/README.md` explains *the
+demo*; `README.md` is the full overview. This is the on-ramp between them.
+
+**Shipped `docs/quickstart.md`** — five steps, one screen each:
+1. **Build** — `make`; note that `make build` stamps version/commit/date (so
+   `-version` is real) and that SQLite is `-tags sqlite`.
+2. **See it in one command** — `cd demo && ./run.sh`, with what to expect.
+3. **Run it yourself** — central + collector `-once -dry-run` against the
+   example configs, and what each flag does.
+4. **The prerequisite that bites** — the auditd `execve/connect/bind/listen`
+   block and what its *silence* means; links the per-rule detail out.
+5. **Where to go next** — rule authoring, deploy, fleet view, architecture,
+   blind spots.
+
+Deliberately a hub, not a copy: every step links out to the page that owns the
+detail (`deploy-collector.md`, `rules.md`, `collector-config.md`, `fleet-view.md`,
+`architecture.md`, `demo/README.md`) instead of restating it — the README already
+duplicates some of this, and a third restatement would drift.
+
+**Linked** from the README "Getting started" lead-in (before the build steps)
+and added to the CHANGELOG docs bullet list.
+
+**Verification:** `make lint` green (**66** links, up from 54 — every new link
+resolves); `go test ./...` green (9 packages + 2 no-test); tree changed only by
+the intended docs; committed as `9d01342`.
+
+- **Next step (heartbeat 50):** open fronts unchanged — P2.0 (eBPF, blocked on
+  Dad's toolchain call) and P2.1c-4 (Postgres, on demand). The pre-public polish
+  backlog is now **empty**; next real work is either the eBPF kernel half (needs
+  the toolchain decision) or deepening Layer 3. Re-read `PHASE1-PLAN.md` §open
+  decisions first.

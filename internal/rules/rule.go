@@ -115,9 +115,18 @@ type Pack struct {
 }
 
 // ParsePack parses a YAML rule pack from raw bytes and validates every rule.
+//
+// Parsing is STRICT about unknown keys: a misspelled predicate or field is a
+// hard error, not a silently ignored line. This is the same reasoning as
+// Validate — a rule that loads but can never fire (or silently drops a
+// predicate and under-matches) is the worst failure mode for a detection tool,
+// because the operator believes they are covered. It also makes a pack
+// forward-safe: an older binary refuses a pack that uses a predicate it does
+// not understand, instead of running a weakened version of it.
 func ParsePack(raw []byte) (*Pack, error) {
 	var p Pack
 	dec := yaml.NewDecoder(strings.NewReader(string(raw)))
+	dec.KnownFields(true)
 	if err := dec.Decode(&p); err != nil {
 		return nil, fmt.Errorf("rules: parse pack: %w", err)
 	}

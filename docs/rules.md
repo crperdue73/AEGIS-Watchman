@@ -192,3 +192,11 @@ rules; a rule with no `id`, or an `id` without a `.`; a missing or unknown
 `severity`; an empty `match` block; a `detail_equals` / `detail_glob_any` with an
 empty key; a `detail_glob_any` entry with no globs; a `prior_event` with a blank
 `class` or a non-positive `within`; and a duplicate `id` within a pack.
+
+It also refuses **any unknown key** at any level: a misspelled predicate —
+`argv_anyy` instead of `argv_any` — is a load error naming the bad key, not a
+line quietly ignored. This matters because a silently dropped
+predicate makes a rule under-match while the operator believes they are covered,
+which is the failure mode this whole section exists to prevent. It also keeps a
+pack forward-safe: an older binary refuses a pack that uses a predicate it does
+not understand, rather than running a weakened version of it.

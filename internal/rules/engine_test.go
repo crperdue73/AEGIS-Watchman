@@ -3,6 +3,7 @@ package rules
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -72,11 +73,30 @@ func TestParsePackRejects(t *testing.T) {
 		"bad sev":     "name: p\nrules: [{id: a.b, severity: bogus, match: {type: process.exec, exe: sh}}]",
 		"empty match": "name: p\nrules: [{id: a.b, severity: low, match: {}}]",
 		"dupe id":     "name: p\nrules: [{id: a.b, severity: low, match: {type: process.exec, exe: sh}}, {id: a.b, severity: low, match: {type: process.exec, exe: bash}}]",
+		// Strict parsing: a misspelled field must fail loudly, not load a rule
+		// that quietly never fires (or silently drops a predicate).
+		"unknown match key": "name: p\nrules: [{id: a.b, severity: low, match: {type: process.exec, argv_anyy: [x]}}]",
+		"unknown rule key":  "name: p\nrules: [{id: a.b, severity: low, extra: 1, match: {type: process.exec, exe: sh}}]",
+		"unknown pack key":  "name: p\nversion: \"1\"\nbogus: 1\nrules: [{id: a.b, severity: low, match: {type: process.exec, exe: sh}}]",
+		"misspelled prior":  "name: p\nrules: [{id: a.b, severity: low, match: {type: net.egress, prior_even: {class: x, within: 5m}}}]",
 	}
 	for name, y := range cases {
 		if _, err := ParsePack([]byte(y)); err == nil {
 			t.Errorf("%s: expected parse error", name)
 		}
+	}
+}
+
+// TestParsePackUnknownKeyErrorIsActionable pins the message for the most common
+// authoring mistake: a misspelled predicate. The error must name the offending
+// key, so the fix is obvious without reading the parser.
+func TestParsePackUnknownKeyErrorIsActionable(t *testing.T) {
+	_, err := ParsePack([]byte("name: p\nrules: [{id: a.b, severity: low, match: {type: process.exec, argv_anyy: [x]}}]"))
+	if err == nil {
+		t.Fatal("expected an error for a misspelled predicate")
+	}
+	if !strings.Contains(err.Error(), "argv_anyy") {
+		t.Errorf("error should name the bad key, got: %v", err)
 	}
 }
 
