@@ -7,6 +7,14 @@ addr: ":8080"
 # Durable baseline store. Survives restarts; file is created 0600.
 store: /var/lib/agentids/baselines.json
 
+# Durable event-record store — the data behind the fleet view
+# (GET /api/v1/fleet). Every detected event is retained here so an operator can
+# see which hosts are alerting, and with what, without grepping a log. Omit to
+# keep the view in memory only (it works, but resets on restart).
+records: /var/lib/agentids/records.json
+record_retention_days: 7   # drop records older than this
+record_max: 10000          # hard cap, bounds a severity storm
+
 # Cap on the unified diff attached to each drift event. 0 = hash-only
 # (no file bodies in alerts). Does not affect what is stored as baseline.
 max_diff_bytes: 4096

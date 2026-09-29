@@ -31,6 +31,11 @@ type Service struct {
 	// uids resolves numeric actor uids to usernames at alert time. Nil (or a
 	// disabled resolver) leaves uids numeric.
 	uids *UidResolver
+	// records retains detected events for the fleet view (P2.1). Nil disables
+	// retention (alerts still fire; there is just nothing to query afterward).
+	records RecordStore
+	// now stubs the clock for retention/record timestamps in tests. Nil = time.Now.
+	now func() time.Time
 }
 
 // Logger is the minimal logging surface config wiring needs, so callers can
@@ -56,6 +61,36 @@ func (s *Service) SetManifests(r *ManifestRegistry) { s.manifests = r }
 // SetUidResolver installs the uid->name resolver applied to every event's actor
 // before alerting. Nil disables resolution (uids stay numeric).
 func (s *Service) SetUidResolver(r *UidResolver) { s.uids = r }
+
+// SetRecordStore installs the durable event record store behind the fleet view
+// (P2.1). Nil disables retention. It is wired separately from the alerter: an
+// operator may want a queryable history even with alerting off, or alerts with
+// no history on a throwaway -dry-run.
+func (s *Service) SetRecordStore(r RecordStore) { s.records = r }
+
+// nowTime returns the service clock (test-overridable).
+func (s *Service) nowTime() time.Time {
+	if s.now != nil {
+		return s.now()
+	}
+	return time.Now().UTC()
+}
+
+// retain records each event for the fleet view. Best-effort: a record-store
+// failure is logged, never fatal, because the alert already fired and the
+// baseline is already durable — losing a history row must not fail an ingest.
+func (s *Service) retain(host schema.Host, agent schema.Agent, events []schema.Event) {
+	if s.records == nil || len(events) == 0 {
+		return
+	}
+	when := s.nowTime()
+	for _, ev := range events {
+		rec := RecordFromEvent(host, agent, ev, when)
+		if err := s.records.Append(context.Background(), rec); err != nil && s.logger != nil {
+			s.logger.Printf("central: record store append failed: %v", err)
+		}
+	}
+}
 
 // resolveActors rewrites the actor on each event so a numeric uid carries its
 // username where known. No-op when no resolver is installed. Applied to both
@@ -118,10 +153,14 @@ func (s *Service) Ingest(ctx context.Context, host schema.Host, agent schema.Age
 
 	// Alert after the baseline is durable, so a failed alert never loses the
 	// new baseline. Delivery failures are logged, never fatal: the collector
-	// still gets its events, and the store is already correct.
-	if s.alerter != nil && len(events) > 0 {
+	// still gets its events, and the store is already correct. Retain the same
+	// events for the fleet view regardless of whether an alerter is configured.
+	if len(events) > 0 {
 		s.resolveActors(events)
-		s.alert(ctx, host, agent, events)
+		s.retain(host, agent, events)
+		if s.alerter != nil {
+			s.alert(ctx, host, agent, events)
+		}
 	}
 
 	return &IngestResult{FirstSeen: !found, Events: events}, nil
@@ -162,8 +201,9 @@ func (s *Service) IngestActions(ctx context.Context, host schema.Host, agent sch
 	if len(accepted) == 0 {
 		return 0, nil
 	}
+	s.resolveActors(accepted)
+	s.retain(host, agent, accepted)
 	if s.alerter != nil {
-		s.resolveActors(accepted)
 		s.alert(ctx, host, agent, accepted)
 	}
 	return len(accepted), nil

@@ -53,6 +53,19 @@ func main() {
 	svc := central.NewService(store)
 	svc.MaxDiffBytes = cfg.MaxDiffBytes
 	svc.SetLogger(log.Default())
+	// The event-record store backs the fleet view (GET /api/v1/fleet). Durable
+	// when records.path is set; in-memory (resets on restart) otherwise. Never
+	// nil, so the fleet endpoint is always functional.
+	if rs, err := cfg.RecordStoreFn(); err != nil {
+		log.Fatalf("agentids-central: %v", err)
+	} else {
+		svc.SetRecordStore(rs)
+		if cfg.Records != "" {
+			log.Printf("agentids-central: fleet view records -> %s (retain=%dd, max=%d)", cfg.Records, cfg.RecordRetentionDays, cfg.RecordMax)
+		} else {
+			log.Printf("agentids-central: fleet view records in-memory only (set records to persist)")
+		}
+	}
 	if reg, err := cfg.ManifestRegistry(); err != nil {
 		log.Fatalf("agentids-central: %v", err)
 	} else if reg != nil {

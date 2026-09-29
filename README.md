@@ -57,7 +57,7 @@ exactly: signatures name the payload, good rule engines name the intent.
       │  ─ baseline store (per agent)   │
       │  ─ drift compute + diff         │
       │  ─ rules engine (Layer 3)       │
-      │  ─ fleet view / dashboard       │
+      │  ─ fleet view: GET /api/v1/fleet │
       │  ─ alerting: webhook + email    │
       │  ─ rule pack registry (ver.)    │
       └─────────────────────────────────┘
@@ -88,6 +88,10 @@ Built so far:
   `MultiAlerter`: a **webhook** (JSON POST), the **service log**, and **email**
   (SMTP, port 465 implicit TLS or STARTTLS). Alerts are batched one per ingest
   cycle. Configured in `central.yaml`; delivery failures are logged, never fatal.
+- **Fleet view** — a durable `RecordStore` (in-memory or atomic JSON file,
+  bounded by a retention window and a hard cap) is written on every ingest, and
+  `GET /api/v1/fleet` returns recent events rolled up by host, worst-first. It
+  works with alerting off: history and paging are separate concerns.
 - **Transport security** — **mutual TLS** on the collector→central hop
   (`internal/mtls/`): clients require and verify central's cert, and central
   requires and verifies every collector's cert (`RequireAndVerifyClientCert`, so
@@ -112,7 +116,7 @@ Built so far:
   the Docker events adapter (`container.start`), watches for a container
   *appearing* on the host with host-level access — the CARBONATO entry vector,
   caught even when it was created via the unauthenticated API on `:2375` rather
-  than the `docker` CLI. The seed pack `rules/carbonato.yaml` (v4, 18 rules)
+  than the `docker` CLI. The seed pack `rules/carbonato.yaml` (v5, 18 rules)
   encodes the CARBONATO chain — secret-store reads, SSH-key argv, chat/C2 egress,
   shell spawn, novel scope, persistence, privileged/host-mounted containers —
   including **correlation rules** decided against a per-host timeline, e.g. an
@@ -123,6 +127,13 @@ Built so far:
   ingest (`uid_map`, a passwd-style file), so an alert names a person
   (`user=deploy uid=1000`) instead of `uid:1000`. Best-effort: an unknown uid
   stays numeric, and the numeric id is always preserved alongside the name.
+- **Fleet view** — every detected event is retained in a durable record store
+  (`records`), and central exposes `GET /api/v1/fleet`: recent events rolled up
+  by host — total, max severity, last-seen, breakdown by severity and by
+  technique — ordered worst-first. It answers "which hosts are alerting, and
+  with what" without grepping logs, and it works with alerting off, because
+  history and paging are separate concerns. Retention is bounded by both a time
+  window and a hard cap, so a severity storm can't grow the store unbounded.
 
 ## Getting started
 
@@ -216,7 +227,8 @@ one-method `Source` contract every telemetry adapter implements, how
 and Timeline decide correlation rules, the durable spool, and every budgeted
 degradation. It is the document to read before adding a source or a rule.
 
-The **Next** work is a durable fleet view on central plus the kernel-dependent
+The **Next** work is the human-facing fleet page on top of the fleet endpoint,
+the record-store backends (SQLite dev / Postgres prod), and the kernel-dependent
 second half of the eBPF adapter (the CO-RE object and loader behind a build
 tag); its kernel-free pieces — `MultiSource` and the build-tagged stub with
  graceful fallback — are already built and wired. Design:

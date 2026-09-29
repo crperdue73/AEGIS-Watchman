@@ -98,6 +98,11 @@ These close the remaining *cheap* gaps and make the repo honest enough to publis
 - **Acceptance:** a central page/endpoint listing hosts with recent alerts,
   grouped by rule/technique, backed by a store interface (SQLite dev, Postgres
   prod).
+- **Status:** **first slice DONE (2026-09-29).** Durable event `RecordStore`
+  (memory + atomic JSON file, retention window + cap) retained on both ingest
+  paths; `GET /api/v1/fleet` rollup by host, worst-first; config keys
+  `records`/`record_retention_days`/`record_max`. Remaining: the human-facing
+  page (`GET /`) and the SQLite/Postgres backends behind `RecordStore`.
 - **Cost:** MEDIUM-HIGH. **Owner:** central.
 
 ## Explicitly not v1
@@ -117,6 +122,14 @@ P1.2 (demo)                ✅
 P1.3 (scope shim slice)    ✅
 P1.4 (rule pass)           ✅   ──► all of Phase 1 complete ──► P2.1 (fleet view)
 P2.0 (eBPF) — independent, gated on toolchain; runs in parallel when a host allows.
+```
+
+### P2.1 progress
+
+```
+P2.1a durable event record + GET /api/v1/fleet   ✅  (2026-09-29)
+P2.1b human page (GET /, no SPA)                 ▶ next
+P2.1c Store backends (SQLite dev / Postgres prod)  ⏳ scoped
 ```
 
 ## Open decision for Dad (Rob)

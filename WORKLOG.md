@@ -1165,3 +1165,50 @@ all passing. **P1.4 DONE.**
   at the top of the next heartbeat to confirm before committing.
 - **Blocking:** unchanged — repo access + NAME (publish blocker, was slated for
   Mon Sept 28); eBPF-toolchain question still with Dad.
+
+---
+
+## Heartbeat 34 — P2.1 first slice: durable event record + fleet view
+
+The strategic call landed on **P2.1** (fleet view), not P2.0 (eBPF): eBPF is
+still gated on the toolchain question to Dad, and installing system packages is
+not mine to decide. P2.1 needs no kernel and no new dependency, and it is what
+makes the public repo demonstrable on day one.
+
+**The gap, precisely.** Central alerts were fire-and-forget: an event went to a
+webhook/email and was gone. An operator who missed a page — or who joined after
+an incident — had nothing to look at. The whole promise of a *fleet* tool is
+answering "which hosts are alerting, and with what" without grepping logs. It
+couldn't.
+
+**What shipped (first slice — the durable record + the read side):**
+- `internal/central/eventstore.go` — a `RecordStore` interface with two
+  implementations: `MemoryRecordStore` (reference/tests) and `FileRecordStore`
+  (durable, atomic temp+rename, no CGO — same one-small-file spirit as the
+  baseline `FileStore`). Bounded by `RecordRetention` (time window **and** hard
+  cap, so a severity storm can't grow it unbounded). `RecordFromEvent` is the
+  one schema→record mapping point.
+- `internal/central/fleet.go` — `GET /api/v1/fleet`: recent events rolled up by
+  host (total, max severity, last-seen, by-severity, by-technique, N recent),
+  ordered **worst-first**. Query params `host=`, `limit=`, `recent=`.
+- `Service.SetRecordStore` + `retain()` on **both** ingest paths (drift and
+  actions). Retention is independent of alerting: the fleet view works with
+  alerting off (dry-run / quiet deployment), which is the honest behaviour —
+  history and paging are separate concerns. A record-store write failure is
+  logged, never fatal (the alert already fired, the baseline is already durable).
+- `Config.RecordStoreFn` + `records` / `record_retention_days` / `record_max`
+  config keys; wired in `cmd/central`. No `records` path → in-memory (view works,
+  resets on restart), stated plainly in the startup log.
+- Tests: `eventstore_test.go` (append/order/host-filter/limit, retention window,
+  hard cap, durable reload, ingest-wire-through, retain-without-alerter) and
+  `fleet_test.go` (endpoint e2e, empty-without-store returns an honest empty
+  view not a 500, `?host=` filter).
+
+**Result:** `go build` + `go vet` + `go test ./...` green — **209 → 219 tests**,
+7 packages ok. Config example updated. **P2.1 first slice DONE.**
+
+- **Next step (heartbeat 35):** P2.1 second slice — the human view on top of the
+  record: either (a) a minimal HTML page at `GET /` rendering the same rollup
+  (no SPA, per the not-v1 list), or (b) a Store-backend decision doc (SQLite dev
+  / Postgres prod) that the record store should precede. Re-read the plan first.
+  P2.0 (eBPF) stays parked until Dad answers on the toolchain.

@@ -3,6 +3,7 @@ package central
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/CRPerdue/agentids/internal/mtls"
 	"gopkg.in/yaml.v3"
@@ -16,6 +17,14 @@ type Config struct {
 	Addr string `yaml:"addr"`
 	// Store is the path to the durable baseline store file.
 	Store string `yaml:"store"`
+	// Records is the path to the durable event-record store file (the fleet
+	// view's data). Empty -> records retained in memory only for the process
+	// lifetime (the fleet view works, but resets on restart).
+	Records string `yaml:"records"`
+	// RecordRetentionDays bounds the retained history (default 7).
+	RecordRetentionDays int `yaml:"record_retention_days"`
+	// RecordMax bounds the retained record count (default 10000).
+	RecordMax int `yaml:"record_max"`
 	// MaxDiffBytes caps the unified diff attached to each drift event.
 	MaxDiffBytes int `yaml:"max_diff_bytes"`
 
@@ -169,6 +178,28 @@ func (c Config) ManifestRegistry() (*ManifestRegistry, error) {
 
 // TLSEnabled reports whether the ingest listener should serve HTTPS.
 func (c Config) TLSEnabled() bool { return c.TLS.Enabled() }
+
+// RecordStoreFn builds the event-record store behind the fleet view. With a
+// records path configured, it is durable (FileRecordStore); without one, an
+// in-memory store is returned (the view works but resets on restart). It never
+// returns nil — the fleet endpoint is always functional — so callers can wire
+// it unconditionally.
+func (c Config) RecordStoreFn() (RecordStore, error) {
+	retain := RecordRetention{
+		Window:     time.Duration(c.RecordRetentionDays) * 24 * time.Hour,
+		MaxRecords: c.RecordMax,
+	}
+	if retain.Window <= 0 {
+		retain.Window = DefaultRecordRetention.Window
+	}
+	if retain.MaxRecords <= 0 {
+		retain.MaxRecords = DefaultRecordRetention.MaxRecords
+	}
+	if c.Records == "" {
+		return NewMemoryRecordStore(retain), nil
+	}
+	return NewFileRecordStore(c.Records, retain)
+}
 
 // Alerter builds the Alerter described by the config, or nil when no sink is
 // enabled. Webhook, log, and email sinks compose via MultiAlerter.
