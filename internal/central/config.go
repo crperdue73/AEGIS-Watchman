@@ -21,6 +21,11 @@ type Config struct {
 	// view's data). Empty -> records retained in memory only for the process
 	// lifetime (the fleet view works, but resets on restart).
 	Records string `yaml:"records"`
+	// RecordBackend selects the record-store implementation: "file" (default,
+	// atomic JSON, no extra dependency) or "sqlite" (requires the `-tags sqlite`
+	// build for scale/concurrent readers). Unknown values fall back to "file"
+	// with a log line rather than failing startup.
+	RecordBackend string `yaml:"record_backend"`
 	// RecordRetentionDays bounds the retained history (default 7).
 	RecordRetentionDays int `yaml:"record_retention_days"`
 	// RecordMax bounds the retained record count (default 10000).
@@ -179,11 +184,26 @@ func (c Config) ManifestRegistry() (*ManifestRegistry, error) {
 // TLSEnabled reports whether the ingest listener should serve HTTPS.
 func (c Config) TLSEnabled() bool { return c.TLS.Enabled() }
 
+// sqliteRecordStoreFn is set by init() in the -tags sqlite build. Nil means the
+// SQLite backend is not compiled in. Kept as a function pointer so the default
+// build never references modernc.org/sqlite and stays one-dependency.
+var sqliteRecordStoreFn func(path string, retain RecordRetention) (RecordStore, error)
+
+// RecordBackendOrDefault reports the record backend that will be used, naming
+// the default so the startup log is unambiguous.
+func (c Config) RecordBackendOrDefault() string {
+	if c.RecordBackend == "" {
+		return "file"
+	}
+	return c.RecordBackend
+}
+
 // RecordStoreFn builds the event-record store behind the fleet view. With a
-// records path configured, it is durable (FileRecordStore); without one, an
-// in-memory store is returned (the view works but resets on restart). It never
-// returns nil — the fleet endpoint is always functional — so callers can wire
-// it unconditionally.
+// records path configured, it is durable (FileRecordStore by default, or the
+// SQLite backend when record_backend: sqlite and the sqlite build is present);
+// without one, an in-memory store is returned (the view works but resets on
+// restart). It never returns nil — the fleet endpoint is always functional — so
+// callers can wire it unconditionally.
 func (c Config) RecordStoreFn() (RecordStore, error) {
 	retain := RecordRetention{
 		Window:     time.Duration(c.RecordRetentionDays) * 24 * time.Hour,
@@ -197,6 +217,12 @@ func (c Config) RecordStoreFn() (RecordStore, error) {
 	}
 	if c.Records == "" {
 		return NewMemoryRecordStore(retain), nil
+	}
+	if c.RecordBackend == "sqlite" {
+		if sqliteRecordStoreFn == nil {
+			return nil, fmt.Errorf("config: record_backend=sqlite requires a build with -tags sqlite")
+		}
+		return sqliteRecordStoreFn(c.Records, retain)
 	}
 	return NewFileRecordStore(c.Records, retain)
 }

@@ -139,8 +139,10 @@ Built so far:
   off, because history and paging are separate concerns. Retention is bounded by
   both a time window and a hard cap, so a severity storm can't grow the store
   unbounded. Backends are pluggable behind the `RecordStore` interface: the
-  default JSON file needs no database, and optional SQLite/Postgres backends are
-  scoped in [`docs/P2.1C-RECORD-STORE-BACKENDS.md`](docs/P2.1C-RECORD-STORE-BACKENDS.md).
+  default atomic-JSON file needs no database; a pure-Go SQLite backend
+  (`record_backend: sqlite`, built with `-tags sqlite` — **not** CGO) covers scale
+  and concurrent readers; Postgres is scoped. See
+  [`docs/P2.1C-RECORD-STORE-BACKENDS.md`](docs/P2.1C-RECORD-STORE-BACKENDS.md).
 
 ## Getting started
 
@@ -149,8 +151,9 @@ service). Build both from source:
 
 ```sh
 git clone <repo> && cd agentids
-make            # builds cmd/collector and cmd/central into ./bin
-go test ./...   # 200 tests, no root, no live daemon required
+make                              # builds cmd/collector and cmd/central into ./bin
+go build -tags sqlite ./cmd/...   # optional: adds the pure-Go SQLite record backend (no CGO)
+go test ./...                     # no root, no live daemon required
 ```
 
 ### The one prerequisite that bites people first: auditd
@@ -234,12 +237,13 @@ one-method `Source` contract every telemetry adapter implements, how
 and Timeline decide correlation rules, the durable spool, and every budgeted
 degradation. It is the document to read before adding a source or a rule.
 
-The **Next** work is the record-store backends (SQLite dev / Postgres prod) and
-the kernel-dependent
+The **Next** work is the kernel-dependent
 second half of the eBPF adapter (the CO-RE object and loader behind a build
 tag); its kernel-free pieces — `MultiSource` and the build-tagged stub with
  graceful fallback — are already built and wired. Design:
-[`docs/R2-EBPF-DESIGN.md`](docs/R2-EBPF-DESIGN.md).
+[`docs/R2-EBPF-DESIGN.md`](docs/R2-EBPF-DESIGN.md). The Postgres record backend
+is scoped, on demand
+([`docs/P2.1C-RECORD-STORE-BACKENDS.md`](docs/P2.1C-RECORD-STORE-BACKENDS.md)).
 
 ## Event schema
 

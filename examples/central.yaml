@@ -12,6 +12,8 @@ store: /var/lib/agentids/baselines.json
 # see which hosts are alerting, and with what, without grepping a log. Omit to
 # keep the view in memory only (it works, but resets on restart).
 records: /var/lib/agentids/records.json
+record_backend: file       # "file" (default, zero-dep atomic JSON) or "sqlite"
+                           #   (needs a -tags sqlite build; for scale / concurrent readers)
 record_retention_days: 7   # drop records older than this
 record_max: 10000          # hard cap, bounds a severity storm
 

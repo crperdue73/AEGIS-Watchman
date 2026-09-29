@@ -1290,3 +1290,46 @@ interface widened **now**, against the two existing implementations:
   sqlite`, run against the same contract tests until green with the tag and
   unchanged without it. Only build it if it earns its place; otherwise pick up
   P2.0 if Dad answers on the eBPF toolchain. Re-read the plan first.
+
+---
+
+## Heartbeat 37 — P2.1c-3: the SQLite record backend (`-tags sqlite`)
+
+Built the backend the design doc scoped, and it cleared its own acceptance
+criterion: it passes the **same contract tests** as the memory and JSON-file
+backends, unchanged.
+
+**What shipped:**
+- `internal/central/eventstore_sqlite.go` (`//go:build sqlite`) —
+  `SQLiteRecordStore` over `modernc.org/sqlite` (pure Go, no CGO). WAL journal,
+  `busy_timeout`, indexes on `(host_id, when_unix)` and `(severity_rank)`. A
+  numeric `severity_rank` column makes a severity floor an indexed range scan;
+  `Query`'s SQL is the literal spelling of `recordMatches` (Since inclusive,
+  Until exclusive). Append is a single INSERT + retention prune (window delete +
+  cap trim), not a whole-file rewrite.
+- Config: `record_backend: file|sqlite`; SQLite selected via a function-pointer
+  hook so the default build never references the driver. Asking for sqlite
+  **without** the tag is a clear error ("requires a build with -tags sqlite"),
+  not a silent fallback to the file backend.
+- Tests: `eventstore_sqlite_test.go` registers sqlite into the shared
+  `recordStoreImpls` matrix (so `TestQuery*` run over all three backends) plus a
+  real reopen-durability test; `recordbackend_test.go` pins the backend
+  selection in both build modes.
+
+**Go-version gotcha (worth the ink):** `go get` quietly bumped the module to
+`go 1.26` — because current modernc releases require Go ≥ 1.23, and the latest
+requires ≥ 1.26. That would force every builder onto a newer toolchain, the
+**opposite** of the zero-friction promise this repo sells. Fixed by pinning
+**v1.34.5** (needs Go ≥ 1.21) plus matching transitives
+(`modernc.org/libc` v1.55.3, `golang.org/x/sys` v0.24.0), keeping the module at
+`go 1.22`. A future driver bump is now a deliberate decision, not a side effect.
+
+**Result:** default build green (**237 tests**, `go 1.22`, one dependency);
+`-tags sqlite` build green (**241 tests**, sqlite included). `gofmt` + `go vet`
+clean in both. **P2.1c-3 DONE.**
+
+- **Next step (heartbeat 38):** P2.1c-4 (Postgres, pgx) is scoped and **on
+  demand** — only when a fleet needs it. So the next move is the other open
+  front: pick up **P2.0** if Dad has answered the eBPF toolchain question;
+  otherwise a consolidation pass (README/architecture refresh against the as-built
+  central). Re-read the plan first.

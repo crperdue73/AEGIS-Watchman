@@ -97,16 +97,14 @@ These close the remaining *cheap* gaps and make the repo honest enough to publis
   hosts are alerting, rollup by technique) is the operator's actual console.
 - **Acceptance:** a central page/endpoint listing hosts with recent alerts,
   grouped by rule/technique, backed by a store interface (SQLite dev, Postgres
-  prod).
-- **Status:** **P2.1a DONE; P2.1b DONE; P2.1c-1 DONE (all 2026-09-29).** Durable event
-  `RecordStore` (memory + atomic JSON file, retention window + cap) retained on
-  both ingest paths; `GET /api/v1/fleet` rollup by host, worst-first, now with
+- **Status:** **P2.1a DONE; P2.1b DONE; P2.1c-1/-2/-3 DONE (all 2026-09-29).**
+  Durable event `RecordStore` (memory + atomic JSON file + SQLite behind
+  `-tags sqlite`; retention window + cap) retained on both ingest paths;
+  `GET /api/v1/fleet` rollup by host, worst-first, now with
   `host`/`since`/`min_severity` filters via a widened `Query`; `GET /` renders
   the same rollup as a plain server-rendered HTML page (no SPA); config keys
-  `records`/`record_retention_days`/`record_max`. Remaining: SQLite/Postgres
-  backends behind `RecordStore` — designed in
-  [`docs/P2.1C-RECORD-STORE-BACKENDS.md`](docs/P2.1C-RECORD-STORE-BACKENDS.md),
-  gated behind `-tags sqlite` when a fleet needs them.
+  `records`/`record_backend`/`record_retention_days`/`record_max`. Remaining:
+  Postgres backend (P2.1c-4) — scoped, on demand.
 - **Design:** [`docs/P2.1C-RECORD-STORE-BACKENDS.md`](docs/P2.1C-RECORD-STORE-BACKENDS.md).
 - **Cost:** MEDIUM-HIGH. **Owner:** central.
 
@@ -136,7 +134,7 @@ P2.1a durable event record + GET /api/v1/fleet   ✅  (2026-09-29)
 P2.1b human page (GET /, no SPA)                 ✅  (2026-09-29)
 P2.1c-1 widen RecordStore to Query(...)          ✅  (2026-09-29)
 P2.1c-2 contract tests parameterised over impls  ✅  (2026-09-29)
-P2.1c-3 SQLite backend (-tags sqlite)            ▶ gated, on demand
+P2.1c-3 SQLite backend (-tags sqlite)            ✅  (2026-09-29)
 P2.1c-4 Postgres backend (pgx)                   ⏳ scoped, on demand
 ```
 

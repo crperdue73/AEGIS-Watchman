@@ -393,3 +393,14 @@ func recordMatches(r Record, q RecordQuery) bool {
 	}
 	return true
 }
+
+// --- shared helpers for durable backends -------------------------------------
+
+// unixToTime converts stored unix seconds back to a UTC time.Time. Central
+// records time in UTC throughout, so a backend storing seconds is lossless to
+// the second (sub-second precision is not needed for a fleet view).
+func unixToTime(sec int64) time.Time { return time.Unix(sec, 0).UTC() }
+
+// mkdirAll is a thin wrapper kept here so a tagged backend file needs no extra
+// import beyond what it already references; it creates the store directory.
+func mkdirAll(dir string) error { return os.MkdirAll(dir, 0o750) }

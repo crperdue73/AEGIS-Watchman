@@ -194,11 +194,16 @@ func TestBuildFleetViewRollup(t *testing.T) {
 // of the interface (see docs/P2.1C-RECORD-STORE-BACKENDS.md).
 // ---------------------------------------------------------------------------
 
+// sqliteImpls is nil in the default build and set by init() in the -tags
+// sqlite build (eventstore_sqlite_test.go). Kept here so the contract-test
+// matrix includes every compiled-in backend without a build tag in this file.
+var sqliteImpls func(t *testing.T) map[string]func() RecordStore
+
 // recordStoreImpls returns one fresh store of each implementation, so a single
 // table-driven test pins identical behavior across backends.
 func recordStoreImpls(t *testing.T) map[string]func() RecordStore {
 	t.Helper()
-	return map[string]func() RecordStore{
+	impls := map[string]func() RecordStore{
 		"memory": func() RecordStore { return NewMemoryRecordStore(DefaultRecordRetention) },
 		"file": func() RecordStore {
 			f, err := NewFileRecordStore(filepath.Join(t.TempDir(), "records.json"), DefaultRecordRetention)
@@ -208,6 +213,12 @@ func recordStoreImpls(t *testing.T) map[string]func() RecordStore {
 			return f
 		},
 	}
+	if sqliteImpls != nil {
+		for name, mk := range sqliteImpls(t) {
+			impls[name] = mk
+		}
+	}
+	return impls
 }
 
 func TestQueryTimeRange(t *testing.T) {
