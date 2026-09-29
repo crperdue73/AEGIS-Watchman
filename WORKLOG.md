@@ -1899,3 +1899,48 @@ intended files; committed as `b7c842a`.
   `path.Match` pattern currently compiles to a never-match, silent in the same
   way), and detect duplicate rule ids **across** packs in `LoadPacks`. Re-read
   `PHASE1-PLAN.md` §open decisions first.
+
+---
+
+## Heartbeat 51 — dead globs and shadowed rule ids now fail on load
+
+Continued the heartbeat-50 theme (make the rule ecosystem fail loudly instead of
+silently under-detecting). Two more silent-death paths closed, both in the same
+"the operator believes they are covered" family.
+
+**1. Malformed globs are a load error.** The matcher calls `path.Match` and
+*throws away* `ErrBadPattern`, treating a bad pattern as a non-match. So a rule
+with an unclosed class — `path_glob_any: ["[abc"]` — parsed clean, loaded, and
+matched nothing, forever. `Rule.Validate` now runs every glob through
+`path.Match(g, "")` (which still parses the pattern) for `argv_any`,
+`path_glob_any`, `endpoint_glob_any`, and each `detail_glob_any` value, and
+rejects a malformed one with an error naming the rule, the field, and the
+pattern.
+
+**2. Rule ids must be unique across the whole loaded set.** `LoadPacks` checked
+for duplicate ids only *within* a pack. Two packs both declaring, say,
+`carbonato.exec.shell_spawn` would load, both fire, and central would ship two
+alerts under one id — and worse, a stray or hostile pack could shadow a real
+rule's id silently. `LoadPacks` now carries one `seen[id] -> pack` map across
+all packs and errors on the first cross-pack collision, naming both packs. (This
+also makes the existing `NewEngine` comment — "duplicate ids across packs are a
+load error elsewhere" — actually true; it was aspirational before.)
+
+**Shipped:** `internal/rules/rule.go` (glob-check helper + cross-pack check),
+`internal/rules/engine_test.go` (four malformed-glob reject cases in the table +
+`TestLoadPacksRejectsDuplicateIDAcrossPacks`), `docs/rules.md` (both rules
+stated in the parser section), `CHANGELOG.md` (folded into the `### Changed`
+entry).
+
+**Verification:** `go test ./...` green (9 packages); `make lint` green (66
+links); `gofmt` clean; `demo/run.sh` exit 0 — the shipped `rules/carbonato.yaml`
+has no malformed glob and no cross-pack dup, so it still loads and fires the full
+chain (12 events, container-escape critical). Committed.
+
+- **Next step (heartbeat 52):** open fronts unchanged — P2.0 (eBPF, blocked on
+  Dad's toolchain call) and P2.1c-4 (Postgres, on demand). The rule-ecosystem
+  hardening is now reasonably complete (strict keys, strict globs, unique ids
+  across the set). Next unblocked candidate: a real **rule-pack publishing
+  format** (Phase 3 item) or a `agentids-rules verify` CLI over a pack/dir, so a
+  contributor can lint a pack without a running collector. Re-read
+  `PHASE1-PLAN.md` §open decisions first.

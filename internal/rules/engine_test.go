@@ -79,6 +79,11 @@ func TestParsePackRejects(t *testing.T) {
 		"unknown rule key":  "name: p\nrules: [{id: a.b, severity: low, extra: 1, match: {type: process.exec, exe: sh}}]",
 		"unknown pack key":  "name: p\nversion: \"1\"\nbogus: 1\nrules: [{id: a.b, severity: low, match: {type: process.exec, exe: sh}}]",
 		"misspelled prior":  "name: p\nrules: [{id: a.b, severity: low, match: {type: net.egress, prior_even: {class: x, within: 5m}}}]",
+		// A malformed glob would silently never match, so it must fail on load.
+		"bad argv glob":     "name: p\nrules: [{id: a.b, severity: low, match: {type: process.exec, argv_any: [\"[abc\"]}}]",
+		"bad path glob":     "name: p\nrules: [{id: a.b, severity: low, match: {type: file.access, path_glob_any: [\"a[b\"]}}]",
+		"bad endpoint glob": "name: p\nrules: [{id: a.b, severity: low, match: {type: net.egress, endpoint_glob_any: [\"[x\"]}}]",
+		"bad detail glob":   "name: p\nrules: [{id: a.b, severity: low, match: {type: container.start, detail_glob_any: {binds: [\"[x\"]}}}]",
 	}
 	for name, y := range cases {
 		if _, err := ParsePack([]byte(y)); err == nil {
@@ -374,6 +379,28 @@ func TestLoadPacksDir(t *testing.T) {
 	}
 	if packs[0].Name != "testpack" || packs[1].Name != "b" {
 		t.Errorf("packs not sorted: %s %s", packs[0].Name, packs[1].Name)
+	}
+}
+
+// TestLoadPacksRejectsDuplicateIDAcrossPacks pins the cross-pack uniqueness the
+// engine's NewEngine comment promises: two packs that both declare an id must
+// fail to load, not ship duplicate alerts under one id.
+func TestLoadPacksRejectsDuplicateIDAcrossPacks(t *testing.T) {
+	dir := t.TempDir()
+	a := "name: a\nrules: [{id: dup.rule, severity: low, match: {type: process.exec, exe: sh}}]"
+	b := "name: b\nrules: [{id: dup.rule, severity: low, match: {type: process.exec, exe: bash}}]"
+	if err := os.WriteFile(filepath.Join(dir, "a.yaml"), []byte(a), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.yaml"), []byte(b), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := LoadPacks(dir)
+	if err == nil {
+		t.Fatal("expected a duplicate-id error across packs")
+	}
+	if !strings.Contains(err.Error(), "dup.rule") {
+		t.Errorf("error should name the duplicate id, got: %v", err)
 	}
 }
 

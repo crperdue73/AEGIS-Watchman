@@ -14,6 +14,7 @@ package rules
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -191,10 +192,22 @@ func LoadPacks(dir string) ([]*Pack, error) {
 	}
 	sort.Strings(names)
 	var packs []*Pack
+	seen := map[string]string{} // rule id -> the pack that declared it first
 	for _, n := range names {
 		p, err := LoadPack(filepath.Join(dir, n))
 		if err != nil {
 			return nil, err
+		}
+		// IDs must be unique across the whole loaded set, not just within one
+		// pack: two packs that both define "carbonato.exec.shell_spawn" would
+		// otherwise ship duplicate alerts under one id, and a deliberate override
+		// (a typo'd, or hostile, pack shadowing a real rule) would be silent.
+		for i := range p.Rules {
+			id := p.Rules[i].ID
+			if prev, ok := seen[id]; ok {
+				return nil, fmt.Errorf("rules: duplicate rule id %q in packs %q and %q", id, prev, p.Name)
+			}
+			seen[id] = p.Name
 		}
 		packs = append(packs, p)
 	}
@@ -232,6 +245,21 @@ func (r *Rule) Validate() error {
 		if len(globs) == 0 {
 			return fmt.Errorf("rule %q: detail_glob_any[%s] has no globs", r.ID, k)
 		}
+		if err := validateGlobs(r.ID, "detail_glob_any["+k+"]", globs); err != nil {
+			return err
+		}
+	}
+	for _, f := range []struct {
+		name  string
+		globs []string
+	}{
+		{"argv_any", r.Match.ArgvAny},
+		{"path_glob_any", r.Match.PathGlobAny},
+		{"endpoint_glob_any", r.Match.EndpointGlobAny},
+	} {
+		if err := validateGlobs(r.ID, f.name, f.globs); err != nil {
+			return err
+		}
 	}
 	if pe := r.Match.PriorEvent; pe != nil {
 		if strings.TrimSpace(pe.Class) == "" {
@@ -239,6 +267,21 @@ func (r *Rule) Validate() error {
 		}
 		if pe.Within <= 0 {
 			return fmt.Errorf("rule %q: prior_event.within must be positive (e.g. 5m)", r.ID)
+		}
+	}
+	return nil
+}
+
+// validateGlobs rejects a malformed glob pattern at load time. The matcher
+// treats a bad pattern as a non-match (path.Match returns ErrBadPattern, which
+// matchOne discards), so without this check a rule with an unclosed class like
+// "[abc" would load and silently never fire — the same silent-death failure
+// mode Validate exists to refuse. Checked against the empty string, which still
+// parses the pattern.
+func validateGlobs(ruleID, field string, globs []string) error {
+	for _, g := range globs {
+		if _, err := path.Match(g, ""); err != nil {
+			return fmt.Errorf("rule %q: %s has a malformed glob %q: %w", ruleID, field, g, err)
 		}
 	}
 	return nil

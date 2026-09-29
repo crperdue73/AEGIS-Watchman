@@ -200,3 +200,13 @@ predicate makes a rule under-match while the operator believes they are covered,
 which is the failure mode this whole section exists to prevent. It also keeps a
 pack forward-safe: an older binary refuses a pack that uses a predicate it does
 not understand, rather than running a weakened version of it.
+
+Every glob (`argv_any`, `path_glob_any`, `endpoint_glob_any`, and the values in
+`detail_glob_any`) is compiled against `path.Match` at load, and a **malformed
+pattern is a load error**, not a silent never-match — an unclosed class like
+`[abc` fails the build instead of loading a dead rule.
+
+`LoadPacks` additionally enforces that rule **ids are unique across the whole
+loaded set**, not just within one pack: two packs that both declare
+`carbonato.exec.shell_spawn` is a load error, so a stray or hostile pack cannot
+ship duplicate alerts under an existing id.
