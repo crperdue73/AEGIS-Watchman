@@ -199,7 +199,9 @@ listener rule. Full details and the per-rule breakdown:
 ```
 
 `-dry-run` parses config and loads rules without shipping; `-once` does a single
-pass instead of the poll loop.
+pass instead of the poll loop. Every binary answers `-version` (and
+`agentids-manifest version`) with its version, git commit, and build date —
+stamped at link time by `make build`.
 
 **To see a detection with no root, no live auditd, and no Docker daemon, run the
 demo:** `cd demo && ./run.sh` — it replays captured fixtures through the real

@@ -13,6 +13,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/CRPerdue/agentids/internal/buildinfo"
 	"github.com/CRPerdue/agentids/internal/central"
 )
 
@@ -25,7 +26,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Println("agentids-central (phase 1)")
+		fmt.Println(buildinfo.String("agentids-central"))
 		return
 	}
 

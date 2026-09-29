@@ -1770,3 +1770,40 @@ code (`inspect` off-by-default confirmed at `docker.go:338`); `make lint` green
   polish is nearly done; the one page left that a stranger hits first is a
   one-page `docs/quickstart.md` (build → run → see an alert) that links out rather
   than restating the README. Re-read the plan first.
+
+---
+
+## Heartbeat 48 — real build provenance: `-version` now means something
+
+Enough docs for a beat; took a small real *code* step this time. Every binary's
+`-version` printed a hardcoded string — `"agentids-central (phase 1)"` — with no
+version, commit, or date. For a security tool whose whole theme is supply-chain
+trust ("which build is this, and is it the one I think?"), that is a real gap,
+not a nicety. `agentids-manifest` had no version path at all.
+
+**Shipped:**
+- `internal/buildinfo` — `Version` / `Commit` / `Date` vars that default to
+  `dev` / `unknown` (so a bare `go build` answers honestly instead of lying) and
+  are stamped at link time. `String(name)` renders one line; drops the metadata
+  clause when nothing was stamped. Unit-tested (defaults + stamped).
+- `cmd/central`, `cmd/collector` — `-version` prints `buildinfo.String(...)`.
+- `cmd/manifest` — gains a `version` subcommand (it had none), listed in `usage`.
+- `Makefile` — `VERSION` (`git describe --tags --always --dirty`),
+  `COMMIT`, `DATE`, packaged into `LDFLAGS`, applied to all three build targets;
+  a `make version` target prints the stamp. Every var has a non-git fallback so
+  a CI archive or vendored copy still builds.
+
+**Explicitly distinguished** (in code, README, CHANGELOG): the **product**
+version is not the **event wire format** version (`agentids.event/v1`) — different
+things on different schedules.
+
+**Verification:** `make build` stamps and each binary prints e.g.
+`agentids-central 3302cdf-dirty (commit 3302cdf, built 2026-09-29T20:37:18Z)`;
+`gofmt`/`vet` clean; `go test` green in **both** build modes (**8** packages —
+the new one included); `make lint` green; `demo/run.sh` exit 0 (ci-relevant, since
+`run.sh` builds via the changed Makefile).
+
+- **Next step (heartbeat 49):** open fronts unchanged — P2.0 (eBPF, blocked on
+  Dad's toolchain call) and P2.1c-4 (Postgres, on demand). Remaining pre-public
+  polish: a one-page `docs/quickstart.md` (build → run → see an alert) that links
+  out rather than duplicating the README. Re-read the plan first.

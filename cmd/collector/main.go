@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/CRPerdue/agentids/internal/buildinfo"
 	"github.com/CRPerdue/agentids/internal/collector"
 	"github.com/CRPerdue/agentids/internal/schema"
 )
@@ -31,7 +32,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Println("agentids-collector (phase 1)")
+		fmt.Println(buildinfo.String("agentids-collector"))
 		return
 	}
 

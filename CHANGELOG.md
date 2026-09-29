@@ -82,6 +82,9 @@ opt-in design.
 
 **Tooling, demo, and docs**
 - `make` build/test/vet/fmt/lint for both binaries; one build dependency, no CGO.
+- Build provenance: every binary answers `-version` with the product version, git
+  commit, and build date, stamped at link time by `make build` (and `make
+  version` prints the stamp). Distinct from the event wire format version.
 - A reproducible end-to-end demo (`demo/run.sh`): builds, starts the real
   central, runs two real collector passes through captured fixtures with no root,
   no live auditd, and no Docker daemon, prints the alerts, then prints the fleet

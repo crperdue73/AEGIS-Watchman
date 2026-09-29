@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/CRPerdue/agentids/internal/buildinfo"
 	"github.com/CRPerdue/agentids/internal/provenance"
 )
 
@@ -40,6 +41,8 @@ func main() {
 		signCmd(os.Args[2:])
 	case "verify":
 		verifyCmd(os.Args[2:])
+	case "version", "-version", "--version":
+		fmt.Println(buildinfo.String("agentids-manifest"))
 	case "-h", "--help", "help":
 		usage()
 	default:
@@ -56,6 +59,7 @@ commands:
   keygen  generate an Ed25519 signing key pair
   sign    build and sign an approval manifest for an agent workspace
   verify  check a workspace against an approved manifest
+  version print version and build info
 
 run "agentids-manifest <command> -h" for flags
 `)
