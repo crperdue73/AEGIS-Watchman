@@ -1526,3 +1526,42 @@ change cannot affect them, but the claim is checked, not assumed).
   polish: a `docs/fleet-view.md` operator page (the `/api/v1/fleet` endpoint,
   filters, and the HTML page at `/`) linked from the README — this strengthens
   definition-of-done req 3 (a stranger can see the fleet rollup). Re-read the plan.
+
+---
+
+## Heartbeat 42 — `docs/fleet-view.md`: the fleet view, documented for an operator
+
+Continued pre-public-cut polish: the fleet view shipped (P2.1) but had no
+operator-facing page — the config keys, the endpoint, its filters, and the HTML
+page were only discoverable by reading code or the design doc (which is about
+*backend choice*, not *how to use the console*).
+
+**Shipped `docs/fleet-view.md`:**
+- **Why it exists** — alerts are fire-and-forget; the record store is the
+  after-the-fact answer to "which hosts are alerting, and with what".
+- **One source of truth, two views** — `GET /api/v1/fleet` (JSON) and `GET /`
+  (HTML) read the same store, so they can't disagree.
+- **Enabling it** — the four config keys with a defaults table
+  (`records`/`record_backend`/`record_retention_days`/`record_max`) and a
+  backends table (memory/file/sqlite/postgres), each checked against
+  `internal/central/config.go`.
+- **The endpoint** — every query param (`host`, `since`, `min_severity`, `limit`,
+  `recent`) with its default, the `400`-on-bad-`since` behavior, the response
+  shape (verified against `fleetView`/`fleetHost`), worst-first ordering, and a
+  `curl` example.
+- **The page** — what it shows and the one intentional difference (five recent
+  per host vs the endpoint's `recent=`).
+- **Records** — the denormalised summary fields, and why it's a copy.
+- **See it live** — points at the demo.
+
+**Linked** from the README fleet bullet and the P2.1 entry in `PHASE1-PLAN.md`.
+
+**Verification:** every referenced path exists; the defaults/params/response
+fields were read out of the code, not from memory; `gofmt`/`build`/`vet`/`test`
+green (7 packages ok, docs-only commit).
+
+- **Next step (heartbeat 43):** open fronts unchanged — P2.0 (eBPF, blocked on
+  Dad's toolchain call) and P2.1c-4 (Postgres, on demand). Remaining pre-public
+  polish candidates: a `CHANGELOG.md` seeded at the first public cut, or a
+  `docs/quickstart.md` that walks build→run→see-an-alert in one page. Re-read
+  the plan first.

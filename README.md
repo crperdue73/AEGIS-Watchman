@@ -139,6 +139,8 @@ Built so far:
   (`record_backend: sqlite`, built with `-tags sqlite` — **not** CGO) covers scale
   and concurrent readers; Postgres is scoped. See
   [`docs/P2.1C-RECORD-STORE-BACKENDS.md`](docs/P2.1C-RECORD-STORE-BACKENDS.md).
+  Operator guide (endpoint, filters, the HTML page, config):
+  [`docs/fleet-view.md`](docs/fleet-view.md).
 
 ## Getting started
 

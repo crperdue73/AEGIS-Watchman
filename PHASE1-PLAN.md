@@ -108,6 +108,7 @@ These close the remaining *cheap* gaps and make the repo honest enough to publis
   `records`/`record_backend`/`record_retention_days`/`record_max`. Remaining:
   Postgres backend (P2.1c-4) — scoped, on demand.
 - **Design:** [`docs/P2.1C-RECORD-STORE-BACKENDS.md`](docs/P2.1C-RECORD-STORE-BACKENDS.md).
+  **Operator guide:** [`docs/fleet-view.md`](docs/fleet-view.md).
 - **Cost:** MEDIUM-HIGH. **Owner:** central.
 
 ## Explicitly not v1
