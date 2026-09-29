@@ -148,6 +148,9 @@ Built so far:
 
 ## Getting started
 
+In a hurry? [`docs/quickstart.md`](docs/quickstart.md) is the one-page path:
+build → run the demo → see an alert, with links out for depth.
+
 Two binaries: `agentids-collector` (one per host) and `agentids-central` (the
 service). Build both from source:
 
