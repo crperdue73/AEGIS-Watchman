@@ -283,6 +283,12 @@ the configured central endpoint. Found a vulnerability in agentids itself?
 Don't open a public issue; report it privately per [`SECURITY.md`](SECURITY.md),
 which also names the known blind spots and what is by-design rather than a bug.
 
+## Code of conduct
+
+Participation in this project is covered by [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
+(Contributor Covenant 2.1). Be decent; report concerns the way that file
+describes.
+
 ## License
 
 Apache-2.0 — see [`LICENSE`](LICENSE).

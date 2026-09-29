@@ -1477,3 +1477,52 @@ the default and `-tags sqlite` builds, uncached; JSON schema parses;
   Dad's toolchain call) and P2.1c-4 (Postgres, on demand). Continue pre-public-cut
   polish: `CODE_OF_CONDUCT.md`, or a `docs/fleet-view.md` operator page (the
   endpoint, the filters, the HTML page) linked from the README. Re-read the plan.
+
+---
+
+## Heartbeat 41 — CODE_OF_CONDUCT.md: the last missing community file (docs)
+
+Picked up the first of the two polish items heartbeat 40 left open. For a repo
+that is public under Apache-2.0, the missing piece was the file every public
+project is expected to carry and that this one did not: a code of conduct.
+
+**Verified the baseline first (before touching anything):** `gofmt -l` clean;
+`go build ./...`, `go vet ./...`, `go test ./...` all green (9 packages, cmd/*
+have no test files). No source change was needed — this is a docs step.
+
+**Shipped `CODE_OF_CONDUCT.md`** (new, ~6.5 KB) — Contributor Covenant 2.1,
+adapted, not pasted blind:
+- The standard sections (pledge, standards, enforcement responsibilities, scope,
+  enforcement, the four Community Impact tiers, attribution) — because inventing
+  a bespoke conduct policy for a project this young would be furniture, and
+  Contributor Covenant 2.1 is the recognized, enforceable-in-practice text.
+- Two adaptations that are specific to *this* project rather than generic:
+  - An explicit anti-abuse clause under "will not be tolerated": **weaponizing a
+    security report** — using a vulnerability, a private advisory, or the
+    project's own documented blind spots as leverage over a contributor or user.
+    A security project's sharpest community risk is exactly this, and it belongs
+    in the conduct file, not only in `SECURITY.md`.
+  - The enforcement channel is honest about what exists today. There is no
+    standing conduct mailbox, so the file names GitHub as the channel (private
+    report, or a minimal public issue asking for a private route) and states that
+    a standing address will be added once the owner confirms one — same posture
+    `SECURITY.md` and `CONTRIBUTING.md` take: no invented contact, no false
+    promise. "A report is never ignored for lack of a prettier address."
+- Maintainer-recusal clause (a maintainer who is the subject of a report does
+  not handle it), which the stock text does not spell out.
+
+**Wired the pointers (discoverability):**
+- `CONTRIBUTING.md` — new **Code of conduct** section after Commit/PR: attack
+  the problem, not the person; never use a security finding as leverage.
+- `README.md` — new **Code of conduct** section immediately before **License**
+  (the conventional spot), one line + the link.
+
+**Verification:** every linked path present; README anchor `#code-of-conduct`
+matches the new heading; `gofmt`/`build`/`vet`/`test` still green (docs-only
+change cannot affect them, but the claim is checked, not assumed).
+
+- **Next step (heartbeat 42):** open fronts unchanged — P2.0 (eBPF, blocked on
+  Dad's toolchain call) and P2.1c-4 (Postgres, on demand). Remaining pre-public
+  polish: a `docs/fleet-view.md` operator page (the `/api/v1/fleet` endpoint,
+  filters, and the HTML page at `/`) linked from the README — this strengthens
+  definition-of-done req 3 (a stranger can see the fleet rollup). Re-read the plan.

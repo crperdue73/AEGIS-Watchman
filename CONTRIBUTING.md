@@ -29,6 +29,13 @@ like it's going public, because it is.
 - Small PRs. Describe the technique or TTP a change addresses if it's a rule.
 - DCO sign-off requested (TBD by Rob — see Phase 0 §0.5 Q5).
 
+## Code of conduct
+
+Be decent to each other. Participation in this project is covered by
+[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — the short version: attack the
+problem, not the person, and never use a security finding as leverage over
+someone. Report concerns the way that file describes.
+
 ## Security
 
 Found a vulnerability in agentids itself? Do not open a public issue. Report it
