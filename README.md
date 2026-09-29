@@ -107,13 +107,17 @@ Built so far:
   that turns matching actions into `behavior.rule_match` events. Telemetry
   adapters read real host activity (auditd `execve` → `process.exec`, auditd
   `connect` → `net.egress`, auditd `bind`/`listen` → `net.listen`) so rules
-  match what an agent *does*, not just what a file looks like. The seed pack `rules/carbonato.yaml` (v3, 15 rules) encodes
-  the CARBONATO exfil chain — secret-store reads, SSH-key argv, chat/C2 egress,
-  shell spawn, novel scope, persistence — including two **correlation rules**
-  decided against a per-host timeline, e.g. an outbound call within 5m of an
-  identity-file change. Matches ship to central's `/api/v1/actions` and, when a
-  `behavior.spool` path is set, are queued on disk first so a central outage
-  costs latency, never evidence.
+  match what an agent *does*, not just what a file looks like. A fourth source,
+  the Docker events adapter (`container.start`), watches for a container
+  *appearing* on the host with host-level access — the CARBONATO entry vector,
+  caught even when it was created via the unauthenticated API on `:2375` rather
+  than the `docker` CLI. The seed pack `rules/carbonato.yaml` (v4, 18 rules)
+  encodes the CARBONATO chain — secret-store reads, SSH-key argv, chat/C2 egress,
+  shell spawn, novel scope, persistence, privileged/host-mounted containers —
+  including **correlation rules** decided against a per-host timeline, e.g. an
+  outbound call within 5m of an identity-file change. Matches ship to central's
+  `/api/v1/actions` and, when a `behavior.spool` path is set, are queued on disk
+  first so a central outage costs latency, never evidence.
 - **Alert readability** — central resolves numeric actor uids to usernames at
   ingest (`uid_map`, a passwd-style file), so an alert names a person
   (`user=deploy uid=1000`) instead of `uid:1000`. Best-effort: an unknown uid
@@ -121,12 +125,19 @@ Built so far:
 
 The public event schema stays additive-only across all of this.
 
-**Next** — a durable fleet view on central plus a second telemetry adapter
-(eBPF) so `file.access` / `scope.change` come from the kernel instead of the
-control plane. The eBPF adapter is scoped in
-[`docs/R2-EBPF-DESIGN.md`](docs/R2-EBPF-DESIGN.md); its first, kernel-free piece
-(`MultiSource`, the seam that lets eBPF sit alongside auditd without the
-collector learning about either) is already built and wired.
+## Architecture
+
+[`docs/architecture.md`](docs/architecture.md) is the as-built data-flow: the
+one-method `Source` contract every telemetry adapter implements, how
+`MultiSource` composes them without a single point of failure, how the Engine
+and Timeline decide correlation rules, the durable spool, and every budgeted
+degradation. It is the document to read before adding a source or a rule.
+
+The **Next** work is a durable fleet view on central plus the kernel-dependent
+second half of the eBPF adapter (the CO-RE object and loader behind a build
+tag); its kernel-free pieces — `MultiSource` and the build-tagged stub with
+ graceful fallback — are already built and wired. Design:
+[`docs/R2-EBPF-DESIGN.md`](docs/R2-EBPF-DESIGN.md).
 
 ## Event schema
 

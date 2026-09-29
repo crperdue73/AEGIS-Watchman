@@ -943,3 +943,44 @@
   `/sys/kernel/btf/vmlinux` first. Repo access + NAME still the real blocker
   for publishing.
 - **Blocking:** same — repo access + NAME (access was slated for today, Sept 28).
+
+## 2026-09-28 (Mon), ~22:40 ET — Heartbeat 28
+- **Wrote `docs/architecture.md` — the as-built data-flow.** Phase 0's first-cut
+  sketch (§0.3) predated all code and had drifted: it drew sources as "layers",
+  missed `MultiSource`, the real `Source` contract, the spool/cursor durability,
+  and the three shipped sources. This new doc is written against the code and is
+  the thing a contributor reads before adding a source or a rule.
+- **Contents:** the one-picture pipeline (sources → MultiSource → Engine →
+  Timeline → Spool → central/mTLS); the one-method `Source` contract and a table
+  of what each of the four sources emits; the full predicate list including the
+  two new ones; `MultiSource`'s skip-a-broken-child property; how the Engine
+  records into the Timeline *before* matching so correlation rules are decidable
+  (and where `ObserveDrift` closes the file/action seam); the spool-is-the-only-
+  submission-path durability argument; and a **degradation table** listing every
+  budgeted failure mode and its one log line — including the "unenriched
+  container still fires" promise; the repo layout; and a six-step recipe for
+  adding a source.
+- **Verified every claim against the code** before writing: action-type
+  constants (`process.exec`/`net.egress`/`net.listen`/`file.access`/
+  `container.start`), the `Source` interface signature, `MultiSource` semantics,
+  and the directory set all checked out. A doc that lies is worse than none.
+- **README refreshed** where it had gone stale: rule pack "v3, 15 rules" → "v4,
+  18 rules" (checked: 18 `- id:` entries), the eBPF adapter no longer described
+  as merely "Next" (its kernel-free pieces ship), the Docker source added to the
+  Layer-3 description, and a new **Architecture** section linking the doc.
+- **PHASE0-DISCOVERY §0.3 marked superseded** with a pointer to
+  `docs/architecture.md` (kept as the original-intent record).
+- **Host check for R2.2:** this box has a modern kernel (6.12.85) with BTF
+  (`/sys/kernel/btf/vmlinux`) and `libbpf1` — but **no `clang` and no
+  `libbpf-dev` headers**, so the CO-RE object cannot be built here. R2.2 stays
+  blocked on toolchain, not code; installing it is an operator decision (ask
+  first).
+- **No code change** — docs only. `go test` unchanged at 200 green; all
+  cross-doc links verified to resolve.
+- **Next step (heartbeat 29):** Phase 0 is now well covered (environments,
+  source inventory, Layer-1 spec, as-built architecture, five gaps with G4
+  closed). Candidate next: (a) the Phase-1 build plan — turn the coverage matrix
+  into an ordered backlog with acceptance criteria; (b) ask Dad whether to
+  `apt install clang libbpf-dev` to unblock R2.2; (c) the `scope.change` shim
+  (R5, gap G5, the last open gap). Repo access + NAME still the publish blocker.
+- **Blocking:** same — repo access + NAME (access was slated for today, Sept 28).
