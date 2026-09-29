@@ -915,3 +915,31 @@
   host appears. Also: `examples/collector.yaml` should document the new
   `docker:` block.
 - **Blocking:** same — repo access + NAME (access was slated for today, Sept 28).
+
+## 2026-09-28 (Mon), ~21:40 ET — Heartbeat 27
+- **Docs catch-up for R3.** The code for the Docker events adapter shipped last
+  heartbeat; this one makes the *operator* path match it.
+- **`docs/deploy-collector.md` gained section 3, "Docker events — the
+  container-runtime source."** Why you'd want it (the only source that sees the
+  entry vector — a workload *arriving*, before any agent runs), what it needs
+  (just the docker binary + a daemon socket, no kernel work or caps), configure
+  (`docker.enabled` + `inspect`), what it detects (the three critical rules,
+  plus the note that an ordinary container fires nothing), what degrades (two
+  independent failure modes, both non-fatal, including the "daemon unreachable
+  for enrichment → event still fires with identity only" promise), and the
+  permissions note (a readable Docker socket is root-equivalent — treat it as
+  the credential it is). Sections renumbered (uid_map→4, checklist→5).
+- **Checklist gained the Docker item:** ordinary container fires nothing,
+  `docker run --privileged alpine true` fires
+  `carbonato.container.privileged_start`.
+- **README "Deploying"** now lists the Docker events source alongside eBPF so
+  the docs are consistent with the code.
+- **No code change** — docs + README only. `go test` unchanged at 200 green.
+- **Next step (heartbeat 28):** R3 is closed end-to-end (code, tests, rules,
+  coverage matrix, deploy doc, example config). Phase 0 discovery is largely
+  complete. Next: either (a) a Phase-1 architecture note tying the three
+  telemetry sources into one collector data-flow diagram, or (b) R2.2
+  (kernel-dependent eBPF) if a capable host appears — check `uname -r` /
+  `/sys/kernel/btf/vmlinux` first. Repo access + NAME still the real blocker
+  for publishing.
+- **Blocking:** same — repo access + NAME (access was slated for today, Sept 28).

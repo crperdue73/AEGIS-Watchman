@@ -136,7 +136,77 @@ Grant `CAP_BPF` and `CAP_PERFMON`, plus a mounted bpffs. Avoid granting
 
 ---
 
-## 3. The `uid_map` — readable alerts (central, not collector)
+## 3. Docker events — the container-runtime source (hosts running Docker)
+
+### Why you'd want it
+
+This is the only source that sees the CARBONATO **entry vector**: a container
+appearing on the host with host-level access. Every other source watches what an
+agent does *inside* the box; this one watches a new workload *arrive*. Catching
+the intrusion at container-launch is catching it before any agent runs.
+
+Crucially, it reads `docker events` — emitted by the **daemon**, not the shell.
+So it fires whether the container was created with `docker run` in a terminal or
+by a script talking straight to an unauthenticated Docker API on `:2375`
+(the real attack) where no `docker` command was ever typed. The argv-based rule
+alone would miss the second case entirely.
+
+### What it needs
+
+Just the host's `docker` binary and a running daemon the collector can reach.
+No kernel work, no capabilities. The collector's user must be able to talk to
+the daemon socket (be in the `docker` group, or point at a socket it can read).
+
+### Configure
+
+```yaml
+behavior:
+  docker:
+    enabled: true
+    inspect: true        # enrich each event with the container's HostConfig
+```
+
+`inspect: true` runs `docker inspect --format '{{json .HostConfig}}'` per event
+so the alert names the container's actual `privileged` / host-PID / host-network
+flags and its bind mounts. It is a nice-to-have, not load-bearing — see below.
+
+### What it detects
+
+Three `container.start` rules in `rules/carbonato.yaml` (all critical):
+
+- `carbonato.container.privileged_start` — any host-access flag: privileged,
+  host PID namespace, or host network.
+- `carbonato.container.host_root_mount` — a bind of `/:/host` or the Docker
+  socket itself (`/var/run/docker.sock`).
+- `carbonato.container.after_identity_change` — a dangerous container within 10m
+  of an agent identity-file change: the full timed spine of the intrusion.
+
+An ordinary container (no host access, ordinary mounts) fires **nothing** — the
+rules are built to stay quiet unless it is actually a risk.
+
+### What "degrades" looks like
+
+Two independent failure modes, both non-fatal:
+
+- **No Docker daemon / no binary** → one log line at startup, collector runs on
+  its other sources:
+  ```
+  collector: behavior: docker events adapter unavailable, continuing without it: ...
+  ```
+- **Daemon unreachable for enrichment** (`inspect` on, but the socket is gone) →
+  the event **still fires**, just with identity only (image + name), no risk
+  flags. A container you cannot inspect is still a container that appeared —
+  report it, never drop it. This is the whole point of a detection tool.
+
+### Permissions
+
+No capabilities needed. Access is the Docker socket. If the collector must reach
+another host's daemon, treat that socket as the credential it is — a readable
+Docker socket is root-equivalent on that host.
+
+---
+
+## 4. The `uid_map` — readable alerts (central, not collector)
 
 The collector reports a numeric uid; a name is a presentation concern and lives
 on central. Point central at a passwd-style file:
@@ -153,7 +223,7 @@ kept alongside the name.
 
 ---
 
-## 4. Sanity checklist
+## 5. Sanity checklist
 
 After deploying a collector:
 
@@ -164,6 +234,9 @@ After deploying a collector:
       `carbonato.secret.read_order_follows_constraint` (Layer 3, argv path).
 - [ ] If eBPF is enabled: startup logs either "adapter attached" or exactly one
       "unavailable" line — never a crash.
+- [ ] If Docker is enabled: starting an ordinary container fires nothing;
+      `docker run --privileged alpine true` fires
+      `carbonato.container.privileged_start`.
 - [ ] Central logs alerts with a **name**, not `uid:N` (if `uid_map` is set).
 
 ## Log

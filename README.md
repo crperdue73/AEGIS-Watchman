@@ -137,9 +137,10 @@ The public contract, versioned from day one. See
 
 [`docs/deploy-collector.md`](docs/deploy-collector.md) covers the Layer 3
 operator setup: the auditd rules per action type, the optional eBPF
-`file.access` source (kernel requirements + how it degrades), the central
-`uid_map`, and a post-deploy checklist. Through-line: everything degrades,
-nothing there is a hard dependency.
+`file.access` source (kernel requirements + how it degrades), the Docker events
+source (the CARBONATO entry vector — a container appearing with host access),
+the central `uid_map`, and a post-deploy checklist. Through-line: everything
+degrades, nothing there is a hard dependency.
 
 ## Layout
 
