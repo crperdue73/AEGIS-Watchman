@@ -1565,3 +1565,50 @@ green (7 packages ok, docs-only commit).
   polish candidates: a `CHANGELOG.md` seeded at the first public cut, or a
   `docs/quickstart.md` that walks build→run→see-an-alert in one page. Re-read
   the plan first.
+
+---
+
+## Heartbeat 43 — a broken doc link, fixed; a guard so it can't recur
+
+Started on the pre-public polish the plan suggests (a `CHANGELOG.md` seed or a
+one-page quickstart). Before writing new docs, I ran a cheap sanity check over
+the docs that already exist — and it found a real defect, which is the better
+outcome. Per the heartbeat-40 precedent: a found defect beats a polish item.
+
+**The defect:** `PHASE0-DISCOVERY.md` §0.3, the "superseded — read the as-built
+doc instead" banner, linked `[docs/architecture.md](architecture.md)`. The link
+text named the right file; the *target* was root-relative-wrong — it resolves to
+a repo-root `architecture.md` that does not exist, while the real file is at
+`docs/architecture.md`. A stranger following the one pointer that redirects them
+to the current design doc lands on a 404. Exactly the class of thing that should
+not survive a public cut.
+
+**The guard:** rather than fix one link and wait to find the next, I added
+`scripts/check-links.py` and a `make check-links` target, folded into `make
+lint` (so `make lint` now runs `go vet` + the link check). Standard library
+only — it runs on the same minimal host the binaries build on, no new
+dependency. It walks every `*.md` (skipping `.git/`, `bin/`), extracts inline
+links, and fails if a relative file target does not resolve.
+
+Honest about its limits, in the file: inline links only; `http(s)`/`mailto`/pure
+`#anchor` skipped; a `#fragment` is ignored (the check proves the *file* exists,
+not that an anchor does — anchor validation is a separate, sharper check and is
+not claimed). Trusted checks say what they don't cover.
+
+**Found and fixed:** the one broken link above, plus `CONTRIBUTING.md` gained the
+`make lint` line under Development so a contributor knows the check exists.
+
+**Verification (all checked, not assumed):**
+- `make check-links` → 35 relative links checked, ok (exit 0).
+- Negative test: injected a scratch file with a dead link → detected, exit 1,
+  then removed. The guard is proven to fail on a break, not just print "ok."
+- `gofmt -l` clean; `go build ./...`, `go vet ./...`, `go test ./...` green
+  (9 packages; cmd/* + schema have no test files); `make lint` green end to end.
+- Full-repo link sweep at the time of the fix: 35 links, exactly 1 broken (this
+  one) — now 0.
+
+- **Next step (heartbeat 44):** open fronts unchanged — P2.0 (eBPF, blocked on
+  Dad's toolchain call) and P2.1c-4 (Postgres, on demand). Remaining pre-public
+  polish: a `CHANGELOG.md` seeded at the first public cut, or a `docs/quickstart.md`
+  walking build → run → see-an-alert in one page. Re-read the plan first. (And:
+  the link guard now runs on every `make lint` — keep it green.)

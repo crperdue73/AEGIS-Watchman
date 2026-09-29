@@ -22,6 +22,9 @@ like it's going public, because it is.
 - Toolchain: Go 1.22+.
 - Build: `make build` (see [`Makefile`](Makefile)).
 - Test: `make test`.
+- Lint: `make lint` — `go vet` plus `make check-links`, which fails if a
+  relative link in any Markdown file does not resolve. A broken doc link is a
+  defect a stranger hits on their first read, so it is checked, not trusted.
 
 ## Commit / PR
 

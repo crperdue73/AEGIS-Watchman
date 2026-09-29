@@ -4,8 +4,9 @@ BINARY_COLLECTOR := agentids-collector
 BINARY_CENTRAL   := agentids-central
 BINARY_MANIFEST  := agentids-manifest
 GO              ?= go
+PYTHON          ?= python3
 
-.PHONY: all build build-collector build-central build-manifest test lint clean fmt vet
+.PHONY: all build build-collector build-central build-manifest test lint check-links clean fmt vet
 
 all: build
 
@@ -26,7 +27,10 @@ test:
 vet:
 	$(GO) vet ./...
 
-lint: vet
+check-links:
+	$(PYTHON) scripts/check-links.py
+
+lint: vet check-links
 	@echo "add golangci-lint when the tree has code"
 
 fmt:

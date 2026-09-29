@@ -89,7 +89,7 @@ Phase-3+ adapters, not v1 blockers.
 > **Superseded:** this first-cut sketch was written before any code. The
 > as-built data-flow — the one-method `Source` contract, `MultiSource`
 > composition, the Engine/Timeline, the durable spool, and every budgeted
-> degradation — now lives in [`docs/architecture.md`](architecture.md). Read
+> degradation — now lives in [`docs/architecture.md`](docs/architecture.md). Read
 > that for how it actually works; this section is kept only as the original
 > intent for the record.
 
