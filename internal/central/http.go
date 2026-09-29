@@ -42,6 +42,7 @@ func (s *Service) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/events", s.handleIngest)
 	mux.HandleFunc("/api/v1/actions", s.handleActions)
 	mux.HandleFunc("/api/v1/fleet", s.handleFleet)
+	mux.HandleFunc("/", s.handleFleetPage)
 	return mux
 }
 

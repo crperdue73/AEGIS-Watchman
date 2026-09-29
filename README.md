@@ -57,7 +57,7 @@ exactly: signatures name the payload, good rule engines name the intent.
       │  ─ baseline store (per agent)   │
       │  ─ drift compute + diff         │
       │  ─ rules engine (Layer 3)       │
-      │  ─ fleet view: GET /api/v1/fleet │
+      │  ─ fleet view: GET / + /api/v1/fleet │
       │  ─ alerting: webhook + email    │
       │  ─ rule pack registry (ver.)    │
       └─────────────────────────────────┘
@@ -130,10 +130,13 @@ Built so far:
 - **Fleet view** — every detected event is retained in a durable record store
   (`records`), and central exposes `GET /api/v1/fleet`: recent events rolled up
   by host — total, max severity, last-seen, breakdown by severity and by
-  technique — ordered worst-first. It answers "which hosts are alerting, and
-  with what" without grepping logs, and it works with alerting off, because
-  history and paging are separate concerns. Retention is bounded by both a time
-  window and a hard cap, so a severity storm can't grow the store unbounded.
+  technique — ordered worst-first. `GET /` renders the same rollup as a plain
+  server-rendered HTML page (no JS framework, no build step), so the console is
+  human-readable and scriptable from one source of truth. It answers "which hosts
+  are alerting, and with what" without grepping logs, and it works with alerting
+  off, because history and paging are separate concerns. Retention is bounded by
+  both a time window and a hard cap, so a severity storm can't grow the store
+  unbounded.
 
 ## Getting started
 
@@ -227,8 +230,8 @@ one-method `Source` contract every telemetry adapter implements, how
 and Timeline decide correlation rules, the durable spool, and every budgeted
 degradation. It is the document to read before adding a source or a rule.
 
-The **Next** work is the human-facing fleet page on top of the fleet endpoint,
-the record-store backends (SQLite dev / Postgres prod), and the kernel-dependent
+The **Next** work is the record-store backends (SQLite dev / Postgres prod) and
+the kernel-dependent
 second half of the eBPF adapter (the CO-RE object and loader behind a build
 tag); its kernel-free pieces — `MultiSource` and the build-tagged stub with
  graceful fallback — are already built and wired. Design:

@@ -1212,3 +1212,37 @@ couldn't.
   (no SPA, per the not-v1 list), or (b) a Store-backend decision doc (SQLite dev
   / Postgres prod) that the record store should precede. Re-read the plan first.
   P2.0 (eBPF) stays parked until Dad answers on the toolchain.
+
+---
+
+## Heartbeat 35 — P2.1 slice 2: the human fleet page (`GET /`)
+
+Slice 1 gave the fleet view a durable record and a machine-readable endpoint.
+A JSON endpoint is not a console, though — an operator on a call wants to *look*
+at the fleet, not pipe curl through jq. Slice 2 closes that.
+
+**What shipped:**
+- `internal/central/fleetpage.go` — `GET /` renders the exact same rollup as
+  `/api/v1/fleet` through one embedded `html/template`. No JS framework, no build
+  step, no SPA (explicitly in the not-v1 list). Server-rendered: works with
+  JS disabled, works over ssh+curl, nothing to bundle. The page is a second
+  *view* of one source of truth, not a second implementation — anything it shows,
+  the endpoint returns.
+- Routing note kept honest: `GET /` is registered as the mux root, so
+  `/healthz` and `/api/*` still win by specificity; a non-root path 404s
+  (`handleFleetPage` guards `r.URL.Path != "/"`), proven by a test.
+- Tests (`fleetpage_test.go`): renders hosts/rule/severity; **escaping test** — a
+  host name is attacker-influenced (it comes from the collector's submission) so
+  a `<script>` name must be neutralised or the console is an XSS vector
+  (html/template neutralises it, and the test locks that in); empty state renders
+  honestly with no record store; `/nope` → 404.
+
+**Result:** `go build` + `go vet` + `go test ./...` green — **219 → 223 tests**,
+7 packages ok. Live-checked against the real binary: two ingests across two
+hosts render worst-first (the critical container-start host leads) with correct
+severity chips and technique rollup. **P2.1b DONE.**
+
+- **Next step (heartbeat 36):** P2.1c — the `RecordStore` backends: design +
+  first backend (SQLite behind the existing interface, keeping the JSON file as
+  the zero-dep default). Re-read the plan first. P2.0 (eBPF) stays parked until
+  Dad answers on the toolchain.

@@ -98,11 +98,12 @@ These close the remaining *cheap* gaps and make the repo honest enough to publis
 - **Acceptance:** a central page/endpoint listing hosts with recent alerts,
   grouped by rule/technique, backed by a store interface (SQLite dev, Postgres
   prod).
-- **Status:** **first slice DONE (2026-09-29).** Durable event `RecordStore`
-  (memory + atomic JSON file, retention window + cap) retained on both ingest
-  paths; `GET /api/v1/fleet` rollup by host, worst-first; config keys
-  `records`/`record_retention_days`/`record_max`. Remaining: the human-facing
-  page (`GET /`) and the SQLite/Postgres backends behind `RecordStore`.
+- **Status:** **P2.1a DONE (2026-09-29); P2.1b DONE (2026-09-29).** Durable event
+  `RecordStore` (memory + atomic JSON file, retention window + cap) retained on
+  both ingest paths; `GET /api/v1/fleet` rollup by host, worst-first; `GET /`
+  renders the same rollup as a plain server-rendered HTML page (no SPA); config
+  keys `records`/`record_retention_days`/`record_max`. Remaining: the
+  SQLite/Postgres backends behind `RecordStore` (P2.1c).
 - **Cost:** MEDIUM-HIGH. **Owner:** central.
 
 ## Explicitly not v1
@@ -128,8 +129,8 @@ P2.0 (eBPF) — independent, gated on toolchain; runs in parallel when a host al
 
 ```
 P2.1a durable event record + GET /api/v1/fleet   ✅  (2026-09-29)
-P2.1b human page (GET /, no SPA)                 ▶ next
-P2.1c Store backends (SQLite dev / Postgres prod)  ⏳ scoped
+P2.1b human page (GET /, no SPA)                 ✅  (2026-09-29)
+P2.1c Store backends (SQLite dev / Postgres prod)  ▶ next
 ```
 
 ## Open decision for Dad (Rob)
