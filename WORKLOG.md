@@ -1246,3 +1246,47 @@ severity chips and technique rollup. **P2.1b DONE.**
   first backend (SQLite behind the existing interface, keeping the JSON file as
   the zero-dep default). Re-read the plan first. P2.0 (eBPF) stays parked until
   Dad answers on the toolchain.
+
+---
+
+## Heartbeat 36 — P2.1c: record-store backend design + `Query` interface
+
+The plan said "SQLite dev / Postgres prod behind `RecordStore`". Before writing
+any driver, the honest first move is the one this project keeps insisting on:
+write down *why*, because a database driver in a public repo whose entire
+footprint is one dependency is a decision, not a detail.
+
+**Design first — `docs/P2.1C-RECORD-STORE-BACKENDS.md`:**
+- States exactly what breaks with the JSON file (whole-file rewrite per append
+  → O(n) per event, worst during the incident the tool exists for; single-writer
+  assumption; no index), so the ceiling is written down, not discovered.
+- **Decision:** the JSON file stays the **default**. `-tags sqlite` gates an
+  optional backend; **pure-Go `modernc.org/sqlite`, not CGO `mattn`** (a C
+  toolchain requirement would break "clone and build"). Postgres (pgx) scoped,
+  not scheduled. No migration: records are append-only and time-bounded, so a
+  backend switch is a config change.
+
+**Interface first — the code step that needs no new dependency.** The plan's own
+note said a SQL backend should land against a *settled* contract, so the
+interface widened **now**, against the two existing implementations:
+- `RecordStore` gains `Query(ctx, RecordQuery)`; `RecordQuery` carries
+  `HostID`, `Since`, `Until`, `MinSeverity`, `Limit`. `Recent(hostID, limit)` is
+  kept and redefined as a thin wrapper over `Query`, so the common case goes
+  through one path.
+- `recordMatches` is the one place query semantics live, shared by both
+  backends — and the written reference a future SQL backend's `WHERE` must match
+  (`Since` inclusive, `Until` exclusive so adjacent windows don't double-count).
+- The fleet endpoint now uses it: `GET /api/v1/fleet?since=…&min_severity=…`,
+  with a malformed `since` returning **400**, not a silent empty view.
+- Tests: `Query` contract pinned by `TestQuery*` run over **both** backends via
+  a small `recordStoreImpls` matrix — a future backend is "done" when it passes
+  them unchanged (P2.1c-2 landed with P2.1c-1, since the parameterisation *is*
+  the test). Endpoint filter + 400 test added.
+
+**Result:** `go build` + `go vet` + `go test ./...` green — **223 → 233 tests**,
+7 packages ok. **P2.1c-1 and P2.1c-2 DONE.**
+
+- **Next step (heartbeat 37):** P2.1c-3 — the SQLite backend behind `-tags
+  sqlite`, run against the same contract tests until green with the tag and
+  unchanged without it. Only build it if it earns its place; otherwise pick up
+  P2.0 if Dad answers on the eBPF toolchain. Re-read the plan first.

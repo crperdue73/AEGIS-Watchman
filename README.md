@@ -130,13 +130,17 @@ Built so far:
 - **Fleet view** — every detected event is retained in a durable record store
   (`records`), and central exposes `GET /api/v1/fleet`: recent events rolled up
   by host — total, max severity, last-seen, breakdown by severity and by
-  technique — ordered worst-first. `GET /` renders the same rollup as a plain
+  technique — ordered worst-first, with optional `host`, `since`, and
+  `min_severity` filters (a single `RecordQuery` every backend serves). `GET /`
+  renders the same rollup as a plain
   server-rendered HTML page (no JS framework, no build step), so the console is
   human-readable and scriptable from one source of truth. It answers "which hosts
   are alerting, and with what" without grepping logs, and it works with alerting
   off, because history and paging are separate concerns. Retention is bounded by
   both a time window and a hard cap, so a severity storm can't grow the store
-  unbounded.
+  unbounded. Backends are pluggable behind the `RecordStore` interface: the
+  default JSON file needs no database, and optional SQLite/Postgres backends are
+  scoped in [`docs/P2.1C-RECORD-STORE-BACKENDS.md`](docs/P2.1C-RECORD-STORE-BACKENDS.md).
 
 ## Getting started
 

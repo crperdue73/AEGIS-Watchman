@@ -57,13 +57,37 @@ type Record struct {
 	Summary string `json:"summary,omitempty"`
 }
 
+// RecordQuery filters a record-store lookup. All fields are optional; the zero
+// value means "everything retained, newest first, no limit". It is the one
+// query shape every backend must serve, so a SQL backend indexes what the
+// fleet view and an operator actually ask for — a host, a time range, a
+// minimum severity — instead of the caller fetching everything and filtering.
+type RecordQuery struct {
+	// HostID restricts to one host. Empty = all hosts.
+	HostID string
+	// Since/Until bound the record time (inclusive Since, exclusive Until).
+	// Zero values are unbounded.
+	Since time.Time
+	Until time.Time
+	// MinSeverity excludes records below it (info < low < medium < high <
+	// critical). Empty = no floor. Uses the same rank order as severityRank, so
+	// an unknown severity is treated as below "info" and excluded when a floor
+	// is set.
+	MinSeverity string
+	// Limit caps the result (0 = no limit), applied after filtering, newest
+	// first.
+	Limit int
+}
+
 // RecordStore persists detected events for the fleet view.
 type RecordStore interface {
 	// Append retains one record.
 	Append(ctx context.Context, rec Record) error
-	// Recent returns up to limit records, newest first, optionally filtered to
-	// one host (empty hostID = all hosts). order is "newest" (default) or
-	// "oldest".
+	// Query returns records matching q, newest first.
+	Query(ctx context.Context, q RecordQuery) ([]Record, error)
+	// Recent returns up to limit records for one host (empty = all), newest
+	// first. It is defined in terms of Query so every backend serves the common
+	// case through the same path.
 	Recent(ctx context.Context, hostID string, limit int) ([]Record, error)
 }
 
@@ -110,19 +134,24 @@ func (m *MemoryRecordStore) Append(_ context.Context, rec Record) error {
 	return nil
 }
 
-// Recent implements RecordStore.
-func (m *MemoryRecordStore) Recent(_ context.Context, hostID string, limit int) ([]Record, error) {
+// Recent implements RecordStore, defined in terms of Query.
+func (m *MemoryRecordStore) Recent(ctx context.Context, hostID string, limit int) ([]Record, error) {
+	return m.Query(ctx, RecordQuery{HostID: hostID, Limit: limit})
+}
+
+// Query implements RecordStore.
+func (m *MemoryRecordStore) Query(_ context.Context, q RecordQuery) ([]Record, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	out := make([]Record, 0, len(m.recs))
 	// Walk newest-first (the slice is oldest-first).
 	for i := len(m.recs) - 1; i >= 0; i-- {
 		r := m.recs[i]
-		if hostID != "" && r.HostID != hostID {
+		if !recordMatches(r, q) {
 			continue
 		}
 		out = append(out, r)
-		if limit > 0 && len(out) >= limit {
+		if q.Limit > 0 && len(out) >= q.Limit {
 			break
 		}
 	}
@@ -209,18 +238,23 @@ func (f *FileRecordStore) Append(_ context.Context, rec Record) error {
 	return f.persistLocked()
 }
 
-// Recent implements RecordStore.
-func (f *FileRecordStore) Recent(_ context.Context, hostID string, limit int) ([]Record, error) {
+// Recent implements RecordStore, defined in terms of Query.
+func (f *FileRecordStore) Recent(ctx context.Context, hostID string, limit int) ([]Record, error) {
+	return f.Query(ctx, RecordQuery{HostID: hostID, Limit: limit})
+}
+
+// Query implements RecordStore.
+func (f *FileRecordStore) Query(_ context.Context, q RecordQuery) ([]Record, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	out := make([]Record, 0, len(f.recs))
 	for i := len(f.recs) - 1; i >= 0; i-- {
 		r := f.recs[i]
-		if hostID != "" && r.HostID != hostID {
+		if !recordMatches(r, q) {
 			continue
 		}
 		out = append(out, r)
-		if limit > 0 && len(out) >= limit {
+		if q.Limit > 0 && len(out) >= q.Limit {
 			break
 		}
 	}
@@ -337,4 +371,25 @@ func summarizeEvent(ev schema.Event) string {
 // backend not guaranteed ordered (a future SQL backend could return any order).
 func SortRecordsNewestFirst(recs []Record) {
 	sort.SliceStable(recs, func(i, j int) bool { return recs[i].When.After(recs[j].When) })
+}
+
+// recordMatches reports whether r satisfies q's filters. Shared by both
+// backends so the query semantics are defined once and a future SQL backend has
+// a written reference for what its WHERE clause must mean.
+func recordMatches(r Record, q RecordQuery) bool {
+	if q.HostID != "" && r.HostID != q.HostID {
+		return false
+	}
+	if !q.Since.IsZero() && r.When.Before(q.Since) {
+		return false
+	}
+	// Until is exclusive so adjacent windows do not double-count an event
+	// landing exactly on the boundary.
+	if !q.Until.IsZero() && !r.When.Before(q.Until) {
+		return false
+	}
+	if q.MinSeverity != "" && severityRank(r.Severity) < severityRank(q.MinSeverity) {
+		return false
+	}
+	return true
 }

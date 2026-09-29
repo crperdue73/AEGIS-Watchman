@@ -187,3 +187,104 @@ func TestBuildFleetViewRollup(t *testing.T) {
 		t.Errorf("last_seen = %v, want the latest", v.Hosts[0].LastSeen)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Query contract tests. These run against BOTH backends via recordStoreImpls,
+// so a future SQL backend is "done" when it passes them unchanged — the point
+// of the interface (see docs/P2.1C-RECORD-STORE-BACKENDS.md).
+// ---------------------------------------------------------------------------
+
+// recordStoreImpls returns one fresh store of each implementation, so a single
+// table-driven test pins identical behavior across backends.
+func recordStoreImpls(t *testing.T) map[string]func() RecordStore {
+	t.Helper()
+	return map[string]func() RecordStore{
+		"memory": func() RecordStore { return NewMemoryRecordStore(DefaultRecordRetention) },
+		"file": func() RecordStore {
+			f, err := NewFileRecordStore(filepath.Join(t.TempDir(), "records.json"), DefaultRecordRetention)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return f
+		},
+	}
+}
+
+func TestQueryTimeRange(t *testing.T) {
+	ctx := context.Background()
+	base := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+	for name, mk := range recordStoreImpls(t) {
+		t.Run(name, func(t *testing.T) {
+			st := mk()
+			_ = st.Append(ctx, rec("h1", "high", "a", base.Add(-2*time.Hour)))
+			_ = st.Append(ctx, rec("h1", "high", "b", base))
+			_ = st.Append(ctx, rec("h1", "high", "c", base.Add(2*time.Hour)))
+
+			// Since inclusive.
+			got, _ := st.Query(ctx, RecordQuery{Since: base})
+			if len(got) != 2 {
+				t.Fatalf("since filter: got %d, want 2", len(got))
+			}
+			// Until exclusive: the record exactly at `base` must be excluded.
+			got, _ = st.Query(ctx, RecordQuery{Until: base})
+			if len(got) != 1 || got[0].RuleID != "a" {
+				t.Fatalf("until filter: %+v", got)
+			}
+			// Window.
+			got, _ = st.Query(ctx, RecordQuery{Since: base, Until: base.Add(time.Hour)})
+			if len(got) != 1 || got[0].RuleID != "b" {
+				t.Fatalf("window filter: %+v", got)
+			}
+		})
+	}
+}
+
+func TestQueryMinSeverity(t *testing.T) {
+	ctx := context.Background()
+	base := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+	for name, mk := range recordStoreImpls(t) {
+		t.Run(name, func(t *testing.T) {
+			st := mk()
+			_ = st.Append(ctx, rec("h1", "low", "l", base))
+			_ = st.Append(ctx, rec("h1", "high", "h", base))
+			_ = st.Append(ctx, rec("h1", "critical", "c", base))
+
+			got, _ := st.Query(ctx, RecordQuery{MinSeverity: "high"})
+			if len(got) != 2 {
+				t.Fatalf("min severity high: got %d, want 2", len(got))
+			}
+			for _, r := range got {
+				if r.Severity == "low" {
+					t.Errorf("low record leaked past a high floor: %+v", r)
+				}
+			}
+			got, _ = st.Query(ctx, RecordQuery{MinSeverity: "critical"})
+			if len(got) != 1 || got[0].RuleID != "c" {
+				t.Fatalf("min severity critical: %+v", got)
+			}
+		})
+	}
+}
+
+func TestQueryCombinedAndLimit(t *testing.T) {
+	ctx := context.Background()
+	base := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+	for name, mk := range recordStoreImpls(t) {
+		t.Run(name, func(t *testing.T) {
+			st := mk()
+			_ = st.Append(ctx, rec("h1", "critical", "c1", base.Add(1*time.Minute)))
+			_ = st.Append(ctx, rec("h2", "critical", "c2", base.Add(2*time.Minute)))
+			_ = st.Append(ctx, rec("h1", "low", "l1", base.Add(3*time.Minute)))
+			_ = st.Append(ctx, rec("h1", "critical", "c3", base.Add(4*time.Minute)))
+
+			got, _ := st.Query(ctx, RecordQuery{HostID: "h1", MinSeverity: "high", Limit: 1})
+			if len(got) != 1 {
+				t.Fatalf("combined filter+limit: got %d, want 1", len(got))
+			}
+			// Newest-first: c3 (4m) precedes c1 (1m).
+			if got[0].RuleID != "c3" {
+				t.Errorf("expected newest c3, got %s", got[0].RuleID)
+			}
+		})
+	}
+}

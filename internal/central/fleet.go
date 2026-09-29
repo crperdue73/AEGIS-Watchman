@@ -39,6 +39,8 @@ const defaultFleetLimit = 5000
 //	host=<id>    filter to one host
 //	limit=<n>    max records to scan (default 5000)
 //	recent=<n>   max recent records embedded per host (default 10)
+//	since=<RFC3339>    only records at/after this time
+//	min_severity=<s>   only records at/above this severity
 func (s *Service) handleFleet(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -51,11 +53,22 @@ func (s *Service) handleFleet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hostID := r.URL.Query().Get("host")
-	limit := atoiDefault(r.URL.Query().Get("limit"), defaultFleetLimit)
+	q := RecordQuery{
+		HostID:      r.URL.Query().Get("host"),
+		MinSeverity: r.URL.Query().Get("min_severity"),
+		Limit:       atoiDefault(r.URL.Query().Get("limit"), defaultFleetLimit),
+	}
+	if v := r.URL.Query().Get("since"); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "since must be RFC3339 (e.g. 2026-09-29T00:00:00Z)")
+			return
+		}
+		q.Since = t
+	}
 	recentN := atoiDefault(r.URL.Query().Get("recent"), 10)
 
-	recs, err := s.records.Recent(r.Context(), hostID, limit)
+	recs, err := s.records.Query(r.Context(), q)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "record query failed")
 		return

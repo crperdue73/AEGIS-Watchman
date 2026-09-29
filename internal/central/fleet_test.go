@@ -105,3 +105,41 @@ func TestFleetEndpointHostFilter(t *testing.T) {
 		t.Errorf("host filter failed: %+v", view.Hosts)
 	}
 }
+
+// TestFleetEndpointMinSeverityAndSince exercises the Query-backed filters.
+func TestFleetEndpointMinSeverityAndSince(t *testing.T) {
+	svc := NewService(NewMemoryStore())
+	rs := NewMemoryRecordStore(DefaultRecordRetention)
+	svc.SetRecordStore(rs)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	_ = rs.Append(ctx, Record{HostID: "h1", Severity: "low", When: now.Add(-2 * time.Hour)})
+	_ = rs.Append(ctx, Record{HostID: "h1", Severity: "critical", When: now})
+
+	srv := httptest.NewServer(svc.Handler())
+	defer srv.Close()
+
+	// min_severity filters the low event out.
+	resp, err := http.Get(srv.URL + "/api/v1/fleet?min_severity=high")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var view fleetView
+	if err := json.NewDecoder(resp.Body).Decode(&view); err != nil {
+		t.Fatal(err)
+	}
+	if view.TotalEvents != 1 || view.Hosts[0].MaxSeverity != "critical" {
+		t.Errorf("min_severity filter failed: %+v", view)
+	}
+
+	// A bad since value is a 400, not a silent empty view.
+	bad, err := http.Get(srv.URL + "/api/v1/fleet?since=not-a-time")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer bad.Body.Close()
+	if bad.StatusCode != http.StatusBadRequest {
+		t.Errorf("bad since: status = %d, want 400", bad.StatusCode)
+	}
+}
