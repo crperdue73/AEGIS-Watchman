@@ -139,14 +139,22 @@ biased toward what the brief calls out as the *reason the tool exists*.
   gained `detail_non_empty_any` / `detail_glob_any` to express them.
 - **Owner:** collector — Docker events adapter (roadmap R3). **Done.**
 
-### G5 — No agent-native scope/tool telemetry
-- **What's missing:** `scope.change` and tool registration are agent-internal.
+### G5 — No agent-native scope/tool telemetry — ⚠️ PARTIAL (R5, P1.3)
+- **What was missing:** `scope.change` and tool registration are agent-internal.
   No OS telemetry carries them; they need a small agent-side shim or a read of
   the agent's own control-plane log.
-- **Why it matters:** "novel scope" is a first-class CARBONATO rule
-  (`carbonato.tool.scope_new`) with no data behind it yet.
-- **Priority:** MEDIUM. Depends on which agent framework a client runs;
-  design-parallel, not a v1 blocker.
+- **Partial fix (P1.3):** the collector's `scope` shim (`internal/telemetry/scope.go`)
+  *derives* `scope.change` from first-use telemetry we already have — a new
+  listener, a new outbound endpoint, a new executable under an agent-owned path.
+  Every derived action is labelled `detail.source="heuristic"` so a reader can
+  tell a derivation from ground truth; `carbonato.tool.scope_new` fires on it
+  (pack v5).
+- **Still open:** it sees first *use*, not a held-but-unused capability (no
+  inventory to diff against), and it resets on collector restart. The full fix
+  remains an agent-native control-plane adapter emitting `detail.source="agent"`
+  — the same shape, so the same rule fires unchanged.
+- **Priority:** MEDIUM. The heuristic shim closes the *rule* end of A10 for v1;
+  the authoritative feed depends on which agent framework a client runs.
 - **Owner:** collector + agent integration.
 
 ### G6 — Managed/cloud agents are entirely out of band
@@ -171,7 +179,7 @@ existing one) — no engine work.
 | **R2** | eBPF `file.access` (open/openat on secret paths) | G3, A5, A8 | eBPF, kernel-level | HIGH — in progress: design + R2.0 (`MultiSource`) done, see `docs/R2-EBPF-DESIGN.md` |
 | **R3** | Docker events adapter (privileged + host-mount detection) | G4, A9 | `docker events` stream | ✅ DONE — `internal/telemetry/docker.go`, pack v4 |
 | **R4** | central-side uid→name resolution | G1 | passwd-style `uid_map` file | ✅ DONE |
-| **R5** | agent control-plane shim → `scope.change` | G5, A10 | agent-native log | MEDIUM |
+| **R5** | agent control-plane shim → `scope.change` | G5, A10 | agent-native log | MEDIUM — ⚠️ partial (P1.3): `internal/telemetry/scope.go` derives `scope.change` from first-use telemetry, labelled `heuristic`; authoritative feed still open |
 | **R6** | README "known blind spots" section | G6 | docs | ✅ DONE — README "Known blind spots" |
 
 **Recommended next after the public cut: R4 (trivial, makes every alert
@@ -204,6 +212,15 @@ a heartbeat step.
 ---
 
 ## Log
+- **2026-09-29** — **R5 partial (P1.3) + P1.4 quality pass.** `scope.change`
+  heuristic shim derives novel-capability signals from first-use telemetry
+  (`internal/telemetry/scope.go`, labelled `detail.source=heuristic`); A10 now
+  has a live (if heuristic) feed. P1.4 fixed a real dead-rule class: the argv
+  matcher never tried the **space-joined command line**, so every multi-word
+  glob (`*pip install*`, `*nc -l*`, `*openssl enc*`, …) was silently inert across
+  5 rules — now fixed in `anyArgvMatches`. Two false-positive lookalikes
+  tightened (`*.profile*`, bare `*wget*`) with a benign-corpus test. Pack v5;
+  209 tests green. Phase 1 complete.
 - **2026-09-28** — **R2 scoped + R2.0 shipped.** Design doc `docs/R2-EBPF-DESIGN.md`
   (eBPF additive, collector degrades not fails); `MultiSource` built and wired
   into the collector, no kernel needed. Next: R2.1 (build-tagged stub).

@@ -58,7 +58,7 @@ These close the remaining *cheap* gaps and make the repo honest enough to publis
   deterministic. Linked from the README quick-start.
 - **Cost:** MEDIUM. **Owner:** collector + docs.
 
-### P1.3 — `scope.change` shim, first slice (partially closes G5/A10)
+### P1.3 — `scope.change` shim, first slice (partially closes G5/A10) ✅ DONE
 - **Why:** the last *open* gap that is adapter-shaped. "The agent changed its own
   scope (new tool, new API key)" is the CARBONATO reordered-objective signal.
   Full coverage needs an agent-native log; a first slice can derive
@@ -70,7 +70,7 @@ These close the remaining *cheap* gaps and make the repo honest enough to publis
   plainly which slice is covered and which still needs the agent-native log.
 - **Cost:** MEDIUM. **Owner:** collector + rules.
 
-### P1.4 — Rule pack review pass (quality, not quantity)
+### P1.4 — Rule pack review pass (quality, not quantity) ✅ DONE
 - **Why:** 18 rules exist; a public pack earns trust by being precise. Every
   rule should have a description that explains the *why*, a severity that is
   defensible, and a test proving it fires on the attack and stays quiet on the
@@ -113,8 +113,9 @@ These close the remaining *cheap* gaps and make the repo honest enough to publis
 ```
 P1.0 (auditd prereq docs)  ✅
 P1.1 (blind spots docs)    ✅
-P1.2 (demo)                ✅   ──► first public cut ──► P1.4 (rule pass) ──► P2.1 (fleet view)
-P1.3 (scope shim slice)    ─┘
+P1.2 (demo)                ✅
+P1.3 (scope shim slice)    ✅
+P1.4 (rule pass)           ✅   ──► all of Phase 1 complete ──► P2.1 (fleet view)
 P2.0 (eBPF) — independent, gated on toolchain; runs in parallel when a host allows.
 ```
 

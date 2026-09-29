@@ -80,6 +80,16 @@ func TestShippedCarbonatoFiresOnExfilChain(t *testing.T) {
 		t.Errorf("persistence did not fire: %v", got)
 	}
 
+	// 7. A multi-word phrase rule must fire on SPLIT argv (auditd shape), not
+	// just a pre-joined string. This is the P1.4 regression: before the fix,
+	// "*pip install*" could never match ["pip","install","evil"].
+	if got := fired(schema.Action{Type: "process.exec", Detail: map[string]any{"exe": "/usr/bin/pip3", "argv": []any{"pip3", "install", "requests"}}}); !has(got, "carbonato.tool.package_install") {
+		t.Errorf("split-argv package install did not fire: %v", got)
+	}
+	if got := fired(schema.Action{Type: "process.exec", Detail: map[string]any{"exe": "/usr/bin/nc", "argv": []any{"nc", "-l", "4444"}}}); !has(got, "carbonato.net.new_listener") {
+		t.Errorf("split-argv nc -l did not fire: %v", got)
+	}
+
 	// A benign action must stay quiet.
 	if got := fired(schema.Action{Type: "process.exec", Detail: map[string]any{"exe": "/usr/bin/ls"}}); len(got) != 0 {
 		t.Errorf("benign ls fired rules: %v", got)

@@ -199,10 +199,25 @@ func exeMatches(term, exe string) bool {
 // executable itself is also considered (argv[0] is often the program name), and
 // each element is checked both whole and as a basename so "*.ssh*" catches
 // "/home/x/.ssh/id_rsa" and "*id_rsa*" catches it too.
+//
+// Crucially, the argv is ALSO considered as one space-joined command string.
+// auditd hands us argv split per element (["pip","install","evil"]), so a
+// multi-word glob like "*pip install*" would never match any single element and
+// the rule would be silently dead — the failure mode this project explicitly
+// refuses (see rule.go: "a malformed rule that silently never fires is worse
+// than a startup error"). Checking the joined form as an extra candidate makes
+// both single-token globs ("*id_rsa*", matched per element) and phrase globs
+// ("*pip install*", matched against the joined line) work, without changing the
+// meaning of either.
 func anyArgvMatches(globs []string, argv []string, exe string) bool {
 	candidates := append([]string{}, argv...)
 	if exe != "" {
 		candidates = append(candidates, exe)
+	}
+	if len(argv) > 1 {
+		// The joined command line. Only added when there is more than one
+		// element, so a single-argument exec is not double-counted.
+		candidates = append(candidates, strings.Join(argv, " "))
 	}
 	for _, a := range candidates {
 		if anyGlobMatches(globs, a) {

@@ -195,6 +195,39 @@ rules:
 	}
 }
 
+// TestEngineArgvJoinedPhrase locks in the P1.4 fix: a multi-word glob
+// ("*pip install*") must match argv even though auditd hands us the command
+// split into elements. Before the fix the joined command line was never a
+// matching candidate, so every phrase-shaped rule was silently dead.
+func TestEngineArgvJoinedPhrase(t *testing.T) {
+	p := mustPack(t, `
+name: p
+rules:
+  - id: p.exec.install
+    severity: medium
+    match:
+      type: process.exec
+      argv_any: ["*pip install*", "*npm install -g*"]
+`)
+	e := NewEngine(p)
+	// Split argv, as auditd actually delivers it.
+	evs := e.Match(schema.Host{ID: "h1"}, nil, schema.Action{
+		Type:   "process.exec",
+		Detail: map[string]any{"exe": "/usr/bin/pip", "argv": []any{"pip", "install", "requests"}},
+	}, nil, timeNow())
+	if len(evs) != 1 {
+		t.Fatalf("split-argv phrase did not match; joined candidate missing: %+v", evs)
+	}
+	// A single-element exec is not falsely matched against a phrase glob.
+	evs = e.Match(schema.Host{ID: "h1"}, nil, schema.Action{
+		Type:   "process.exec",
+		Detail: map[string]any{"exe": "/bin/ls", "argv": []any{"ls"}},
+	}, nil, timeNow())
+	if len(evs) != 0 {
+		t.Fatalf("benign single-arg exec matched a phrase glob: %+v", evs)
+	}
+}
+
 func TestEngineAgentIDConstraint(t *testing.T) {
 	p := mustPack(t, `
 name: p

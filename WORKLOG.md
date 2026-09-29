@@ -1109,3 +1109,59 @@
   case, and prune anything that would false-positive on a stock host.
 - **Blocking:** unchanged — repo access + NAME (publish blocker); eBPF-toolchain
   question still with Dad.
+
+## Heartbeat 33 — P1.4: rule-pack quality pass
+
+**Shipped:** engine matcher fix (`internal/rules/engine.go`), rule-pack
+tweaks (`rules/carbonato.yaml` v5), and two new regression tests
+(`engine_test.go::TestEngineArgvJoinedPhrase`, `carbonato_benign_test.go`).
+
+**The real find — a whole class of silently-dead rules.** auditd hands us argv
+**split per element** (`["pip","install","evil"]`). Rules are authored as
+multi-word globs (`"*pip install*"`). The matcher only checked per-element
+candidates, so **any phrase-shaped glob could never match** — the rule loaded
+clean, passed validation, and never fired. This is precisely the failure the
+codebase already declares unacceptable ("a malformed rule that silently never
+fires is worse than a startup error") — except it was in the *matcher*, where
+validation can't reach.
+
+- **Fix:** `anyArgvMatches` now also tries the **space-joined command line** as
+  a candidate (only when argv has >1 element, so single-arg execs aren't
+  double-counted). Single-token globs (`*id_rsa*`) still match per element;
+  phrase globs (`*pip install*`) now match the joined line. Both meanings
+  preserved; nothing loosened.
+- **Blast radius recovered:** 5 shipped rules were affected —
+  `tool.package_install` (7 globs), `exec.obfuscation` (`*openssl enc*`,
+  `*tar cz*`, `*tar -cz*`), `net.new_listener` (`*nc -l*`, `*ncat -l*`),
+  `infra.privileged_container`, and persist/session globs. These are now live.
+
+**False-positive tightening (benign lookalikes):**
+- `persist.cron_or_rc`: `*.profile*` → `*/.profile` + explicit `*/.bash_profile*`,
+  `*/.bashrc*`, `*/.zshrc*`. The old glob's no-slash "contains" fallback matched
+  `node build.js --profile prod` — a routine flag. Real rc/cron writes still fire.
+- `tool.package_install`: bare `*wget*` → require the execute half
+  (`*| sh*`, `*|sh*`, `* -O /home/*`, `* -O /tmp/*`) plus the unambiguous
+  package-manager globs. A bounded `wget https://…/release.tgz` no longer fires;
+  `wget … | sh` and `pip install` still do. Also folded the curl|sh globs to
+  `*| sh*` so they match across the `http://` slashes path.Match won't cross.
+
+**Quiet-on-benign, locked in:** `carbonato_benign_test.go` runs a corpus of
+lookalikes (a `--profile` flag, a bounded wget, `ls`, `go test ./...`, a
+package-registry egress) against the shipped pack and demands zero matches — so
+a future re-broadening fails the build. One deliberate true positive
+(loopback listener) is documented in the test rather than hidden: v1 does not
+special-case loopback; a per-host allowlist is a later feature.
+
+**Result:** `go build` + `go vet` + `go test ./...` green — **207 → 209 tests**,
+all passing. **P1.4 DONE.**
+
+- **Next step (heartbeat 34):** Phase 1 is now complete (P1.0–P1.4). Next is the
+  strategic call: **P2.0 (eBPF file.access kernel half — R2)** vs **P2.1 (durable
+  fleet view)**. eBPF is the brief's "reason the tool exists" (secret reads that
+  argv heuristics miss, gap G3) but is HIGH cost and still blocked on the
+  toolchain question with Dad. Default to **P2.1** (central-side durable
+  fleet view — no kernel, no new deps, makes the public repo show something
+  real on day one) unless Dad answers on eBPF first. Re-read `PHASE1-PLAN`/brief
+  at the top of the next heartbeat to confirm before committing.
+- **Blocking:** unchanged — repo access + NAME (publish blocker, was slated for
+  Mon Sept 28); eBPF-toolchain question still with Dad.
