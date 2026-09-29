@@ -1333,3 +1333,36 @@ clean in both. **P2.1c-3 DONE.**
   front: pick up **P2.0** if Dad has answered the eBPF toolchain question;
   otherwise a consolidation pass (README/architecture refresh against the as-built
   central). Re-read the plan first.
+
+---
+
+## Heartbeat 38 — consolidation pass: README drift fix (docs)
+
+Dad hasn't answered the R2.2 eBPF toolchain question (no chat message, no task),
+and P2.1c-4 (Postgres) is scoped on-demand only. So took the other path the
+plan named: a **consolidation pass** — re-read the public docs against the
+as-built central, because P2.1 grew the central a lot in one day and public docs
+rot fastest right after a feature lands.
+
+**What I found and fixed:**
+- **Duplicated, stale "*Fleet view*" bullet in the README.** Two bullets claimed
+  the feature: an older one (from P2.1a) that described only an in-memory/JSON
+  store, and the current, complete one (filters, HTML page, pluggable backends).
+  A reader scrolling top-down hit the outdated description first and would have
+  concluded the store is JSON-only. Removed the stale bullet; the surviving one
+  is accurate. This is exactly the class of defect a pre-public-cut README pass
+  exists to catch (`grep -c "Fleet view"` is now 1, was 2).
+- **Verified the rest against the code, not against memory:** `examples/central.yaml`
+  already documents `records`/`record_backend`/`record_retention_days`/`record_max`
+  correctly; `docs/architecture.md` central data-flow and `README` getting-started
+  match the as-built binaries. No other drift found.
+
+**Verification:** `go build` + `go vet` + `go test ./...` green — 7 packages ok,
+all cached/clean, no change to tests or code (docs-only commit).
+
+- **Next step (heartbeat 39):** remaining open fronts are P2.0 (eBPF toolchain —
+  still blocked on Dad's call) and P2.1c-4 (Postgres, on demand). If neither is
+  unblocked, continue the pre-public-cut polish: an `examples/fleet` walkthrough
+  (run central, ingest, view the fleet page) linked from the README, or a
+  `SECURITY.md`/`CODE_OF_CONDUCT.md` pass since the repo publishes public under
+  Apache-2.0. Re-read the plan first.

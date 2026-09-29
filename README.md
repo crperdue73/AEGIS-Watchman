@@ -88,10 +88,6 @@ Built so far:
   `MultiAlerter`: a **webhook** (JSON POST), the **service log**, and **email**
   (SMTP, port 465 implicit TLS or STARTTLS). Alerts are batched one per ingest
   cycle. Configured in `central.yaml`; delivery failures are logged, never fatal.
-- **Fleet view** — a durable `RecordStore` (in-memory or atomic JSON file,
-  bounded by a retention window and a hard cap) is written on every ingest, and
-  `GET /api/v1/fleet` returns recent events rolled up by host, worst-first. It
-  works with alerting off: history and paging are separate concerns.
 - **Transport security** — **mutual TLS** on the collector→central hop
   (`internal/mtls/`): clients require and verify central's cert, and central
   requires and verifies every collector's cert (`RequireAndVerifyClientCert`, so
