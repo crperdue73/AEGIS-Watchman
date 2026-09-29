@@ -47,6 +47,10 @@ type Behavior struct {
 	// always additional to audit_log, never a replacement; a build without eBPF
 	// support or a host that cannot load the object degrades to auditd-only.
 	EBPF telemetry.EBPFConfig `yaml:"ebpf"`
+	// Docker configures the optional container-runtime adapter — the CARBONATO
+	// entry vector (G4). Like eBPF it is additive and degrades: a host without a
+	// Docker daemon simply has nothing to report. See internal/telemetry/docker.go.
+	Docker telemetry.DockerConfig `yaml:"docker"`
 }
 
 // AgentRoot is one globbed agent workspace to inventory.
@@ -125,6 +129,9 @@ func (c *Config) validate() error {
 		}
 	}
 	if err := c.Behavior.EBPF.Validate(); err != nil {
+		return fmt.Errorf("config: behavior.%w", err)
+	}
+	if err := c.Behavior.Docker.Validate(); err != nil {
 		return fmt.Errorf("config: behavior.%w", err)
 	}
 	return nil

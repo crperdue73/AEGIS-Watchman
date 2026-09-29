@@ -74,6 +74,24 @@ func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submi
 			log.Printf("collector: behavior: eBPF file.access adapter attached")
 		}
 	}
+
+	// The container-runtime adapter (G4, the CARBONATO entry vector) is additive
+	// in exactly the same way: when enabled, `docker events` is spawned and its
+	// container.start actions are matched alongside the auditd stream. A host
+	// with no Docker daemon or no docker binary simply has nothing to report —
+	// the collector keeps running on its other sources.
+	if cfg.Behavior.Docker.Enabled {
+		dockerSrc, err := telemetry.NewDockerSource(cfg.Behavior.Docker)
+		switch {
+		case err != nil:
+			log.Printf("collector: behavior: docker events adapter unavailable, continuing without it: %v", err)
+		case dockerSrc == nil:
+			// Disabled at the source level; nothing to attach.
+		default:
+			src.Add(dockerSrc)
+			log.Printf("collector: behavior: docker events adapter attached")
+		}
+	}
 	a := schema.Agent{}
 	if agent != nil {
 		a = *agent

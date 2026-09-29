@@ -859,3 +859,59 @@
   emitting a `scope.change`/container action, and a rule for a privileged
   container launch. Then back to the coverage matrix.
 - **Blocking:** same — repo access + NAME (access was slated for today, Sept 28).
+
+## 2026-09-28 (Mon), ~20:40 ET — Heartbeat 26
+- **R3 landed: the Docker events adapter (gap G4 — the CARBONATO entry vector).**
+  This is the first source that does not need the `docker` CLI to have been
+  typed: `docker events` is emitted by the *daemon*, so a container created by
+  hitting the unauthenticated API on :2375 is just as visible as one made with
+  the CLI. That is the intrusion the brief was built around, and until now the
+  rules could only catch it if an attacker politely shelled out to `docker run`
+  with `--privileged` on the command line.
+- **New: `internal/telemetry/docker.go`.**
+  - `DockerSource` implements the `Source` interface (`Actions()`) two ways:
+    `NewDockerSourceFromCommand` spawns `docker events --format '{{json .}}'`
+    (live path), `NewDockerSourceFromReader` parses any stream (tests, replay,
+    a captured events file). Lazy child start, `Close` kills it.
+  - New action type **`container.start`** — deliberately not overloaded onto
+    `scope.change`; "a new workload appeared on this host" is its own fact.
+  - `ContainerStartAction` splits detail into identity (`container`, `image`,
+    `name`) and risk (`privileged`, `host_pid`, `host_network`, `binds`), each
+    risk field present **only when true** so a rule can require non-emptiness
+    and mean it.
+  - **Enrichment is optional, never load-bearing.** `ContainerInspector` +
+    `CLIDockerInspector` (`docker inspect --format '{{json .HostConfig}}'`)
+    add the HostConfig flags when a daemon is reachable; when it is not, the
+    event *still fires* with identity only. A container we cannot inspect is
+    still a container that appeared — report it, don't drop it.
+  - Unparseable lines are skipped, never fatal — one bad line must not blind
+    the adapter (same principle as MultiSource skipping a broken child).
+  - `DockerConfig` (`docker:` block: `enabled`, `bin`, `events_args`,
+    `inspect`) + `Validate`; `NewDockerSource` returns `(nil,nil)` when
+    disabled so the collector adds it unconditionally.
+- **Wired** into `BehaviorEngine` (`internal/collector/behavior.go`) exactly
+  like eBPF: additive, degrades with a one-line log, never blocks startup.
+  Config validation extended (`config.go`).
+- **Rules engine grew two predicates** the container rules needed:
+  `detail_non_empty_any` (OR over keys — dangerous if privileged *or* host-PID
+  *or* host-network) and `detail_glob_any` (OR over keys, then globs — for the
+  composite `binds` field, e.g. any mount that is `/:/host` or the docker
+  socket). Both validated at load; both filter-only (they can reject, never
+  short-circuit sibling predicates to true — a bug my own test caught).
+- **Rule pack v4** (`rules/carbonato.yaml`) — three new rules, all on
+  `container.start`:
+  - `carbonato.container.privileged_start` (critical) — any host-access flag.
+  - `carbonato.container.host_root_mount` (critical) — `/:/host` or
+    `/var/run/docker.sock` bind.
+  - `carbonato.container.after_identity_change` (critical) — the timed spine:
+    a dangerous container within 10m of an identity-file change.
+- **Tests:** +13 (docker parser/source/enrichment, both new predicates, the
+  shipped-pack container chain, and a **quiet** test proving an ordinary
+  container fires nothing). `go test ./...` = **200 green** (was 187), incl.
+  subtests; `gofmt`/`go vet` clean.
+- **Next step (heartbeat 27):** update `PHASE0-COVERAGE.md` G4 → covered with
+  the new artifacts, then decide between (a) an auditd `docker`-source fallback
+  note in the deploy doc, and (b) R2.2 (kernel-dependent eBPF) if a capable
+  host appears. Also: `examples/collector.yaml` should document the new
+  `docker:` block.
+- **Blocking:** same — repo access + NAME (access was slated for today, Sept 28).

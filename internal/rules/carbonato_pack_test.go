@@ -115,3 +115,57 @@ func TestShippedCarbonatoFiresOnListener(t *testing.T) {
 		t.Errorf("net.listen did not fire listener_bound: %v", ids)
 	}
 }
+
+// TestShippedCarbonatoFiresOnContainer walks the container-runtime half of the
+// CARBONATO entry vector against the shipped pack: a privileged, host-root
+// mounted container appearing on a host. This is the action the docker events
+// adapter emits (internal/telemetry/docker.go) — the detection that does not
+// need the `docker` CLI to have been typed, so it survives an intrusion that
+// went straight at the daemon on :2375.
+func TestShippedCarbonatoFiresOnContainer(t *testing.T) {
+	p, err := LoadPack(filepath.Join("..", "..", "rules", "carbonato.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := NewEngine(p)
+
+	action := schema.Action{Type: "container.start", Detail: map[string]any{
+		"container":  "a1b2c3d4",
+		"image":      "alpine:latest",
+		"name":       "worker",
+		"privileged": "true",
+		"binds":      "/:/host,/var/run/docker.sock:/var/run/docker.sock",
+	}}
+	var ids []string
+	for _, ev := range e.Match(schema.Host{ID: "h"}, nil, action, nil, timeNow()) {
+		ids = append(ids, ev.Rule.ID)
+	}
+	want := map[string]bool{
+		"carbonato.container.privileged_start": true,
+		"carbonato.container.host_root_mount":  true,
+	}
+	for _, id := range ids {
+		delete(want, id)
+	}
+	if len(want) != 0 {
+		t.Errorf("container.start missed %v (fired: %v)", want, ids)
+	}
+}
+
+// TestContainerRuleQuietOnOrdinaryContainer guards the low-noise promise: an
+// ordinary container with no host access must NOT fire the container rules.
+func TestContainerRuleQuietOnOrdinaryContainer(t *testing.T) {
+	p, err := LoadPack(filepath.Join("..", "..", "rules", "carbonato.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := NewEngine(p)
+	action := schema.Action{Type: "container.start", Detail: map[string]any{
+		"container": "c0ffee",
+		"image":     "nginx:latest",
+		"name":      "web",
+	}}
+	for _, ev := range e.Match(schema.Host{ID: "h"}, nil, action, nil, timeNow()) {
+		t.Errorf("ordinary container fired %s; container rules must stay quiet", ev.Rule.ID)
+	}
+}

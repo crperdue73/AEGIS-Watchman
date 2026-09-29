@@ -73,6 +73,18 @@ type Match struct {
 	DetailEquals map[string]string `yaml:"detail_equals,omitempty" json:"detail_equals,omitempty"`
 	// DetailNonEmpty requires action.detail[key] to be present and non-empty.
 	DetailNonEmpty []string `yaml:"detail_non_empty,omitempty" json:"detail_non_empty,omitempty"`
+	// DetailNonEmptyAny fires if AT LEAST ONE of these detail keys is present and
+	// non-empty. Where DetailNonEmpty is an AND over keys, this is an OR — the
+	// shape a rule wants when several independent fields each indicate the same
+	// risk (e.g. a container is dangerous if privileged OR host-PID OR
+	// host-network).
+	DetailNonEmptyAny []string `yaml:"detail_non_empty_any,omitempty" json:"detail_non_empty_any,omitempty"`
+	// DetailGlobAny maps a detail key to globs; the predicate fires if
+	// action.detail[key], for ANY listed key, matches ANY of that key's globs.
+	// It exists for fields that carry a composite value — a container's `binds`
+	// is a comma-joined list of host mounts, and a rule wants "any bind that
+	// looks like the host root" without the telemetry layer exploding the list.
+	DetailGlobAny map[string][]string `yaml:"detail_glob_any,omitempty" json:"detail_glob_any,omitempty"`
 
 	// AgentID matches agent.id exactly, if set.
 	AgentID string `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
@@ -204,6 +216,14 @@ func (r *Rule) Validate() error {
 			return fmt.Errorf("rule %q: detail_equals has an empty key", r.ID)
 		}
 	}
+	for k, globs := range r.Match.DetailGlobAny {
+		if k == "" {
+			return fmt.Errorf("rule %q: detail_glob_any has an empty key", r.ID)
+		}
+		if len(globs) == 0 {
+			return fmt.Errorf("rule %q: detail_glob_any[%s] has no globs", r.ID, k)
+		}
+	}
 	if pe := r.Match.PriorEvent; pe != nil {
 		if strings.TrimSpace(pe.Class) == "" {
 			return fmt.Errorf("rule %q: prior_event.class is required", r.ID)
@@ -219,6 +239,7 @@ func (r *Rule) Validate() error {
 func isZeroMatch(m Match) bool {
 	return m.Type == "" && m.Exe == "" && len(m.ExeAny) == 0 &&
 		len(m.ArgvAny) == 0 && len(m.PathGlobAny) == 0 && len(m.EndpointGlobAny) == 0 &&
-		len(m.DetailEquals) == 0 && len(m.DetailNonEmpty) == 0 && m.AgentID == "" &&
-		m.PriorEvent == nil
+		len(m.DetailEquals) == 0 && len(m.DetailNonEmpty) == 0 &&
+		len(m.DetailNonEmptyAny) == 0 && len(m.DetailGlobAny) == 0 &&
+		m.AgentID == "" && m.PriorEvent == nil
 }

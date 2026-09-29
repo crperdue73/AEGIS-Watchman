@@ -45,7 +45,7 @@ it **today**.
 | A6 | The agent makes an **outbound connection** (chat / C2 / RPC) | 3 | connect + peer classification | ✅ shipped (auditd) |
 | A7 | The agent **opens a listener** (C2 / reverse shell) | 3 | bind/listen | ✅ shipped (R1, auditd bind/listen) |
 | A8 | The intrusion **persists** past session end (cron, rc, unit) | 3 | file write to known paths | ✅ via argv heuristics · ❌ via file.write (see G3) |
-| A9 | The agent **escapes its container** (privileged + host mount) | 3 | container runtime events | ❌ gap (see G4) |
+| A9 | The agent **escapes its container** (privileged + host mount) | 3 | container runtime events | ✅ via `docker events` (`container.start` rules, G4 closed) |
 | A10 | The agent **changes its own scope** (new tool, new API key) | 3 | agent-native control-plane log | ❌ gap (see G5) |
 
 **Reading of the matrix:** 7 of 10 forced actions are detected today on real
@@ -121,17 +121,23 @@ biased toward what the brief calls out as the *reason the tool exists*.
 - **Priority:** HIGH. This is the strongest argument for eBPF.
 - **Owner:** collector — new eBPF adapter (see roadmap R2).
 
-### G4 — No container-runtime telemetry
-- **What's missing:** the CARBONATO *entry vector* is unauthenticated Docker on
-  :2375 with privileged, host-mounted containers. We can detect what the agent
+### G4 — No container-runtime telemetry ✅ CLOSED (R3)
+- **What was missing:** the CARBONATO *entry vector* is unauthenticated Docker on
+  :2375 with privileged, host-mounted containers. We could detect what the agent
   does *inside* the host, but not that a privileged container was launched at
   all — the earliest possible signal.
-- **Why it matters:** catching it at container-launch is catching it before any
+- **Why it mattered:** catching it at container-launch is catching it before any
   agent even runs. This is the difference between "we saw the exfil" and "we
   stopped the intrusion."
-- **Priority:** MEDIUM-HIGH. `docker events` is a cheap first step (no kernel
-  work); it emits `container create` with the privileged/host-mount flags.
-- **Owner:** collector — new Docker events adapter (roadmap R3).
+- **Closed by:** `internal/telemetry/docker.go` — a `DockerSource` reading
+  `docker events` (daemon-emitted, so it does not need the `docker` CLI to have
+  been typed — it catches the API-on-:2375 path) emitting `container.start`
+  actions with identity + risk detail, optionally enriched with HostConfig via
+  `docker inspect`. Wired into the collector like eBPF (additive, degrades), and
+  matched by three new critical rules in `rules/carbonato.yaml` v4
+  (`privileged_start`, `host_root_mount`, `after_identity_change`). Rule engine
+  gained `detail_non_empty_any` / `detail_glob_any` to express them.
+- **Owner:** collector — Docker events adapter (roadmap R3). **Done.**
 
 ### G5 — No agent-native scope/tool telemetry
 - **What's missing:** `scope.change` and tool registration are agent-internal.
@@ -163,7 +169,7 @@ existing one) — no engine work.
 |---|---|---|---|---|
 | **R1** | auditd `bind`/`listen` → `net.listen` action | G2 | auditd (already enabled if `-S connect` is) | ✅ DONE |
 | **R2** | eBPF `file.access` (open/openat on secret paths) | G3, A5, A8 | eBPF, kernel-level | HIGH — in progress: design + R2.0 (`MultiSource`) done, see `docs/R2-EBPF-DESIGN.md` |
-| **R3** | Docker events adapter (privileged + host-mount detection) | G4, A9 | `docker events` stream | MEDIUM |
+| **R3** | Docker events adapter (privileged + host-mount detection) | G4, A9 | `docker events` stream | ✅ DONE — `internal/telemetry/docker.go`, pack v4 |
 | **R4** | central-side uid→name resolution | G1 | passwd-style `uid_map` file | ✅ DONE |
 | **R5** | agent control-plane shim → `scope.change` | G5, A10 | agent-native log | MEDIUM |
 | **R6** | README "known blind spots" section | G6 | docs | LOW |

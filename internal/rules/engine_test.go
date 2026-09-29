@@ -322,4 +322,41 @@ func intp(i int) *int { return &i }
 // driven explicitly.
 func timeNow() time.Time { return time.Unix(1790600000, 0).UTC() }
 
+// --- detail predicate extensions (DetailNonEmptyAny / DetailGlobAny) --------
+
+func TestDetailNonEmptyAnyOrs(t *testing.T) {
+	m := Match{Type: "container.start", DetailNonEmptyAny: []string{"privileged", "host_pid", "host_network"}}
+	// One of three present -> fires.
+	act := schema.Action{Type: "container.start", Detail: map[string]any{"host_pid": "true"}}
+	if !matches(m, nil, act) {
+		t.Errorf("one-of-many non-empty should match")
+	}
+	// None present -> no fire.
+	bare := schema.Action{Type: "container.start", Detail: map[string]any{"image": "alpine"}}
+	if matches(m, nil, bare) {
+		t.Errorf("no risk field present must not match")
+	}
+	// Present but empty string -> treated as absent.
+	empty := schema.Action{Type: "container.start", Detail: map[string]any{"privileged": ""}}
+	if matches(m, nil, empty) {
+		t.Errorf("empty value must not satisfy non-empty")
+	}
+}
+
+func TestDetailGlobAnyMatchesComposite(t *testing.T) {
+	m := Match{Type: "container.start", DetailGlobAny: map[string][]string{
+		"binds": {"*:/host*", "*/var/run/docker.sock*"},
+	}}
+	act := schema.Action{Type: "container.start", Detail: map[string]any{
+		"binds": "/data:/data,/var/run/docker.sock:/var/run/docker.sock",
+	}}
+	if !matches(m, nil, act) {
+		t.Errorf("a bind containing the docker socket should match")
+	}
+	clean := schema.Action{Type: "container.start", Detail: map[string]any{"binds": "/data:/data"}}
+	if matches(m, nil, clean) {
+		t.Errorf("an ordinary bind must not match")
+	}
+}
+
 var _ = normalizePathGlobs

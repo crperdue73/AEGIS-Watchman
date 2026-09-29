@@ -13,7 +13,7 @@
 # itself and its basename.
 
 name: carbonato
-version: "3"
+version: "4"
 
 rules:
   - id: carbonato.tool.scope_new
@@ -291,3 +291,64 @@ rules:
       type: net.listen
       detail_non_empty:
         - "listen"
+
+  # --- v4: container-runtime telemetry (G4, from the docker events adapter) ---
+  #
+  # These match on container.start, the action emitted by
+  # internal/telemetry/docker.go when a container appears on a host. Unlike the
+  # argv-based carbonato.infra.privileged_container above (which needs the
+  # `docker` CLI to have been typed), these fire even when the container is
+  # created directly against an unauthenticated Docker API on :2375 — the exact
+  # CARBONATO entry vector — because the *daemon* emits the event, not a shell.
+
+  - id: carbonato.container.privileged_start
+    title: A privileged, host-access container started on the host
+    severity: critical
+    technique: phase3/container-escape
+    description: >
+      The CARBONATO entry: a container started with host-level access. Any of
+      --privileged, host PID namespace, host network, or a host-root bind mount
+      is a container that can reach the host. This is the kernel-side,
+      daemon-side counterpart to the argv rule — it cannot be evaded by hiding
+      the command line, because no command line was involved.
+    match:
+      type: container.start
+      detail_non_empty_any:
+        - "privileged"
+        - "host_pid"
+        - "host_network"
+
+  - id: carbonato.container.host_root_mount
+    title: Container started with a host-root or host-socket mount
+    severity: critical
+    technique: phase3/container-escape
+    description: >
+      A bind mount of the host root (`/:/host`) or the Docker socket
+      (`/var/run/docker.sock`) from a container is either an escape primitive or
+      a way to talk to the host daemon directly. Named separately from the
+      privileged rule so the alert says which one it saw.
+    match:
+      type: container.start
+      detail_glob_any:
+        binds:
+          - "*:/host*"
+          - "/:/"
+          - "*/var/run/docker.sock*"
+
+  - id: carbonato.container.after_identity_change
+    title: Container started within 10m of an identity-file change
+    severity: critical
+    technique: phase3/correlated-container-escape
+    description: >
+      The full CARBONATO shape timed: an agent's persona/skill file changed, and
+      shortly after, a container appeared with host access. Either half alone is
+      investigable; together they are the intrusion's spine.
+    match:
+      type: container.start
+      detail_non_empty_any:
+        - "privileged"
+        - "host_pid"
+        - "host_network"
+      prior_event:
+        class: identity.drift
+        within: 10m

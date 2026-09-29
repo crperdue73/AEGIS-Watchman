@@ -150,6 +150,35 @@ func matches(m Match, agent *schema.Agent, action schema.Action) bool {
 			return false
 		}
 	}
+	if len(m.DetailNonEmptyAny) > 0 {
+		// OR over keys: at least one must be present and non-empty.
+		any := false
+		for _, k := range m.DetailNonEmptyAny {
+			if detailString(action, k) != "" {
+				any = true
+				break
+			}
+		}
+		if !any {
+			return false
+		}
+	}
+	if len(m.DetailGlobAny) > 0 {
+		// OR over keys, then OR over that key's globs: at least one listed field
+		// must have a value matching one of its globs. Like DetailNonEmptyAny,
+		// this is an OR predicate and therefore a filter — it can only reject
+		// the action, never short-circuit the predicates around it to true.
+		any := false
+		for k, globs := range m.DetailGlobAny {
+			if anyGlobMatches(globs, detailString(action, k)) {
+				any = true
+				break
+			}
+		}
+		if !any {
+			return false
+		}
+	}
 	return true
 }
 

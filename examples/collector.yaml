@@ -63,6 +63,18 @@ behavior:
     watch_paths: []
     ringbuf_bytes: 0            # 0 = 1 MiB per CPU
 
+  # Container-runtime adapter (R3, gap G4): reads `docker events` and emits
+  # container.start actions, so a privileged / host-mounted container is caught
+  # the moment it appears — including one created straight against the Docker
+  # API on :2375, where no `docker` command was ever typed. Additive like eBPF:
+  # a host with no Docker daemon simply has nothing to report.
+  docker:
+    enabled: false              # flip on for hosts that run a Docker daemon
+    bin: ""                     # empty = "docker"
+    inspect: true               # enrich events with HostConfig (privileged,
+                                # host PID/net, host-root mounts) via `docker inspect`
+    # events_args: []           # empty = ["events", "--format", "{{json .}}"]
+
 # Enable the telemetry source with an auditd rule (only execve is on by
 # default). Drop this in /etc/audit/rules.d/agentids.rules and reload:
 #
