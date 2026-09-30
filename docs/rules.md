@@ -146,7 +146,7 @@ arguments (or its executable) must look like an SSH-key operation.
 
 ## The shipped pack
 
-`rules/carbonato.yaml` — pack **carbonato**, version **5**, **18 rules** encoding
+`rules/carbonato.yaml` — pack **carbonato**, version **6**, **19 rules** encoding
 the CARBONATO-class "agent as insider" chain. Rule → severity → technique →
 the action it keys on:
 
@@ -166,7 +166,8 @@ the action it keys on:
 | `carbonato.net.new_listener` | medium | `phase3/command-and-control` | `process.exec` | agent process opens a listening socket |
 | `carbonato.net.listener_bound` | medium | `phase3/command-and-control` | `net.listen` | a process binds a listening socket |
 | `carbonato.exfil.egress_after_change` | high | `phase3/exfiltration` | `net.egress` | egress to a chat/C2 endpoint |
-| `carbonato.exfil.egress_after_identity_change` | critical | `phase3/correlated-exfil` | `net.egress` | egress within 5m of an identity-file change |
+| `carbonato.exfil.egress_after_identity_change` | critical | `phase3/correlated-exfil` | `net.egress` | egress (chat **or chain RPC**) within 5m of an identity-file change |
+| `carbonato.c2.blockchain_rpc` | medium | `phase3/command-and-control` | `net.egress` | egress to a public blockchain RPC provider (the Graphalgo C2 leg) |
 | `carbonato.container.privileged_start` | critical | `phase3/container-escape` | `container.start` | a privileged, host-access container started |
 | `carbonato.container.host_root_mount` | critical | `phase3/container-escape` | `container.start` | a container with a host-root / host-socket mount |
 | `carbonato.container.after_identity_change` | critical | `phase3/correlated-container-escape` | `container.start` | a container started within 10m of an identity change |

@@ -13,7 +13,7 @@
 # itself and its basename.
 
 name: carbonato
-version: "5"
+version: "6"
 
 rules:
   - id: carbonato.tool.scope_new
@@ -147,9 +147,52 @@ rules:
         - "*pastebin.com*"
         - "*transfer.sh*"
         - "*0x0.st*"
+        # v6: a chain RPC call after an identity change is the same exfil/C2
+        # shape as a chat call after one (the Graphalgo construction).
+        - "*infura.io*"
+        - "*alchemy.com*"
+        - "*quiknode.pro*"
+        - "*ankr.com*"
+        - "*arbitrum.io*"
+        - "*polygon-rpc.com*"
+        - "*llamarpc.com*"
       prior_event:
         class: identity.drift
         within: 5m
+
+  # --- v6: blockchain-RPC C2 (the mock-Graphalgo leg) -------------------------
+  #
+  # The brief's second source: C2 over a smart contract, reached through a
+  # public RPC provider — "no server to seize, block, or sinkhole." An agent
+  # (as opposed to a crypto app) has no business talking to a chain RPC
+  # endpoint, and a chain call shortly after an identity change is the same
+  # exfil/C2 shape as the chat-endpoint correlation.
+
+  - id: carbonato.c2.blockchain_rpc
+    title: Agent process egresses to a blockchain RPC endpoint
+    severity: medium
+    technique: phase3/command-and-control
+    description: >
+      A public chain RPC provider (Infura, Alchemy, QuickNode, Ankr, Chainstack,
+      a public Polygon/Llama RPC, or an Arbitrum RPC) is a C2 channel that cannot
+      be seized or sinkholed — the command lives in a smart contract, not on a
+      server. The brief names this explicitly alongside chat C2. Medium on its
+      own: some agents legitimately touch a chain. It escalates to the critical
+      correlation rule above when it follows an identity-file change.
+    match:
+      type: net.egress
+      endpoint_glob_any:
+        - "*infura.io*"
+        - "*alchemy.com*"
+        - "*alchemyapi.io*"
+        - "*quiknode.pro*"
+        - "*ankr.com*"
+        - "*chainstack.com*"
+        - "*polygon-rpc.com*"
+        - "*llamarpc.com*"
+        - "*arbitrum.io*"
+        - "*etherscan.io/api*"
+        - "*bscscan.com/api*"
 
   - id: carbonato.secret.read_after_shell
     title: Credential read within 2m of a shell spawn

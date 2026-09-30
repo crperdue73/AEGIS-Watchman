@@ -114,9 +114,10 @@ Built so far:
   the Docker events adapter (`container.start`), watches for a container
   *appearing* on the host with host-level access — the CARBONATO entry vector,
   caught even when it was created via the unauthenticated API on `:2375` rather
-  than the `docker` CLI. The seed pack `rules/carbonato.yaml` (v5, 18 rules)
+  than the `docker` CLI. The seed pack `rules/carbonato.yaml` (v6, 19 rules)
   encodes the CARBONATO chain — secret-store reads, SSH-key argv, chat/C2 egress,
-  shell spawn, novel scope, persistence, privileged/host-mounted containers —
+  chain-RPC C2 (a public blockchain RPC provider — the Graphalgo C2 leg), shell
+  spawn, novel scope, persistence, privileged/host-mounted containers —
   including **correlation rules** decided against a per-host timeline, e.g. an
   outbound call within 5m of an identity-file change. Matches ship to central's
   `/api/v1/actions` and, when a `behavior.spool` path is set, are queued on disk

@@ -3,6 +3,7 @@ package rules
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/CRPerdue/agentids/internal/schema"
 )
@@ -159,6 +160,61 @@ func TestShippedCarbonatoFiresOnContainer(t *testing.T) {
 	}
 	if len(want) != 0 {
 		t.Errorf("container.start missed %v (fired: %v)", want, ids)
+	}
+}
+
+// TestShippedCarbonatoFiresOnBlockchainC2 covers the v6 Graphalgo leg: an agent
+// egressing to a public chain RPC provider is medium on its own, and the same
+// egress becomes the critical correlation when an identity file changed shortly
+// before. An internal JSON-RPC endpoint (not a public chain provider) stays
+// quiet.
+func TestShippedCarbonatoFiresOnBlockchainC2(t *testing.T) {
+	p, err := LoadPack(filepath.Join("..", "..", "rules", "carbonato.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := NewEngine(p)
+	host := schema.Host{ID: "h"}
+
+	ids := func(eng *Engine, endpoint string, asOf time.Time) []string {
+		var out []string
+		for _, ev := range eng.Match(host, nil, schema.Action{
+			Type: "net.egress", Detail: map[string]any{"endpoint": endpoint},
+		}, nil, asOf) {
+			out = append(out, ev.Rule.ID)
+		}
+		return out
+	}
+	has := func(ids []string, want string) bool {
+		for _, id := range ids {
+			if id == want {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Standalone: the chain-RPC rule fires (no prior drift, so the correlation
+	// does not).
+	if got := ids(e, "https://sepolia-rollup.arbitrum.io/rpc", t0); !has(got, "carbonato.c2.blockchain_rpc") {
+		t.Errorf("arbitrum RPC did not fire the chain rule: %v", got)
+	}
+	if got := ids(e, "mainnet.infura.io:443", t0); !has(got, "carbonato.c2.blockchain_rpc") {
+		t.Errorf("infura RPC did not fire the chain rule: %v", got)
+	}
+
+	// Escalation: the same egress after an identity-file change is critical.
+	tl := NewTimeline()
+	tl.Record(host.ID, t0, schema.EventIdentityDrift, t0)
+	eng := NewEngine(p).WithTimeline(tl)
+	if got := ids(eng, "arbitrum.io/rpc", t0.Add(time.Minute)); !has(got, "carbonato.exfil.egress_after_identity_change") {
+		t.Errorf("chain egress after identity change did not fire the critical correlation: %v", got)
+	}
+
+	// Benign lookalike: an internal JSON-RPC endpoint is not a public chain
+	// provider and must stay quiet.
+	if got := ids(e, "rpc.internal.example.com:443", t0); len(got) != 0 {
+		t.Errorf("internal JSON-RPC fired rules (should be quiet): %v", got)
 	}
 }
 

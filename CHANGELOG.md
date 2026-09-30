@@ -51,7 +51,7 @@ opt-in design.
 - A `scope.change` **heuristic shim** deriving "the agent reached for new scope"
   (new listener, new outbound endpoint, new executable under an agent root) from
   existing telemetry; `detail.source="heuristic"` marks it as a derivation.
-- Seed rule pack `rules/carbonato.yaml` (v5, 18 rules) encoding the CARBONATO
+- Seed rule pack `rules/carbonato.yaml` (v6, 19 rules) encoding the CARBONATO
   chain, with a fire-test and a quiet-test per rule.
 - Durable action spool in the collector: matches are appended before they ship,
   so a central outage costs latency, never evidence.

@@ -61,6 +61,12 @@ func TestShippedPackQuietOnBenignCorpus(t *testing.T) {
 			}},
 		},
 		{
+			"internal JSON-RPC over the office network (not a public chain provider)",
+			schema.Action{Type: "net.egress", Detail: map[string]any{
+				"endpoint": "rpc.internal.example.com 10.0.0.5:443",
+			}},
+		},
+		{
 			"a listener on loopback from a dev server the operator started",
 			// NOTE: this one is EXPECTED to fire listener_bound — a listener is
 			// a listener. It is here to document that we do NOT special-case

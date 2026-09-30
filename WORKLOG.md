@@ -1993,3 +1993,49 @@ now, `cmd/rules` included); `make lint` green (67 links); `gofmt`/`vet` clean;
   **rule-pack publishing format** (a pack-level version/manifest so a fleet can
   pin and audit which packs it runs), or widening the seed pack toward the
   brief's ~20–30 target. Re-read `PHASE1-PLAN.md` §open decisions first.
+
+---
+
+## Heartbeat 53 — the pack learns the Graphalgo leg (blockchain-RPC C2)
+
+Widened the seed pack toward the brief's ~20–30 rule target — but only with a
+rule the brief actually names and the pack did not cover. The brief's product
+concept lists the Layer-3 primitive "outbound calls to a chat service … **or to a
+blockchain RPC endpoint**", and its second source (Graphalgo) is explicit: "C2
+over Slack + an Arbitrum Sepolia smart contract — no server to seize, block, or
+sinkhole." The pack covered chat/pastebin egress; chain-RPC egress was a named,
+documented gap. Closed.
+
+**Pack v5 → v6 (18 → 19 rules):**
+
+- New `carbonato.c2.blockchain_rpc` (medium, `phase3/command-and-control`) — a
+  `net.egress` to a public chain RPC provider (Infura, Alchemy, QuickNode, Ankr,
+  Chainstack, public Polygon/Llama RPC, Arbitrum, and the etherscan/bscscan API
+  endpoints used as contract C2). Medium on its own (some agents legitimately
+  touch a chain); it escalates to the critical correlation below when it follows
+  an identity-file change.
+- Extended `carbonato.exfil.egress_after_identity_change` (the timed spine) to
+  treat a chain-RPC call after an identity change as the same exfil/C2 shape as
+  a chat call after one — the Graphalgo construction, at critical.
+
+**Tests:** `TestShippedCarbonatoFiresOnBlockchainC2` — standalone fire on an
+Arbitrum Sepolia RPC and on Infura, escalation to the **critical** correlation
+once a prior identity-change is on the timeline, and quiet on an *internal*
+JSON-RPC endpoint (`rpc.internal.example.com`) that is not a public chain
+provider. Added that same lookalike to the benign corpus, so a future
+re-broadening (a bare `*rpc*` glob) fails the build.
+
+**Docs/tests updated for the count:** `docs/rules.md` (pack table + version),
+`rules/README.md`, `README.md` (Layer 3 bullet + the "v6, 19 rules" line),
+`CHANGELOG.md`.
+
+**Verification:** `agentids-rules verify rules/` → `ok: 1 pack(s), 19 rule(s)`,
+`critical=6 high=6 medium=7`; `go test ./...` green (10 packages); `make lint`
+green (67 links); `gofmt`/`vet` clean; `demo/run.sh` exit 0. Committed.
+
+- **Next step (heartbeat 54):** open fronts unchanged — P2.0 (eBPF, blocked on
+  Dad's toolchain call) and P2.1c-4 (Postgres, on demand). Pack is at 19 —
+  the brief's target ceiling is ~30; further rules should stay gap-driven (each
+  with a named primitive + a benign lookalike), not count-driven. Other
+  unblocked candidate: the Phase 3 **rule-pack publishing format** (pin/audit
+  which packs a fleet runs). Re-read `PHASE1-PLAN.md` §open decisions first.
