@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/agentids/internal/telemetry"
 )
 
 type fakeSubmitter struct {
@@ -84,6 +85,63 @@ func TestBehaviorEngine_PollShipsMatches(t *testing.T) {
 	}
 	if sub.call != 1 {
 		t.Errorf("submitter called again with no new data (call=%d)", sub.call)
+	}
+}
+
+// TestBehaviorEngine_EBPFUnavailableDegradesToAuditdOnly is the half of the P2.0
+// acceptance (docs/R2-EBPF-DESIGN.md, D6) that needs no toolchain and no kernel:
+// when the optional eBPF source cannot be compiled in (the default build) or
+// cannot load, the collector must log one clear line an operator can act on and
+// keep running on auditd — never refuse to start because its *second* source is
+// missing. The other half (the object loads and emits file.access) is gated on a
+// toolchain; this half runs on every host, so it is pinned here.
+func TestBehaviorEngine_EBPFUnavailableDegradesToAuditdOnly(t *testing.T) {
+	tmp := t.TempDir()
+	audit := filepath.Join(tmp, "audit.log")
+	if err := os.WriteFile(audit, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &Config{Behavior: Behavior{
+		RulesDir: "../../rules",
+		AuditLog: audit,
+		EBPF:     telemetry.EBPFConfig{Enabled: true},
+	}}
+
+	// The engine and the adapter log through the standard logger; capture it to
+	// assert on the operator-visible line, then restore.
+	var buf bytes.Buffer
+	prev := log.Writer()
+	log.SetOutput(&buf)
+	defer log.SetOutput(prev)
+
+	be, err := NewBehaviorEngine(cfg, schema.Host{ID: "h1"}, &schema.Agent{ID: "a1"}, &fakeSubmitter{})
+	if err != nil {
+		t.Fatalf("an unavailable eBPF source must degrade, not fail startup: %v", err)
+	}
+	logged := buf.String()
+	if !strings.Contains(logged, "eBPF file.access adapter unavailable") {
+		t.Errorf("expected a one-line degrade notice, got:\n%s", logged)
+	}
+	if strings.Contains(logged, "adapter attached") {
+		t.Errorf("nothing should have been attached in this build:\n%s", logged)
+	}
+
+	// The auditd path must be intact: a real CARBONATO chain still yields matches
+	// after the eBPF source failed to come up.
+	writeAuditChain(t, audit)
+	if evs := be.Poll(); len(evs) == 0 {
+		t.Fatal("collector went blind: auditd matches missing after eBPF degrade")
+	}
+
+	// Disabled must be silent — no scary line for an operator who never asked for
+	// the source. (The disabled contract is also (nil, nil) at the adapter level.)
+	buf.Reset()
+	cfg2 := &Config{Behavior: Behavior{RulesDir: "../../rules", AuditLog: audit}}
+	if _, err := NewBehaviorEngine(cfg2, schema.Host{ID: "h1"}, nil, &fakeSubmitter{}); err != nil {
+		t.Fatalf("disabled eBPF: %v", err)
+	}
+	if strings.Contains(buf.String(), "eBPF") {
+		t.Errorf("a disabled eBPF config should log nothing about eBPF:\n%s", buf.String())
 	}
 }
 

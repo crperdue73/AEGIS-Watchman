@@ -3250,3 +3250,60 @@ or load would ship something unverified, which is the exact thing this repo's
   R2.4 (the argv-free secret read, caught). If the answer is "CI/hand it to a
   host," write the CI job that builds the object behind `--require-build`. Either
   way the preflight is the first thing run on the candidate host.
+
+---
+
+## Heartbeat 74 — pinned the eBPF *degrade* half, and ran it in the real binary
+
+Heartbeat 73 built the toolchain preflight and took the P2.0 decision to Dad; no
+answer yet, so this heartbeat refused to just wait. The P2.0 acceptance
+(docs/R2-EBPF-DESIGN.md, "a test proves both paths") has two halves: the object
+**loads** and emits `file.access`, and a host that cannot load it **degrades** to
+auditd-only with one clear line. The first half is gated on the toolchain
+decision. The second half needs no toolchain and no kernel — and nothing in the
+repo pinned it. That is this heartbeat's step.
+
+**Shipped:** `TestBehaviorEngine_EBPFUnavailableDegradesToAuditdOnly` in
+`internal/collector/behavior_test.go`. It builds a real `NewBehaviorEngine` with
+`behavior.ebpf.enabled: true` on the default build, captures the standard logger,
+and asserts three things that are the acceptance in miniature: (1) startup
+**succeeds** — an unavailable *second* source must never stop the collector (D6);
+(2) exactly the operator line `eBPF file.access adapter unavailable, running
+auditd-only` is logged, and **no** `adapter attached` line (nothing was
+attached); (3) the auditd path is **intact** — a real CARBONATO chain appended to
+the log still yields matches after the eBPF source failed to come up. A fourth
+case asserts a *disabled* config logs nothing about eBPF (the `(nil, nil)`
+contract), so an operator who never asked for the source never sees a scare line.
+
+**And run for real, not just unit-tested.** Built the collector and ran it
+`-once` against a temp config with `ebpf.enabled: true`:
+
+```
+collector: behavior: Layer 3 loaded 20 rule(s) from 1 pack(s)
+collector: behavior: eBPF file.access adapter unavailable, running auditd-only: telemetry: eBPF support not compiled in (build with -tags ebpf)
+collector: behavior: scope.change heuristic shim attached (derived, detail.source=heuristic)
+```
+
+Exit 0, one line, everything else still attached and running. The line names the
+exact fix (`build with -tags ebpf`), which is the whole point of a degrade notice.
+
+**Why this test is tag-agnostic and honest.** It does not assume the default
+build: in a `-tags ebpf` build the adapter fails with "not yet implemented" (R2.2
+not landed), which hits the same `unavailable` branch and the same log line — so
+the test stays true through R2.2 and after, and it will need updating only when
+the load *succeeds*, which is exactly when the other half's test arrives.
+
+**Verification:** new test PASS; `go test ./...` green; `go vet -tags sqlite`
+clean; `make lint` green (check-links 93, ok). The binary run above is the
+belt-and-suspenders on top of the unit test.
+
+- **Next step (heartbeat 75):** still the P2.0 decision gate, but the *degrade*
+  acceptance is now closed, so the gate is smaller: only the load half remains.
+  If Dad has answered by then, act on it — "install here" → `apt install clang
+  libbpf-dev`, re-run `make ebpf-preflight` (BUILD flips to YES), write the CO-RE
+  `openat` program + loader (R2.2), take R2.4 (the argv-free secret read, caught).
+  "CI/host" → write the CI job gated on `ebpf-preflight --require-build`. If still
+  no answer, do **not** invent toolchain work; instead take the last un-blocked
+  scoped item — **P2.1c-4 Postgres record backend** — or a fresh quality pass with
+  a new method (e.g. run `demo/run.sh` on a clean tree and diff the promised
+  output against the actual), and record which was chosen and why.

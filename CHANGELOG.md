@@ -148,6 +148,13 @@ opt-in design.
   into `make ebpf-preflight`; `--require-build`/`--require-load` give it an exit
   code for CI. Referenced from `docs/deploy-collector.md` §2 so "does this host
   qualify?" is a command, not a hand-typed probe.
+- **A pinned test for the eBPF *degrade* half of P2.0** —
+  `TestBehaviorEngine_EBPFUnavailableDegradesToAuditdOnly` proves that a
+  collector configured with `behavior.ebpf.enabled: true` on a host that cannot
+  provide the source (the default build, or an old kernel) logs one clear line
+  and keeps running on auditd, rather than refusing to start; and that a disabled
+  config is silent. The other half of the acceptance (the object loads and emits
+  `file.access`) stays gated on the toolchain; this half runs on every host.
 - **Deployment artifacts for a real host** (`deploy/`): systemd unit templates
   for the collector and central — unprivileged, hardened, with a private state
   directory for the spool and cursor — plus a `deploy/README.md` install
