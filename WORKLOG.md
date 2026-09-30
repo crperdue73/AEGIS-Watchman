@@ -3123,3 +3123,69 @@ against the tree. `make lint` green; `go test ./...` green (docs-only here).
   (`systemd-analyze verify` was done at heartbeat 65, but no unit has been
   installed and started). If this host cannot run systemd, fall back to the open
   P2.0 eBPF toolchain decision and take it to Dad with a concrete ask.
+
+---
+
+## Heartbeat 72 — ran the systemd units for real; the last deploy path is now proven
+
+Heartbeat 71 closed on a decision: stop re-reading prose and **run** the one path
+never exercised end to end — the shipped systemd units. `systemd-analyze verify`
+(heartbeat 65) checks that a unit file parses; it says nothing about whether the
+service starts, stays up, or does its job. This host runs systemd as PID 1, so
+this heartbeat installed the units and let them run.
+
+**What was done (all on the host, all torn down afterward).** Created the
+`agentids` system account and `/etc/agentids`, installed all four binaries and
+the shipped rule pack, generated certs with `gen-certs.sh` and handed the keys to
+the service account (the step heartbeat 70 found missing from the docs),
+installed both units, and `systemctl enable --now`. To keep the test honest and
+the family's data out of it, `agent_roots` pointed at a copy of the demo persona
+under `/etc/agentids/agent-root` — **not** the real workspaces.
+
+**Result — clean, first try, no bugs.** Both services came up as
+`User=agentids` (no root, no capabilities):
+
+```
+agentids-central:  listening on :8080 (store=/var/lib/agentids/baselines.json)
+agentids-central:  mutual TLS required on the ingest listener
+agentids-collector: mutual TLS enabled -> https://localhost:8080/api/v1/events
+agentids-collector: behavior: Layer 3 loaded 20 rule(s) from 1 pack(s)
+agentids-collector: enrolled /etc/agentids/agent-root (1 files)
+agentids-collector: polling every 30s
+```
+
+Then the test that matters — an actual intrusion, not a synthetic one. Appended
+one line to the watched persona file and waited one poll:
+
+```
+agentids-collector: DRIFT SOUL.md identity.drift (severity=high)
+agentids-central:   ALERT: 1 drift on debian:/etc/agentids/agent-root (max=high)
+```
+
+The full chain under systemd: unprivileged collector → mTLS hop → central
+baseline → drift detected → alert, with `baselines.json` and `records.json`
+written `0600` into the `StateDirectory=agentids` dir by systemd's own machinery
+(not pre-created by hand). `systemctl is-active` reported `active` for both.
+
+**Shipped:** one honest note in `deploy/README.md` under the install section —
+"This path has been run, not just analysed", with the observed lines — so the
+claim an operator reads is backed by an actual run. No code change; nothing was
+broken to fix.
+
+**Teardown:** disabled and removed both units, `daemon-reload`, removed
+`/etc/agentids`, `/var/lib/agentids` and the four binaries, and `userdel
+agentids`. Verified afterward: no user, no dirs, no units, no binaries, `:8080`
+free. The host is exactly as it was found.
+
+**Verification:** the run above; `make lint` green; `go test ./...` green (no code
+change). This closes the last deploy mode — local, systemd, container, and
+container-TLS are all now exercised end to end.
+
+- **Next step (heartbeat 73):** every deploy path is now both documented and run.
+  The remaining honest work is the open **P2.0 eBPF toolchain decision** — the
+  last real capability gap (the `file.access` read half of G3), which the design
+  doc says needs a `clang`/libbpf toolchain and a kernel ≥5.8, and needs Dad to
+  choose whether the public repo carries a prebuilt CO-RE object or builds it in
+  CI. Take it to Dad as a concrete ask (a one-line decision), rather than
+  guessing. If no answer, the fallback is to check whether this host could build
+  the object at all (`clang`/libbpf present?) so the ask comes with facts.

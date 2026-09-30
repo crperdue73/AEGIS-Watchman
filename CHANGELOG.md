@@ -197,6 +197,13 @@ opt-in design.
 
 ### Changed
 
+- **The systemd path is now verified by running it, not just by `systemd-analyze
+  verify`.** Both units were installed and started as the unprivileged
+  `agentids` user with mutual TLS on; the collector enrolled an agent root over
+  the authenticated hop, and a one-line persona edit produced `identity.drift` on
+  the collector and a matching alert on central on the next poll. The host was
+  returned to its prior state afterward. `deploy/README.md` records this so the
+  install section reads as a proven path rather than a hopeful one. Docs-only.
 - **Central has an operator guide now.** The collector has had
   `docs/deploy-collector.md` since R2.3, but the stateful half — the service with
   the baseline store, the record store, mutual TLS, Layer 2 provenance,

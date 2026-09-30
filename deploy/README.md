@@ -56,6 +56,14 @@ The collector hashes the agent workspaces it is configured to watch, so the
 `ProtectHome=read-only` for the collector for exactly this reason, and
 `ProtectHome=yes` for central (it never needs the workspaces).
 
+> **This path has been run, not just analysed.** Both units were installed and
+> started as the unprivileged `agentids` user with mutual TLS on: central came up
+> serving mTLS on `:8080`, the collector enrolled an agent root over the
+> authenticated hop, and a one-line edit to a persona file produced
+> `DRIFT … identity.drift` on the collector and a matching `ALERT: 1 drift …` on
+> central on the next poll. Not `systemd-analyze verify` — an actual systemd run,
+> unprivileged, end to end.
+
 For the service-side decisions behind this install — the two stores, the
 mutual-TLS trust boundary, Layer 2 provenance, `uid_map`, and alerting — see
 [`../docs/deploy-central.md`](../docs/deploy-central.md). For the collector's
