@@ -1,0 +1,17 @@
+# Build context exclusions for deploy/docker/Dockerfile.
+# Keep the context small and free of anything local or sensitive.
+.git
+.gitignore
+bin/
+demo/out/
+*.db
+*.db-journal
+*.sqlite
+*.log
+*.local.yaml
+*.local.json
+.env
+secrets/
+.DS_Store
+.idea/
+.vscode/

@@ -153,6 +153,19 @@ opt-in design.
 
 ### Changed
 
+- **The container image actually works now.** `deploy/docker/Dockerfile` was
+  stale ("Phase 1 work in progress"): it shipped only the collector and central,
+  carried no rule pack, and — because a Go build in a host with a C compiler
+  enables cgo by default — produced **dynamically linked** binaries that died on
+  the distroless runtime with `exec /agentids-collector: no such file or
+  directory`. It now builds all four binaries **and** the shipped pack
+  (`/etc/agentids/rules`), compiles `CGO_ENABLED=0` (required by the no-libc
+  base, and true to the project's no-CGO promise), pre-creates
+  `/var/lib/agentids` owned by the unprivileged user so a mounted volume works,
+  and adds a `.dockerignore`. Verified: the image builds; `-version` reports
+  `docker`; the baked pack verifies (20 rules); a containerized collector
+  `-dry-run` loads the rules; and a collector + central pair over a Docker
+  network enrolls an agent end to end.
 - **The "run it yourself" step now works on a fresh clone.** The example configs
   the quickstart and README named (`examples/{central,collector}.yaml`) reference
   `/etc/agentids/...` and `/var/lib/agentids/...`, so the documented commands

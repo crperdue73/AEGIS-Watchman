@@ -1,13 +1,77 @@
-# Build + run the collector and central service. Phase 1 work in progress.
-# The collector needs access to the agent workspaces it hashes.
+# agentids — the collector and central service in one small image.
+#
+# Build (from the repository root):
+#
+#   docker build -f deploy/docker/Dockerfile -t agentids .
+#
+# The image is distroless: no shell, no package manager, unprivileged — that is
+# the point. It carries all four binaries and the shipped rule pack, so Layer 3
+# has something to load out of the box. Configs are NOT baked in (they are
+# host-specific); mount them.
+#
+# Run the collector — mount the config, the audit log it tails, and the agent
+# workspaces it hashes:
+#
+#   docker run --rm \
+#     -v /etc/agentids:/etc/agentids:ro \
+#     -v /var/log/audit/audit.log:/var/log/audit/audit.log:ro \
+#     -v /home:/home:ro \
+#     agentids -config /etc/agentids/collector.yaml
+#
+# Run central instead (override the entrypoint) and persist its stores:
+#
+#   docker run --rm -p 8080:8080 \
+#     -v /etc/agentids:/etc/agentids:ro \
+#     -v agentids-state:/var/lib/agentids \
+#     --entrypoint /agentids-central \
+#     agentids -config /etc/agentids/central.yaml
+#
+# The collector needs no root and no capabilities. Two optional sources do:
+#   - eBPF file.access  -> --cap-add=BPF --cap-add=PERFMON, and a binary built
+#     with `-tags ebpf` (see docs/deploy-collector.md §2);
+#   - the Docker adapter -> mount the host's /var/run/docker.sock.
+# The container has no `docker` CLI, so the Docker adapter's inspect enrichment
+# is unavailable inside it — the events still fire, with identity only.
 
-FROM golang:1.22 AS build
+FROM golang:1.22-bookworm AS build
 WORKDIR /src
+# The project is pure Go and targets a distroless (no-libc) runtime, so the
+# binaries MUST be static. Left to default, a Go build on a host with a C
+# compiler enables cgo and links glibc — the result fails at container start
+# with a bare "exec /agentids-collector: no such file or directory" (the
+# kernel cannot find the interpreter). CGO_ENABLED=0 is therefore load-bearing,
+# not tidiness.
+ENV CGO_ENABLED=0
+# Cache the module download on its own layer so a source edit does not re-fetch.
+COPY go.mod go.sum ./
+RUN go mod download
 COPY . .
-RUN make build
+# Stamp a version. With no .git in the build context, the Makefile's git-derived
+# defaults are not available, so pass them explicitly (override with --build-arg).
+ARG VERSION=docker
+ARG COMMIT=unknown
+ARG DATE=unknown
+RUN make build VERSION="${VERSION}" COMMIT="${COMMIT}" DATE="${DATE}"
+# Pre-create the runtime state dir owned by the image's unprivileged user, so a
+# mounted volume inherits the right ownership and the service can write to it.
+RUN mkdir -p /state && chown 65532:65532 /state && touch /state/.keep
 
 FROM gcr.io/distroless/static-debian12:nonroot
+LABEL org.opencontainers.image.title="agentids" \
+      org.opencontainers.image.description="Carbonato-class agent intrusion detection — collector + central" \
+      org.opencontainers.image.source="https://github.com/CRPerdue/agentids" \
+      org.opencontainers.image.licenses="Apache-2.0"
+
 COPY --from=build /src/bin/agentids-collector /agentids-collector
-COPY --from=build /src/bin/agentids-central /agentids-central
-# Collector by default; override the entrypoint to run central.
+COPY --from=build /src/bin/agentids-central   /agentids-central
+COPY --from=build /src/bin/agentids-manifest  /agentids-manifest
+COPY --from=build /src/bin/agentids-rules     /agentids-rules
+# The shipped rule pack, so a default Layer 3 config has rules to load.
+COPY --from=build /src/rules /etc/agentids/rules
+# Durable stores / spool. Mount a named volume here to survive a restart.
+COPY --from=build --chown=65532:65532 /state /var/lib/agentids
+VOLUME ["/var/lib/agentids"]
+
+EXPOSE 8080
+# Collector by default; `--entrypoint /agentids-central` runs the service.
 ENTRYPOINT ["/agentids-collector"]

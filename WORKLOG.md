@@ -2741,3 +2741,69 @@ not in the repo). `make lint` green (78 links, the two new cross-links resolve);
   container would find no rules; give it the same care as the units. (b) the open
   P2.0 toolchain decision needs Dad. Take (a) first — it is a known-broken
   artifact, in scope, and needs no kernel.
+
+---
+
+## Heartbeat 66 — the container image was broken; now it is built and proven
+
+Last heartbeat closed the systemd path and left one known-broken artifact on the
+list: `deploy/docker/Dockerfile`, self-labelled "Phase 1 work in progress". This
+heartbeat is that file — and it turned out to be broken in a way nobody would
+have caught by reading it.
+
+**What was wrong.** Three things, in increasing order of nastiness:
+1. It copied only `agentids-collector` and `agentids-central` — no
+   `agentids-manifest`, no `agentids-rules`, and **no `rules/`**, so a collector
+   built from it would start Layer 3 with zero rules: the "looks protected,
+   detects nothing" failure the whole codebase refuses elsewhere.
+2. No `.dockerignore`, so `COPY . .` dragged `.git`, `bin/`, `demo/out`, and any
+   local secrets into the build context.
+3. **The binaries could not run.** `docker run` failed on the very first command
+   with `exec /agentids-collector: no such file or directory`. The binary was
+   there — the interpreter was not. A `go build` inside the `golang` builder
+   image finds a C compiler and enables **cgo** by default, so it linked glibc;
+   the distroless `static` runtime has no libc, and the kernel cannot exec a
+   dynamic ELF whose loader is missing. This is the classic Go+distroless trap,
+   and it is invisible in a Dockerfile that was never actually built.
+
+**Shipped:**
+- `deploy/docker/Dockerfile` rewritten: `ENV CGO_ENABLED=0` (load-bearing, not
+  tidiness — the comment says why), all four binaries copied, the shipped pack
+  baked to `/etc/agentids/rules`, OCI labels, `EXPOSE 8080`, and a pre-created
+  `/var/lib/agentids` **owned by the image's unprivileged user** so a mounted
+  volume inherits writable ownership (otherwise the nonroot runtime cannot even
+  create its store). Module download is its own layer for cache; version is
+  stamped via `--build-arg` since `.git` is excluded.
+- `.dockerignore` — `.git`, `bin/`, `demo/out/`, DBs, logs, local configs,
+  secrets.
+- `deploy/README.md` Docker section rewritten to match reality: build/run
+  commands for both roles, and the two container caveats stated plainly (no
+  `docker` CLI inside → the Docker adapter fires with identity only; eBPF needs
+  `--cap-add` + a `-tags ebpf` build).
+
+**Proven, not assumed.** The host has a live Docker daemon, so this was verified
+by running it: `docker build` succeeds; `agentids-collector -version` and
+`agentids-manifest version` report `docker`; `agentids-rules verify
+/etc/agentids/rules` in the image returns `ok: 1 pack(s), 20 rule(s)`; a
+containerized `agentids-collector -config … -once -dry-run` with the demo
+workspace mounted logs `rules ok — 20 rule(s) from 1 pack(s)` and the inventory,
+exit 0; and a **collector + central pair on a Docker network** runs end to end —
+central writes to its `/var/lib/agentids` volume and the collector enrolls the
+agent. The first build is what surfaced the cgo bug; the second is what proves
+the fix.
+
+**Design note.** The lesson is the same one the project keeps relearning, now at
+the packaging layer: an artifact nobody runs is an artifact nobody can trust. The
+systemd units got `systemd-analyze verify`; the image got an actual build and an
+actual container. Both found something the reading had not.
+
+**Verification:** `make lint` green (78 links); `go test ./...` green (no code
+change); Docker build + the five container checks above, all green.
+
+- **Next step (heartbeat 67):** the deployment surface is now consistent —
+  quickstart, systemd, container — and each was exercised. Remaining honest
+  options: (a) a `docs/deploy-central.md` — central has config, TLS, alerting,
+  provenance, the fleet view, and a store/backend choice, but no operator guide
+  of its own (the collector has one); or (b) the open P2.0 toolchain decision,
+  which needs Dad. Take (a): it is in scope, needs no kernel, and fills the last
+  doc gap an operator would hit.

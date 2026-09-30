@@ -9,7 +9,7 @@ Everything in this directory is for the operator who has tried the
 | `agentids-collector.service` | systemd unit template for the per-host collector (Layer 1/2/3). |
 | `agentids-central.service` | systemd unit template for the central service (ingest, alerting, fleet view). |
 | `gen-certs.sh` | Generates the mutual-TLS material for the collector → central hop. |
-| `docker/Dockerfile` | Builds the collector + central into one small image instead of installing units. |
+| `docker/Dockerfile` | Builds all four binaries **and** the shipped rule pack into one distroless image, instead of installing units. |
 
 Both units run the binaries **unprivileged** and with a hardened profile; the
 collector needs no root and no capabilities. Every optional telemetry source
@@ -83,7 +83,39 @@ unset both ends speak plain HTTP — fine for a loopback test, not for a fleet.
 
 ## Docker instead of systemd
 
-`docker/Dockerfile` builds both binaries into a distroless image. It is the
-lighter path when you already deploy containers; the systemd units are the
-lighter path on a plain Linux host. Either way the configs and the rule packs
-must be mounted in (`/etc/agentids` and `rules/`).
+`docker/Dockerfile` builds all four binaries and the shipped rule pack into one
+distroless image. It is the lighter path when you already deploy containers; the
+systemd units are the lighter path on a plain Linux host. Build from the repo
+root:
+
+```sh
+docker build -f deploy/docker/Dockerfile -t agentids .
+```
+
+The image is unprivileged and has no shell — that is the point. Configs are not
+baked in (they are host-specific), so mount them; the rule pack **is** baked in
+at `/etc/agentids/rules`, and `/var/lib/agentids` is a volume for the durable
+stores:
+
+```sh
+# collector — mount what it reads: config, audit log, agent workspaces
+docker run --rm \
+  -v /etc/agentids:/etc/agentids:ro \
+  -v /var/log/audit/audit.log:/var/log/audit/audit.log:ro \
+  -v /home:/home:ro \
+  agentids -config /etc/agentids/collector.yaml
+
+# central — override the entrypoint, persist the stores
+#   (no -p 8080:8080 needed if collectors share a Docker network with it)
+docker run --rm -p 8080:8080 \
+  -v /etc/agentids:/etc/agentids:ro \
+  -v agentids-state:/var/lib/agentids \
+  --entrypoint /agentids-central \
+  agentids -config /etc/agentids/central.yaml
+```
+
+Two container-specific caveats: there is no `docker` CLI inside the image, so the
+Docker adapter still fires but with **identity only** (no `inspect` enrichment);
+and the eBPF adapter needs `--cap-add=BPF --cap-add=PERFMON` and an image built
+with `-tags ebpf`. The binaries are compiled `CGO_ENABLED=0` — required for the
+distroless (no-libc) runtime, and true to the project's no-CGO promise.
