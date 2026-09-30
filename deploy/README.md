@@ -31,6 +31,11 @@ sudo usermod -aG adm agentids
 # 3. Binaries and directories.
 sudo install -m 0755 bin/agentids-collector /usr/local/bin/
 sudo install -m 0755 bin/agentids-central   /usr/local/bin/
+# The operator CLIs — needed only if you use Layer 2 (agentids-manifest) or
+# pin rule packs (agentids-rules). Install them from the same build so the
+# versions match the running service.
+sudo install -m 0755 bin/agentids-manifest  /usr/local/bin/
+sudo install -m 0755 bin/agentids-rules     /usr/local/bin/
 sudo install -d -m 0750 -o agentids -g agentids /etc/agentids
 sudo install -d -m 0750 -o agentids -g agentids /var/lib/agentids
 
@@ -85,6 +90,24 @@ file on the host), so it should be authenticated in both directions:
 Point central's `tls: {cert, key, ca}` and the collector's
 `report.tls: {cert, key, ca, server_name}` at the generated files. With TLS
 unset both ends speak plain HTTP — fine for a loopback test, not for a fleet.
+
+> **The service must be able to read the keys.** Both units run as
+> `User=agentids`, but `gen-certs.sh` writes the private keys mode `0600` owned
+> by whoever ran it. Generate them as root (you usually are, to write under
+> `/etc/agentids`) and central fails at startup — a **fatal**, not a
+> degradation: `tls: mtls: load key pair: open .../leaf.key: permission denied`.
+> Hand the material to the service account after generating:
+>
+> ```sh
+> sudo chown -R agentids:agentids /etc/agentids/tls
+> sudo chmod 0640 /etc/agentids/tls/*.key   # group-readable; never world-readable
+> ```
+>
+> Or grant it to the group instead of chowning:
+> `sudo chgrp -R agentids /etc/agentids/tls && sudo chmod 0640 /etc/agentids/tls/*.key`.
+> Either way, the key must be readable by `agentids` and by nobody else. (The
+> same constraint applies inside the container, where the reader is uid `65532`
+> — see "Mutual TLS in containers" below.)
 
 ## Docker instead of systemd
 

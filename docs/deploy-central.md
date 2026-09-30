@@ -142,6 +142,13 @@ When `tls` is set, central requires and verifies a client certificate on the
 ingest listener; an unauthenticated client is refused at the handshake, before
 any request is parsed. TLS 1.2 is the floor.
 
+One thing that bites on the systemd path: **the `agentids` service user must be
+able to read the private key.** `deploy/gen-certs.sh` writes keys `0600` owned by
+whoever ran it, so generating them as root leaves central unable to start
+(`tls: mtls: load key pair: ... permission denied` — a fatal). `chown` the
+material to `agentids` after generating; the exact commands are in
+[`deploy/README.md`](../deploy/README.md) §TLS.
+
 Three rules the loader enforces, so a half-configured hop fails at startup rather
 than silently downgrading:
 

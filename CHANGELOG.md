@@ -153,6 +153,21 @@ opt-in design.
 
 ### Fixed
 
+- **The TLS guide omitted the one thing that stops central from starting.**
+  Both systemd units run as `User=agentids`, but `deploy/gen-certs.sh` writes the
+  private keys `0600` owned by whoever ran it — so an operator who generated them
+  as root (the normal case, writing under `/etc/agentids`) got a **fatal** startup
+  failure, `tls: mtls: load key pair: open .../leaf.key: permission denied`, with
+  nothing in the docs to explain it. `deploy/README.md` §TLS and
+  `docs/deploy-central.md` now carry the `chown`/`chmod` step, and `gen-certs.sh`
+  prints the reminder at the moment it writes the keys. Verified by running
+  central as a non-root uid against root-owned keys (fails) and after handing
+  them to the service user (starts).
+- **The systemd install left out two of the four binaries.** `deploy/README.md`
+  installed `agentids-collector` and `agentids-central` only; Layer 2 needs
+  `agentids-manifest` and rule pinning needs `agentids-rules`, both referenced by
+  the guides an operator reads next. The install step now covers all four, with a
+  note on when they are needed.
 - **The startup log lied about record retention.** With a `records` path set and
   the retention fields left to their documented defaults, central logged
   `retain=0d, max=0` — the raw config, not what the store enforces. The store has

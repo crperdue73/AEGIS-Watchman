@@ -40,3 +40,10 @@ echo
 echo "wrote: $OUT/{ca.crt,ca.key,leaf.crt,leaf.key}"
 echo "point central tls.cert/key at leaf.crt/leaf.key, tls.ca at ca.crt"
 echo "point collector report.tls the same way (server_name: $HOST)"
+echo
+echo "NOTE: keys are mode 0600, owned by YOU. Both agentids services run as"
+echo "      User=agentids and must be able to read them, or central fails to"
+echo "      start with 'load key pair: permission denied'. After generating:"
+echo "        sudo chown -R agentids:agentids $OUT"
+echo "        sudo chmod 0640 $OUT/*.key   # readable by agentids, no one else"
+echo "      (In a container the reader is uid 65532 instead; see deploy/README.md.)"

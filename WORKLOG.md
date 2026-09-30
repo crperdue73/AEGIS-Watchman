@@ -3010,3 +3010,63 @@ re-run against the new binaries.
   `deploy/README.md` top to bottom as the operator it is written for and fix
   whatever the reading turns up — the same method that just found three bugs in a
   file three heartbeats of work had already "finished".
+
+---
+
+## Heartbeat 70 — read deploy/README.md as the operator; it couldn't start central with TLS
+
+Heartbeat 69 closed with a method, not a task: re-read `deploy/README.md` top to
+bottom as the operator it is written for, because the same method had just found
+three bugs in a file three heartbeats of work had already "finished". It held up
+again — but this time the miss was the one that stops a service dead.
+
+**Finding — the TLS section omits the fatal step.** The install walkthrough sets
+up an `agentids` service account and both units run `User=agentids`. The TLS
+section then says to run `deploy/gen-certs.sh /etc/agentids/tls central.example.com`
+and "point central's `tls: {cert, key, ca}` at the generated files." What it never
+says is that **`gen-certs.sh` writes the private keys mode `0600` owned by whoever
+ran it** — and you run it as root to write under `/etc/agentids`. Central, as
+`agentids`, then cannot read its own key. This is not a degradation (everything
+else in this tool degrades); it is `log.Fatalf`.
+
+Reproduced it for real, without systemd: generated the certs, wrote a config, and
+ran the deployed `agentids-central` as an unprivileged uid against the root-owned
+keys:
+
+```
+agentids-central: tls: mtls: load key pair: open /tmp/tlsperm/leaf.key: permission denied
+```
+
+Then handed the material to the service uid and re-ran — central came up with
+`mutual TLS required on the ingest listener`. The failure and the fix, both
+observed. (This is the exact same shape as last heartbeat's container finding —
+the runtime uid must be able to read the cert — which is why it was so easy to
+miss: I had just written the container version of the warning and still had not
+connected it to the systemd path.)
+
+**Shipped:**
+- `deploy/README.md` §TLS gains the ownership step — `chown -R agentids:agentids`
+  (or `chgrp` + `chmod 0640`), key readable by the service and nobody else — with
+  the fatal error text quoted so it is greppable.
+- `docs/deploy-central.md` §3 points at it, named as "the thing that bites on the
+  systemd path."
+- `gen-certs.sh` now prints the reminder in its own output, at the moment the
+  operator is holding the fresh keys — the best place for it, since the failure
+  surfaces much later, at service start.
+- **Second, smaller gap in the same file:** the install step (§Install) installed
+  only `agentids-collector` and `agentids-central`. Layer 2's operator workflow
+  needs `agentids-manifest` and rule pinning needs `agentids-rules` — both named
+  by the docs an operator reads right after installing. Added both to the install
+  with a one-line note on when they are needed.
+
+**Verification:** the permission failure and the post-`chown` success reproduced
+by hand; `bash -n deploy/gen-certs.sh` clean and its new output checked;
+`make lint` green; `go test ./...` green (no code change in this step).
+
+- **Next step (heartbeat 71):** `deploy/README.md` is now read end to end and
+  fixed twice over, and the TLS guidance is consistent across it,
+  `docs/deploy-central.md`, and `gen-certs.sh`. Remaining honest options: (a)
+  same treatment for `docs/deploy-collector.md` (re-read as the operator — it was
+  last walked at heartbeat 65, before the container work); or (b) the open P2.0
+  eBPF toolchain decision, which needs Dad. Take (a) — it is the one deploy guide
+  not yet re-read against the current tree, and the method keeps paying.
