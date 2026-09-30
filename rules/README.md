@@ -40,10 +40,13 @@ Initial rule-set target: ~20–30 rules. Seed ideas from the brief (Part 3):
 - Container launched privileged with host mounts (the 2375 entry vector)
 
 > **Status:** the format, parser, and evaluator are implemented in
-> `internal/rules/`; `carbonato.yaml` is the seed pack (v2 — 14 rules, including
-> two correlation rules). The telemetry adapters that turn real host activity
-> (execve, sockets, file opens) into `action` events are implemented for auditd
-> execve in `internal/telemetry/`, and the engine is wired into the collector.
+> `internal/rules/`; `carbonato.yaml` is the seed pack (v5 — 18 rules, including
+> three correlation rules). The telemetry adapters that turn real host activity
+> (execve, sockets, file opens, container starts) into `action` events live in
+> `internal/telemetry/`, and the engine is wired into the collector. Pack
+> parsing is strict (unknown keys, malformed globs, and duplicate ids across the
+> loaded set are all load errors), and `agentids-rules verify` runs that same
+> parser over a pack or directory — see [`../docs/rules.md`](../docs/rules.md).
 
 ## Correlation rules (temporal predicates)
 

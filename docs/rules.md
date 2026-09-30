@@ -210,3 +210,21 @@ pattern is a load error**, not a silent never-match — an unclosed class like
 loaded set**, not just within one pack: two packs that both declare
 `carbonato.exec.shell_spawn` is a load error, so a stray or hostile pack cannot
 ship duplicate alerts under an existing id.
+
+## Verifying a pack without a collector
+
+`agentids-rules` runs the same parser the collector runs, so a rule author can
+check a pack the way they check code — no host, no auditd, no daemon:
+
+```sh
+agentids-rules verify                       # default path: ./rules
+agentids-rules verify rules/carbonato.yaml  # one file
+agentids-rules verify rules/ community/     # several packs/dirs as ONE set
+agentids-rules list rules/                  # every rule, sorted by id
+```
+
+`verify` prints a summary (packs, rule count, severity breakdown, distinct
+techniques) and exits non-zero on the first parse or validation error — the same
+strict rules above, including unique ids across everything given on the command
+line. `list` is the quick index of what a set defines. Wire `verify` into CI for
+a community rules repo the way `go test` guards code.

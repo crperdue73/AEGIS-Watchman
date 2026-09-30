@@ -192,26 +192,42 @@ func LoadPacks(dir string) ([]*Pack, error) {
 	}
 	sort.Strings(names)
 	var packs []*Pack
-	seen := map[string]string{} // rule id -> the pack that declared it first
 	for _, n := range names {
 		p, err := LoadPack(filepath.Join(dir, n))
 		if err != nil {
 			return nil, err
 		}
-		// IDs must be unique across the whole loaded set, not just within one
-		// pack: two packs that both define "carbonato.exec.shell_spawn" would
-		// otherwise ship duplicate alerts under one id, and a deliberate override
-		// (a typo'd, or hostile, pack shadowing a real rule) would be silent.
+		packs = append(packs, p)
+	}
+	if err := CheckUniqueIDs(packs); err != nil {
+		return nil, err
+	}
+	return packs, nil
+}
+
+// CheckUniqueIDs reports the first rule id declared by more than one pack in the
+// given set. LoadPacks enforces this for a directory; a tool that assembles a
+// set from several paths (agentids-rules verify) calls it directly.
+//
+// IDs must be unique across the whole loaded set, not just within one pack: two
+// packs that both define "carbonato.exec.shell_spawn" would otherwise ship
+// duplicate alerts under one id, and a deliberate override (a typo'd, or
+// hostile, pack shadowing a real rule) would be silent.
+func CheckUniqueIDs(packs []*Pack) error {
+	seen := map[string]string{} // rule id -> the pack that declared it first
+	for _, p := range packs {
+		if p == nil {
+			continue
+		}
 		for i := range p.Rules {
 			id := p.Rules[i].ID
 			if prev, ok := seen[id]; ok {
-				return nil, fmt.Errorf("rules: duplicate rule id %q in packs %q and %q", id, prev, p.Name)
+				return fmt.Errorf("rules: duplicate rule id %q in packs %q and %q", id, prev, p.Name)
 			}
 			seen[id] = p.Name
 		}
-		packs = append(packs, p)
 	}
-	return packs, nil
+	return nil
 }
 
 // Validate checks a rule's shape. It is strict on purpose: a malformed rule

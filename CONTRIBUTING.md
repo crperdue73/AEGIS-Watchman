@@ -18,8 +18,8 @@ like it's going public, because it is.
 
 ## Development
 
-- Language: Go (collector + central; single static binaries, cross-compiles,
-  good eBPF + cloud-native ecosystem).
+- Language: Go (collector, central, and the rule/manifest CLIs; single static
+  binaries, cross-compiles, good eBPF + cloud-native ecosystem).
 - Toolchain: Go 1.22+.
 - Build: `make build` (see [`Makefile`](Makefile)).
 - Test: `make test`.

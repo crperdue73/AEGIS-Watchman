@@ -3,6 +3,7 @@
 BINARY_COLLECTOR := agentids-collector
 BINARY_CENTRAL   := agentids-central
 BINARY_MANIFEST  := agentids-manifest
+BINARY_RULES     := agentids-rules
 GO              ?= go
 PYTHON          ?= python3
 
@@ -14,11 +15,11 @@ DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)
 PKG     := github.com/CRPerdue/agentids/internal/buildinfo
 LDFLAGS := -X $(PKG).Version=$(VERSION) -X $(PKG).Commit=$(COMMIT) -X $(PKG).Date=$(DATE)
 
-.PHONY: all build build-collector build-central build-manifest test lint check-links clean fmt vet version
+.PHONY: all build build-collector build-central build-manifest build-rules test lint check-links clean fmt vet version
 
 all: build
 
-build: build-collector build-central build-manifest
+build: build-collector build-central build-manifest build-rules
 
 build-collector:
 	$(GO) build -ldflags "$(LDFLAGS)" -o bin/$(BINARY_COLLECTOR) ./cmd/collector
@@ -28,6 +29,9 @@ build-central:
 
 build-manifest:
 	$(GO) build -ldflags "$(LDFLAGS)" -o bin/$(BINARY_MANIFEST) ./cmd/manifest
+
+build-rules:
+	$(GO) build -ldflags "$(LDFLAGS)" -o bin/$(BINARY_RULES) ./cmd/rules
 
 test:
 	$(GO) test ./...

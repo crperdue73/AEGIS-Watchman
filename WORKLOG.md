@@ -1944,3 +1944,52 @@ chain (12 events, container-escape critical). Committed.
   format** (Phase 3 item) or a `agentids-rules verify` CLI over a pack/dir, so a
   contributor can lint a pack without a running collector. Re-read
   `PHASE1-PLAN.md` §open decisions first.
+
+---
+
+## Heartbeat 52 — `agentids-rules`: check a pack without a collector
+
+The rule-ecosystem promise is "shareable, versioned, **auditable** rule packs".
+Until now the only way to check a pack was to start a collector pointed at a host
+and watch the logs — which is not how a contributor in a rules repo wants to
+work, and gives a community repo nothing to run in CI. This beat shipped the
+missing tool.
+
+**Shipped a fourth binary, `agentids-rules`** (`cmd/rules/`):
+
+- `agentids-rules verify [path...]` — parses and validates a pack file or
+  directory with the **collector's own** parser (no reimplementation), prints a
+  summary (packs, rule count, severity breakdown, distinct techniques, per-pack
+  line), and exits non-zero on the first error.
+- `agentids-rules list [path...]` — every rule in the set, sorted by id, with
+  severity/technique/title.
+- `version` (buildinfo) and usage matching the `agentids-manifest` CLI.
+- Default path is `./rules`, so `agentids-rules verify` in the repo root just
+  works. Multiple args are treated as **one set**.
+
+**Refactor it needed:** the cross-pack id-uniqueness check lived *inside*
+`LoadPacks` (directory-scoped). A CLI that takes several paths needs the same
+guarantee across all of them, so I pulled it into an exported
+`rules.CheckUniqueIDs(packs)`; `LoadPacks` now calls it, and the CLI calls it on
+the union. One rule, one implementation, two callers.
+
+**Shipped:** `cmd/rules/{main,packs}.go`, `cmd/rules/packs_test.go` (single file,
+dir, and — the point — duplicate id across two *paths* vs. one dir), `Makefile`
+(`build-rules`, added to `build`/`all`; CI's `make build` now covers it),
+`docs/rules.md` §"Verifying a pack without a collector", `rules/README.md`
+(status was stale: said v2/14 rules, is v5/18 — fixed, and points at the CLI),
+`README.md` (the "two binaries" line was already stale — now names all four;
+Layout gains `cmd/rules/`), `CONTRIBUTING.md`, `CHANGELOG.md`.
+
+**Verification:** `./bin/agentids-rules verify rules/` → `ok: 1 pack(s), 18
+rule(s)`, severity `critical=6 high=6 medium=6`, 11 techniques, exit 0; a pack
+with `argv_anyy` → exit 1 naming the key; `go test ./...` green (**10** packages
+now, `cmd/rules` included); `make lint` green (67 links); `gofmt`/`vet` clean;
+`demo/run.sh` exit 0. Committed.
+
+- **Next step (heartbeat 53):** open fronts unchanged — P2.0 (eBPF, blocked on
+  Dad's toolchain call) and P2.1c-4 (Postgres, on demand). Rule tooling is now
+  complete enough for a contributor loop; next unblocked candidate is the Phase 3
+  **rule-pack publishing format** (a pack-level version/manifest so a fleet can
+  pin and audit which packs it runs), or widening the seed pack toward the
+  brief's ~20–30 target. Re-read `PHASE1-PLAN.md` §open decisions first.

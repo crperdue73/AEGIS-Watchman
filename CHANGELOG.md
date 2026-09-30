@@ -81,7 +81,13 @@ opt-in design.
   auditd-only. The CO-RE object + loader are **not** shipped — see Gaps.
 
 **Tooling, demo, and docs**
-- `make` build/test/vet/fmt/lint for both binaries; one build dependency, no CGO.
+- `make` build/test/vet/fmt/lint for all four binaries; one build dependency, no
+  CGO.
+- `agentids-rules` — Layer 3 pack tooling: `verify` runs the collector's own
+  strict parser over a pack file or directory (summary + non-zero exit on any
+  error), and `list` prints every rule in a set, sorted by id. It lets a rule
+  author check a pack with no host, no auditd, and no daemon, and gives a
+  community rules repo a `verify` to wire into CI.
 - Build provenance: every binary answers `-version` with the product version, git
   commit, and build date, stamped at link time by `make build` (and `make
   version` prints the stamp). Distinct from the event wire format version.

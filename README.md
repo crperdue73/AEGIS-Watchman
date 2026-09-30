@@ -151,12 +151,13 @@ Built so far:
 In a hurry? [`docs/quickstart.md`](docs/quickstart.md) is the one-page path:
 build → run the demo → see an alert, with links out for depth.
 
-Two binaries: `agentids-collector` (one per host) and `agentids-central` (the
-service). Build both from source:
+Four binaries: `agentids-collector` (one per host), `agentids-central` (the
+service), `agentids-manifest` (Layer 2 approvals), and `agentids-rules`
+(Layer 3 pack tooling). Build them all from source:
 
 ```sh
 git clone <repo> && cd agentids
-make                              # builds cmd/collector and cmd/central into ./bin
+make                              # builds cmd/{collector,central,manifest,rules} into ./bin
 go build -tags sqlite ./cmd/...   # optional: adds the pure-Go SQLite record backend (no CGO)
 go test ./...                     # no root, no live daemon required
 ```
@@ -274,6 +275,7 @@ its default, is in [`docs/collector-config.md`](docs/collector-config.md).
 cmd/collector/      per-host collector entrypoint
 cmd/central/        central rule/alert service entrypoint
 cmd/manifest/       Layer 2 provenance approval tool (keygen/sign/verify)
+cmd/rules/          Layer 3 rule tooling (verify/list a pack set)
 internal/schema/    versioned event wire format (the public contract)
 internal/collector/ Layer 1 hashing/watching + telemetry adapters
 internal/central/   baseline store, drift compute, alerting, mTLS wiring
