@@ -7,12 +7,12 @@
 //	agentids-manifest keygen -out ops.key
 //
 //	# approve the current state of a workspace
-//	agentids-manifest sign -root /home/vivi/.openclaw/workspace-vivi \
-//	    -key ops.key -agent vivi -out vivi.manifest.json
+//	agentids-manifest sign -root /home/agent/.openclaw/workspace-demo \
+//	    -key ops.key -agent demo-agent -out demo.manifest.json
 //
 //	# check a workspace against an approved manifest
-//	agentids-manifest verify -root /home/vivi/.openclaw/workspace-vivi \
-//	    -manifest vivi.manifest.json -pub ops.pub
+//	agentids-manifest verify -root /home/agent/.openclaw/workspace-demo \
+//	    -manifest demo.manifest.json -pub ops.pub
 package main
 
 import (

@@ -145,6 +145,19 @@ opt-in design.
 
 ### Changed
 
+- **Shipped fixtures and examples are neutral, and committed in their pre-run
+  state.** The demo's stand-in persona (`demo/agent-root/SOUL.md`) is committed
+  *clean* — the attacker edit is applied by `run.sh` at run time and restored
+  afterwards, never baked into the repo — and the example event file and CLI
+  usage now use a neutral agent (`demo-agent`, `/home/agent/...`) rather than a
+  real workspace path. A regression test
+  (`internal/collector/demo_assets_test.go`) fails the build if the persona is
+  ever committed in its post-run state, which would both ship demo output and
+  make the demo append a second attacker edit on every run. Two stale package
+  TODOs (`internal/rules/rules.go`, `internal/central/central.go`) that described
+  work already finished were replaced with accurate package docs — a comment
+  claiming unfinished work that is done is its own small lie in a repo anyone
+  can read.
 - **Rule packs parse strictly.** `ParsePack` now rejects *any* unknown key at
   any level, so a misspelled predicate (`argv_anyy`) is a load error naming the
   bad key instead of a line quietly ignored. Every glob (`argv_any`,

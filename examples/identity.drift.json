@@ -3,9 +3,9 @@
   "event": "identity.drift",
   "ts": "2026-09-28T00:30:00Z",
   "host": { "id": "h-9f2c1a", "name": "builder-01" },
-  "agent": { "id": "vivi", "root": "/home/vivi/.openclaw/workspace-vivi" },
+  "agent": { "id": "demo-agent", "root": "/home/agent/.openclaw/workspace-demo" },
   "file": {
-    "path": "/home/vivi/.openclaw/workspace-vivi/SOUL.md",
+    "path": "/home/agent/.openclaw/workspace-demo/SOUL.md",
     "sha256_before": "3b1f0c9d0a7e4b12c5d6e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d",
     "sha256_after": "9a8b7c6d5e4f30219a8b7c6d5e4f30219a8b7c6d5e4f30219a8b7c6d5e4f3021",
     "size_before": 4096,

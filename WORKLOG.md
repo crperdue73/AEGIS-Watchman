@@ -2556,3 +2556,64 @@ green; `go vet` clean both; `make lint` green (73 links). Committed.
   without a new dependency, or (b) surface the open P2.0 toolchain decision to Dad
   again now that everything else in the critical path is done. Decide from the
   matrices, not momentum.
+
+---
+
+## Heartbeat 63 — pre-publication hygiene: shipped artifacts are neutral and honest
+
+The reachable roadmap is spent (G3 read half and P2.0 gated on the eBPF
+toolchain, Postgres on demand, G5's authoritative feed needs a customer's agent
+framework), so per my own note I went looking for an *honesty* gap I could close
+without a new dependency. The obvious frame: this repo is meant to go public, so
+I audited what it actually ships.
+
+**What the audit found (and fixed):**
+
+1. **The demo shipped with its attack baked in.** `demo/agent-root/SOUL.md` was
+   committed with the trailing `<!-- overwritten by attacker -->` edit — the very
+   line `run.sh` appends between passes. Consequence: the public artifact leaked
+   demo *output*, and every run started from an already-overwritten file and
+   appended a *second* edit. The persona is a fixture, not output. Committed it
+   clean.
+
+2. **A real workspace path and agent id in a public example.**
+   `examples/identity.drift.json` named `"vivi"` at
+   `/home/vivi/.openclaw/workspace-vivi`, and `cmd/manifest`'s usage comment did
+   the same. Neutralised both to `demo-agent` / `/home/agent/...` — the shape a
+   reader needs, without a specific person's home directory.
+
+3. **Two stale package TODOs describing finished work.** `internal/rules/rules.go`
+   still said `TODO(phase3): rule spec, parser, engine, telemetry adapters`, and
+   `internal/central/central.go` said `TODO(phase1): Store interface … drift
+   compute … alerting` — every item shipped days ago. For a repo anyone can read,
+   a comment claiming undone work that is done is its own small lie. Replaced
+   both with accurate package docs (what the package now is, and where the pieces
+   live).
+
+**The guard, not just the fix.** Fix #1 is exactly the kind of thing that silently
+reappears: a demo run interrupted before its `git checkout` restore, then a
+`git add -A`. So `internal/collector/demo_assets_test.go` pins it — the shipped
+persona must not contain the attacker line, or the build fails with the reason.
+Same reflex as the rest of the tree: don't just fix the instance, make the class
+un-repeatable.
+
+**What the audit did *not* find (checked, and worth recording):** no committed
+private keys or tokens (the scan is clean; the Layer 2 keygen output was never
+committed, by design from heartbeat 59); no tracked binaries or oversized files
+(`bin/`, `demo/out/`, `*.db`, `*.log` are gitignored; the largest tracked file is
+this worklog); LICENSE is Apache-2.0; the module path is the public
+`github.com/CRPerdue/agentids`; and CI already gates build + pin-current + vet +
+test on both builds + lint + the end-to-end demo. The repo was in good shape —
+these three were the exceptions.
+
+**Verification:** real binaries — committed first, then `demo/run.sh` exit 0 and
+the working tree returns to a clean persona (no double-append); the new guard
+passes and would fail on the pre-fix file; `go test ./...` and `-tags sqlite`
+green; `go vet` clean both; `make lint` green.
+
+- **Next step (heartbeat 64):** the honest state is that v1's reachable work is
+  done. Next heartbeat: either (a) another reader's-eye pass on the *docs* the
+  same way (do the quickstart and deploy guide actually work verbatim on a fresh
+  host — a stranger's first thirty minutes), or (b) put the open P2.0 toolchain
+  decision in front of Dad, since it is the only thing with real remaining value
+  and it is his call. Decide from what a *new reader* would hit first.

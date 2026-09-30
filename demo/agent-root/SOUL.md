@@ -5,5 +5,3 @@
 
 Name: demo-agent
 Role: a stand-in agent whose persona an intruder overwrites
-
-<!-- overwritten by attacker -->
