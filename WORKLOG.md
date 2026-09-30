@@ -2086,3 +2086,59 @@ green (10 packages); `make lint` green (67 links); `gofmt`/`vet` clean;
   unavailable* required source is loud once (not silent), and that the
   scope shim's `detail.source=heuristic` is visible in the fleet view. Then the
   Phase 3 rule-pack publishing format. Re-read `PHASE1-PLAN.md` first.
+
+---
+
+## Heartbeat 55 — a named-but-absent audit log is no longer a silent blind spot
+
+Heartbeat 54 closed the empty-`rules_dir` hole (Layer 3 "on", zero rules). This
+is the same disease one level down: the **primary telemetry source**. `audit_log`
+is where the actions actually come from; when it is wrong the rules are loaded
+and the engine polls, but nothing is ever read. The collector printed
+
+    Layer 3 enabled (rules=/etc/agentids/rules, audit_log="/var/log/audit/audit.log")
+
+and then tailed a file that did not exist — `FileSource.Actions` returns an empty
+batch for a missing file (correct for "this host has no auditd"), so the run
+looked healthy and detected nothing, forever. A mis-pointed path, a renamed log,
+or a host where auditd was never installed but the operator *believed* it was —
+all identical: green collector, zero coverage.
+
+**Shipped:**
+- `internal/collector/config.go` — when `rules_dir` is set and `audit_log` is
+  **non-empty**, `validate()` now `os.Stat`s it and fails the load with
+  `config: behavior.audit_log "<path>": stat ...` if it is absent. This mirrors
+  the existing `rules_dir` check exactly ("must exist if set").
+- The gate is deliberate on two fronts: an **empty** `audit_log` stays legal (the
+  documented "rules loaded but idle" mode — a pack can be validated with no live
+  feed), and `audit_log` is **not checked at all** when `rules_dir` is empty
+  (Layers 1/2 only; the key is unused there).
+- Tests: `TestLoadConfigRejectsMissingAuditLog` (the new guard),
+  `TestLoadConfigAllowsEmptyAuditLog` (idle mode preserved),
+  `TestLoadConfigIgnoresAuditLogWithoutRulesDir` (gate scoping). The old
+  `TestLoadConfigBehaviorRulesDir` fixture used a literal `/var/log/audit/audit.log`,
+  which does not exist off-host; it now points at a temp file — the assertion was
+  about *parsing* `audit_log`, not about that path existing.
+- Docs: `docs/collector-config.md` (`audit_log` row: "must exist if set"; the
+  Validation list now names it, with the `rules_dir`-gating note),
+  `examples/collector.yaml` comment, `CHANGELOG.md` (`### Changed`).
+
+**Design note:** the additive adapters (eBPF, docker) *degrade* on absence and log
+one line — that stays correct, they are optional eyes. `audit_log` is the primary
+eye, and a *named* primary source is a promise that it exists, so its absence is a
+startup error, not a degradation. Same rule as the empty rules dir: if we would
+look protected without being able to fire, refuse to start and say why.
+
+**Verification:** `agentids-collector -config <rules_dir + missing audit_log>`
+→ exit 1, `config: behavior.audit_log "...": stat ...: no such file or directory`;
+same config with a real (empty) log → starts, `Layer 3 loaded 19 rule(s) from 1
+pack(s)`; the three new tests pass; `go test ./...` green (10 packages);
+`make lint` green (67 links); `gofmt`/`vet` clean; `demo/run.sh` exit 0. Committed.
+
+- **Next step (heartbeat 56):** the runtime half of this one — the file exists at
+  startup (now guaranteed) but can disappear *after* it: a delete/rename mid-run
+  drops `FileSource` back to a silent empty batch with the offset reset unaided.
+  Worth a loud-once "primary source went away" from the collector (not from
+  `FileSource`, which must stay lenient for the no-auditd case). Then the
+  scope-shim `detail.source=heuristic` visibility in the fleet view, and the
+  Phase 3 rule-pack publishing format. Re-read `PHASE1-PLAN.md` first.

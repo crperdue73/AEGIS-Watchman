@@ -29,7 +29,9 @@ type Behavior struct {
 	RulesDir string `yaml:"rules_dir"`
 	// AuditLog is the auditd log to tail for process.exec actions, e.g.
 	// /var/log/audit/audit.log. Empty -> no telemetry source (rules loaded but
-	// idle, useful for validating a pack without a live feed).
+	// idle, useful for validating a pack without a live feed). If set, the path
+	// must exist: a named-but-absent log is the same silent blind spot an empty
+	// rules_dir is, so validate() rejects it at startup (see below).
 	AuditLog string `yaml:"audit_log"`
 	// Spool is a file path where unmatched rule matches are durably queued
 	// before shipping, so a central outage costs latency, not evidence. Empty
@@ -133,6 +135,17 @@ func (c *Config) validate() error {
 	if c.Behavior.RulesDir != "" {
 		if _, err := os.Stat(c.Behavior.RulesDir); err != nil {
 			return fmt.Errorf("config: behavior.rules_dir %q: %w", c.Behavior.RulesDir, err)
+		}
+		// audit_log is the primary Layer 3 telemetry source. Named but absent is
+		// the quiet twin of a malformed or empty rule pack: the collector would
+		// enable Layer 3, load its rules, then tail a file that is not there —
+		// looking protected while reading nothing. Empty is a deliberate "idle"
+		// (a pack can be validated with no live feed); a *set* path is a promise
+		// that the source exists, so treat its absence as a startup error.
+		if c.Behavior.AuditLog != "" {
+			if _, err := os.Stat(c.Behavior.AuditLog); err != nil {
+				return fmt.Errorf("config: behavior.audit_log %q: %w", c.Behavior.AuditLog, err)
+			}
 		}
 	}
 	if err := c.Behavior.EBPF.Validate(); err != nil {

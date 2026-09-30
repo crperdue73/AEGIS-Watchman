@@ -120,13 +120,17 @@ func TestLoadConfigBehaviorRulesDir(t *testing.T) {
 	if err := os.MkdirAll(rulesDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	auditLog := filepath.Join(dir, "audit.log")
+	if err := os.WriteFile(auditLog, []byte("# empty feed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	p := filepath.Join(dir, "c.yaml")
 	yaml := `
 agent_roots:
   - path: /x
 behavior:
   rules_dir: ` + rulesDir + `
-  audit_log: /var/log/audit/audit.log
+  audit_log: ` + auditLog + `
 `
 	if err := os.WriteFile(p, []byte(yaml), 0o644); err != nil {
 		t.Fatal(err)
@@ -138,8 +142,76 @@ behavior:
 	if cfg.Behavior.RulesDir != rulesDir {
 		t.Errorf("rules_dir = %q", cfg.Behavior.RulesDir)
 	}
-	if cfg.Behavior.AuditLog != "/var/log/audit/audit.log" {
+	if cfg.Behavior.AuditLog != auditLog {
 		t.Errorf("audit_log = %q", cfg.Behavior.AuditLog)
+	}
+}
+
+// A configured audit_log that does not exist is a startup error, not a silent
+// blind spot: the collector would otherwise enable Layer 3 and tail nothing.
+func TestLoadConfigRejectsMissingAuditLog(t *testing.T) {
+	dir := t.TempDir()
+	rulesDir := filepath.Join(dir, "rules")
+	if err := os.MkdirAll(rulesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(dir, "c.yaml")
+	yaml := `
+agent_roots:
+  - path: /x
+behavior:
+  rules_dir: ` + rulesDir + `
+  audit_log: ` + filepath.Join(dir, "no-such-audit.log") + `
+`
+	if err := os.WriteFile(p, []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadConfig(p); err == nil {
+		t.Error("expected error when behavior.audit_log does not exist")
+	}
+}
+
+// An empty audit_log stays legal: it is the documented "rules loaded but idle"
+// mode for validating a pack with no live feed. The missing-path rejection must
+// not fail this case.
+func TestLoadConfigAllowsEmptyAuditLog(t *testing.T) {
+	dir := t.TempDir()
+	rulesDir := filepath.Join(dir, "rules")
+	if err := os.MkdirAll(rulesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(dir, "c.yaml")
+	yaml := `
+agent_roots:
+  - path: /x
+behavior:
+  rules_dir: ` + rulesDir + `
+`
+	if err := os.WriteFile(p, []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadConfig(p); err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+}
+
+// audit_log is only meaningful when Layer 3 is on. With no rules_dir the
+// collector runs Layers 1/2 only, and an audit_log (even a missing one) is not
+// evaluated — so it must not fail validation.
+func TestLoadConfigIgnoresAuditLogWithoutRulesDir(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "c.yaml")
+	yaml := `
+agent_roots:
+  - path: /x
+behavior:
+  audit_log: ` + filepath.Join(dir, "no-such-audit.log") + `
+`
+	if err := os.WriteFile(p, []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadConfig(p); err != nil {
+		t.Fatalf("LoadConfig with no rules_dir: %v", err)
 	}
 }
 

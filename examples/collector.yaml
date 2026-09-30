@@ -43,7 +43,7 @@ attribution:
 # the same alerting path as drift.
 behavior:
   rules_dir: /etc/agentids/rules   # *.yaml rule packs, loaded sorted by name
-  audit_log: /var/log/audit/audit.log   # execve + connect source; empty = rules idle
+  audit_log: /var/log/audit/audit.log   # execve + connect source; must exist if set; empty = rules idle
   # Durable spool: rule matches are queued here BEFORE shipping, so a central
   # outage costs latency, not evidence. Recommended on any host you care about.
   spool: /var/lib/agentids/spool.jsonl

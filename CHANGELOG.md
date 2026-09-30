@@ -123,6 +123,14 @@ opt-in design.
   looked protected while nothing could fire. The collector now refuses to start
   and says so, and logs the rule/pack count it loaded. `agentids-rules verify`
   likewise refuses a path with no rules instead of reporting a vacuous `ok`.
+- **A configured `behavior.audit_log` that does not exist is now a startup
+  error.** With `rules_dir` set, the collector would load its rules, log
+  "Layer 3 enabled", and then tail an audit log that is not there — reading
+  nothing while the host looked protected. That is the same silent blind spot as
+  an empty `rules_dir`, so a *set* `audit_log` now must exist. Leaving it empty is
+  still legal: that is the documented "rules loaded but idle" mode for validating
+  a pack with no live feed, and `audit_log` is not checked at all when `rules_dir`
+  is empty (Layers 1/2 only).
 
 ### Known gaps (not changed: these are the open work)
 
