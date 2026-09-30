@@ -166,6 +166,18 @@ opt-in design.
 
 ### Fixed
 
+- **The demo promised a "by severity" breakdown its console never printed.**
+  `demo/README.md` said `run.sh` prints the fleet rollup "with a breakdown by
+  severity, by ATT&CK-style technique, by signal source, and by rule pack
+  version" — but the console printer emitted technique, source, and pack and
+  silently dropped severity, even though the API carries `by_severity` and the
+  HTML page (`GET /`) shows it. Anyone reading the demo doc ran it and saw three
+  of the four promised breakdowns. `run.sh` now prints `by severity` first (the
+  data was already in the response), and the same bullet's "by signal source" is
+  corrected to "by provenance" — `by_source` counts the *derived-vs-authoritative*
+  marker (`heuristic`), not the telemetry source, so the old wording read as
+  auditd/docker/heuristic and misled. Caught by running the demo against its own
+  promise (heartbeat 75), not by re-reading it.
 - **The collector deploy guide's "short version" could not start the service.**
   `docs/deploy-collector.md` §5 installed the binary and the unit but not
   `/etc/agentids/collector.yaml`, so a reader copying the snippet got a collector

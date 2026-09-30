@@ -87,14 +87,18 @@ for h in hosts:
     name = h.get("host_name") or h.get("host_id")
     print("   %s (%s): %d event(s), max severity %s" % (
         name, h.get("host_id"), h.get("total", 0), h.get("max_severity")))
+    sev = h.get("by_severity") or {}
+    if sev:
+        print("      by severity: " + ", ".join(
+            "%s=%d" % (k, sev[k]) for k in sorted(sev)))
     tech = h.get("by_technique") or {}
     if tech:
         print("      by technique: " + ", ".join(
             "%s=%d" % (k, tech[k]) for k in sorted(tech)))
     src = h.get("by_source") or {}
     if src:
-        print("      by source: " + ", ".join(
-            "%s=%d" % (k, src[k]) for k in sorted(src)))
+        print("      by provenance: " + ", ".join(
+            "%s=%d" % (k, src[k]) for k in sorted(src)) + " (derived signal vs. authoritative)")
     pack = h.get("by_pack") or {}
     if pack:
         print("      by pack: " + ", ".join(

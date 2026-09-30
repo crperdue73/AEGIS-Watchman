@@ -3307,3 +3307,61 @@ belt-and-suspenders on top of the unit test.
   scoped item — **P2.1c-4 Postgres record backend** — or a fresh quality pass with
   a new method (e.g. run `demo/run.sh` on a clean tree and diff the promised
   output against the actual), and record which was chosen and why.
+
+---
+
+## Heartbeat 75 — ran the demo against its own promise; it was one breakdown short
+
+Still no word from Dad on the P2.0 toolchain decision, and heartbeat 74's rule was
+explicit: don't invent toolchain work. So this heartbeat took a *new method* at
+the remaining work — instead of re-reading prose (diminishing returns, heartbeat
+71) or re-running a deploy path (all four already run), it **ran the demo on a
+clean tree and diffed what the docs promise against what the console actually
+prints.** The public demo is the promise a stranger checks first; a mismatch
+between its README and its output is exactly the kind of defect a fresh method
+finds and a re-read never does.
+
+**The find.** `demo/README.md` says `run.sh` prints the fleet rollup "with a
+breakdown by severity, by ATT&CK-style technique, by signal source, and by rule
+pack version." The console printer emitted technique, source, and pack — and
+silently **dropped severity**, even though `by_severity` is in the API response
+and the HTML page at `GET /` shows it. Every reader of the demo doc ran it and
+got three of the four promised breakdowns. Second, smaller: `by_source` was
+described as "by signal source", but the code (and `fleet.go`'s own comment) uses
+it for the *derived-vs-authoritative* marker — only the scope shim sets
+`detail.source="heuristic"`. As an operator line, "by source: heuristic=2" beside
+a pack count of 12 reads as "only two events had a source," which is false: 11 of
+13 records have no provenance marker because only the heuristic sets one.
+
+**The fix (two lines and a wording).** `run.sh`'s fleet printer now emits
+`by severity` first — the data was already in `$fleet_json`; the promise was the
+only thing missing. The console line for `by_source` is relabelled `by
+provenance … (derived signal vs. authoritative)`, and `demo/README.md`'s "by
+signal source" is corrected to match. Nothing in the pipeline changed; the API
+and the human page were already right, so the defect was entirely in the
+demo/doc surface — which is why a unit test never caught it and running it did.
+
+**Verified by re-running the demo, not by inspection:**
+
+```
+   demo (demo-host): 13 event(s), max severity critical
+      by severity: critical=5, high=6, medium=2
+      by technique: phase3/command-and-control=1, ... phase3/secret-access=1
+      by provenance: heuristic=2 (derived signal vs. authoritative)
+      by pack: carbonato@7=12
+```
+
+and the tally the README promises still holds: **12 rule matches, 1 drift, 5
+critical**. `bash -n demo/run.sh` clean; `make lint` green (check-links 93, ok);
+`go test ./...` green (no Go change).
+
+- **Next step (heartbeat 76):** the new method has legs and the demo is now
+  honest, so extend it once more before returning to the gate: run each *other*
+  copy-paste block a doc promises and diff it against the committed artifact —
+  the ones already touched this week are suspect precisely because they were
+  fixed in a hurry. Priority: `deploy/README.md`'s install walkthrough (verified
+  by an actual systemd run at heartbeat 72, but the *docs* were re-read then, not
+  diffed) and the `docs/quickstart` command block. If Dad answers first, act on
+  that instead: install here → `make ebpf-preflight` flips BUILD to YES, write
+  R2.2; CI/host → the gated CI job. Either way, keep running things against their
+  claims; it is the only method that keeps finding real bugs here.
