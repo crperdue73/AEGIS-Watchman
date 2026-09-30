@@ -15,7 +15,7 @@ DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)
 PKG     := github.com/CRPerdue/agentids/internal/buildinfo
 LDFLAGS := -X $(PKG).Version=$(VERSION) -X $(PKG).Commit=$(COMMIT) -X $(PKG).Date=$(DATE)
 
-.PHONY: all build build-collector build-central build-manifest build-rules test lint check-links clean fmt vet version
+.PHONY: all build build-collector build-central build-manifest build-rules test lint check-links clean fmt vet version pin
 
 all: build
 
@@ -44,6 +44,12 @@ check-links:
 
 lint: vet check-links
 	@echo "add golangci-lint when the tree has code"
+
+# Re-pin the shipped rule packs. Run after editing rules/ and commit the result;
+# CI fails if rules/packs.pins drifts from the packs.
+pin: build-rules
+	./bin/$(BINARY_RULES) pin rules/ > rules/packs.pins
+	@echo "wrote rules/packs.pins"
 
 fmt:
 	$(GO) fmt ./...

@@ -176,6 +176,29 @@ func LoadPacks(dir string) ([]*Pack, error) {
 	if dir == "" {
 		return nil, nil
 	}
+	names, err := packFileNames(dir)
+	if err != nil {
+		return nil, err
+	}
+	var packs []*Pack
+	for _, n := range names {
+		p, err := LoadPack(filepath.Join(dir, n))
+		if err != nil {
+			return nil, err
+		}
+		packs = append(packs, p)
+	}
+	if err := CheckUniqueIDs(packs); err != nil {
+		return nil, err
+	}
+	return packs, nil
+}
+
+// packFileNames returns the *.yaml/*.yml file names directly under dir,
+// sorted for determinism. It is the one definition of "the packs in a dir",
+// shared by LoadPacks and PinSet so a pin always describes the exact set the
+// collector would load.
+func packFileNames(dir string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, fmt.Errorf("rules: read dir %s: %w", dir, err)
@@ -191,18 +214,7 @@ func LoadPacks(dir string) ([]*Pack, error) {
 		}
 	}
 	sort.Strings(names)
-	var packs []*Pack
-	for _, n := range names {
-		p, err := LoadPack(filepath.Join(dir, n))
-		if err != nil {
-			return nil, err
-		}
-		packs = append(packs, p)
-	}
-	if err := CheckUniqueIDs(packs); err != nil {
-		return nil, err
-	}
-	return packs, nil
+	return names, nil
 }
 
 // CheckUniqueIDs reports the first rule id declared by more than one pack in the

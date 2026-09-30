@@ -95,6 +95,13 @@ opt-in design.
   error), and `list` prints every rule in a set, sorted by id. It lets a rule
   author check a pack with no host, no auditd, and no daemon, and gives a
   community rules repo a `verify` to wire into CI.
+- **Rule-pack pinning** (`agentids-rules pin` / `verify --pins`): a pin file
+  (`rules/packs.pins`) is a byte-exact record of the approved pack set — one
+  line per pack with its `name@version` and sha256. `verify --pins` fails
+  non-zero on any drift (a **changed**, **missing**, or **unpinned** pack) and
+  names each one; `make pin` regenerates it; CI rejects a pack edited without
+  re-pinning. The pin describes the same files a collector would load, and is a
+  lockfile, not a signature (signing is a later layer).
 - Build provenance: every binary answers `-version` with the product version, git
   commit, and build date, stamped at link time by `make build` (and `make
   version` prints the stamp). Distinct from the event wire format version.

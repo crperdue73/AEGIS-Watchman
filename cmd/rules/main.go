@@ -30,6 +30,8 @@ func main() {
 		verify(os.Args[2:])
 	case "list":
 		list(os.Args[2:])
+	case "pin":
+		runPin(os.Args[2:])
 	case "version", "-version", "--version":
 		fmt.Println(buildinfo.String("agentids-rules"))
 	case "-h", "--help", "help":
@@ -45,26 +47,47 @@ func usage() {
 	fmt.Fprint(os.Stderr, `agentids-rules — Layer 3 rule tooling
 
 commands:
-  verify [path...]  parse, validate, and check a pack file or dir (default: ./rules)
-  list   [path...]  list the rules a pack set defines, sorted by id
-  version           print version and build info
+  verify [--pins <file>] [path...]  parse, validate, and (optionally) check a pack set
+  list   [path...]                  list the rules a pack set defines, sorted by id
+  pin    [path...]                  write a pin file for a pack set (to stdout)
+  version                           print version and build info
 
 A path may be a pack file (*.yaml/*.yml) or a directory of packs. Rule ids must
 be unique across everything given, not just within one pack.
+
+A pin file is a byte-exact record of an approved pack set (name@version and
+sha256 per pack). Regenerate one with 'pin'; check a set against one with
+'verify --pins'. The pin describes the same files a collector would load.
 `)
 }
 
 func verify(args []string) {
 	if isHelp(args) {
-		fmt.Fprintln(os.Stderr, "usage: agentids-rules verify [pack-file-or-dir ...]")
+		fmt.Fprintln(os.Stderr, "usage: agentids-rules verify [--pins <file>] [pack-file-or-dir ...]")
 		return
 	}
-	packs, err := loadSet(args)
+	pinsFile, paths, err := splitPinsFlag(args)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "agentids-rules: %v\n", err)
+		os.Exit(2)
+	}
+	packs, err := loadSet(paths)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "agentids-rules: %v\n", err)
 		os.Exit(1)
 	}
 	summarize(os.Stdout, packs)
+
+	if pinsFile != "" {
+		resolved := paths
+		if len(resolved) == 0 {
+			resolved = []string{defaultPackPath}
+		}
+		if err := checkPins(os.Stdout, pinsFile, resolved); err != nil {
+			fmt.Fprintf(os.Stderr, "agentids-rules: %v\n", err)
+			os.Exit(1)
+		}
+	}
 }
 
 func list(args []string) {

@@ -169,3 +169,16 @@ One item needs a call, not a code change:
   container path, and `run.sh`. Second pass shows the drift → container
   after-identity-change correlation. Linked from the README. Three of four
   "Now" items are done (P1.3 remains).
+
+- **2026-09-30 (Wed), ~02:50 ET** — **Phase 3 rule-pack publishing format, first
+  slice: pinning.** The BRIEF's Phase 3 calls for packs that are "versioned,
+  signed" and shareable (the Snort model); the shareable half creates an
+  audit obligation — a fleet must be able to say *which* packs it runs and that
+  they are still the approved bytes. Shipped: a pack **pin file**
+  (`rules/packs.pins`, `<sha256>  <name@version>  <file>` per pack),
+  `agentids-rules pin` (write it) and `agentids-rules verify --pins` (fail
+  non-zero on any **changed**/**missing**/**unpinned** pack), a `make pin`
+  target, and a CI gate that the committed pin is current. The pin describes the
+  same file set a collector loads. It is a lockfile, **not** a signature —
+  Ed25519-signing the pin (reusing the Layer 2 manifest crypto) is the next
+  slice and is documented as not-built. See `docs/rules.md`.

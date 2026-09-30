@@ -2249,3 +2249,56 @@ contract matrix); `make lint` green (67 links); `gofmt`/`vet` clean;
   rule-pack publishing format** (pin/audit which packs a fleet runs; the "goes
   public under Apache on GitHub" angle makes a signed/pinned pack set timely).
   Re-read `PHASE1-PLAN.md` §open decisions and `docs/rules.md` first.
+
+---
+
+## Heartbeat 58 — rule packs can be pinned; CI keeps the pin honest
+
+The BRIEF's Phase 3 names two properties for a published pack: **versioned** and
+**signed** — the Snort model, shareable. Shareable is the half that creates the
+obligation: if packs move between repos and fleets, someone has to be able to say
+*which* packs a deployment runs and that they are still the ones approved. There
+was a `verify` (does it parse?) and a `list` (what's in it?), and nothing that
+recorded *which set we agreed on*.
+
+**Shipped (the pinning slice):**
+- `internal/rules/pins.go` — the pin model: `Pin{File, Name, Version, SHA256}`,
+  `PinFile`/`PinSet` (hash the raw pack bytes; parse to read name@version),
+  `FormatPins`/`ParsePins` (a documented text lockfile, deterministic), and
+  `DiffPins` returning **changed** / **missing** / **unpinned** issues, sorted.
+  `PinSet` selects files through the *same* helper `LoadPacks` now uses
+  (`packFileNames`), so a pin always describes the set a collector would load.
+- `agentids-rules pin [path...]` writes a pin file to stdout;
+  `agentids-rules verify --pins <file> [path...]` checks a set against it and
+  exits non-zero, naming each drift. A `--pins` with no value is an arg error,
+  not a silent path.
+- `rules/packs.pins` — the shipped pack is pinned (`carbonato@6`,
+  `5bd1240e…`). `make pin` regenerates it. **CI fails if the committed pin
+  drifts from the packs** (`.github/workflows/ci.yml`), so a pack edited without
+  re-pinning is caught in the build, not on a host.
+- Tests: `internal/rules/pins_test.go` (round-trip, deterministic formatting,
+  malformed-line rejection, `DiffPins`), `cmd/rules/pins_test.go`
+  (`splitPinsFlag`, and `checkPins` asserting ok → changed → unpinned).
+- Docs: `docs/rules.md` gains "Publishing and pinning a pack set" (with the
+  honest limits), `rules/README.md` status notes the pin, CHANGELOG, plan log.
+
+**Design note — a lockfile, not a signature.** A pin is **byte-exact on
+purpose**, the way Layer 2 hashes an agent file: the pin names the *artifact*, so
+a reformat that changes the bytes is a deliberate re-approval, not a silent pass.
+And I wrote the limit down rather than implying more: anyone can edit a pin file,
+so this detects accidental or uncoordinated drift, not a determined forger.
+Signing the pin with an Ed25519 key — reusing `internal/provenance`'s
+manifest crypto — is the next slice, and the doc says so plainly.
+
+**Verification:** `agentids-rules verify --pins rules/packs.pins rules/` → `pins:
+ok — 1 pack(s) match`; a one-blank-line edit to a copy → exit 1, `changed …
+pinned 5bd1240eb148, found 080dfe22a3b2`; `make pin` is a no-op diff against the
+committed file; `go test ./...` and `go test -tags sqlite ./...` green;
+`go vet` clean both builds; `make lint` green (69 links); `demo/run.sh` exit 0.
+Committed.
+
+- **Next step (heartbeat 59):** sign the pin file (Ed25519 over the pin bytes,
+  `agentids-rules verify --pins … --pubkey …`), reusing `internal/provenance`
+  so a fleet can trust a *third-party* pack set, not just its own. Then: whether
+  the collector should refuse to start when its `rules_dir` disagrees with a
+  configured pin (the enforcement half of "pin the fleet's packs").

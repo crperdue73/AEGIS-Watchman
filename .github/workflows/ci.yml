@@ -30,6 +30,13 @@ jobs:
           cache: true
       - name: Build
         run: make build
+      - name: Rule-pack pin is current
+        # The shipped pack has a committed pin (rules/packs.pins). If the pack
+        # changed without re-pinning, the fleet would run packs the pin does not
+        # approve — fail the build and tell the author to run `make pin`.
+        run: |
+          ./bin/agentids-rules pin rules/ > /tmp/packs.pins
+          diff -u rules/packs.pins /tmp/packs.pins
       - name: Vet (default and sqlite builds)
         run: |
           go vet ./...

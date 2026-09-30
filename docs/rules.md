@@ -230,3 +230,37 @@ strict rules above, including unique ids across everything given on the command
 line. A path that exists but holds no rules is an error, not a vacuous "ok".
 `list` is the quick index of what a set defines. Wire `verify` into CI for
 a community rules repo the way `go test` guards code.
+
+## Publishing and pinning a pack set
+
+Rule packs are versioned, shareable artifacts — the Snort model. That is exactly
+why a fleet needs to record **which** packs it runs and confirm they are still
+the ones it approved. A **pin file** is that record: one line per pack, carrying
+its file name, its `name@version`, and the sha256 of the pack file's raw bytes.
+
+```sh
+# record the packs you approve (redirect next to them in the repo)
+agentids-rules pin rules/ > rules/packs.pins
+
+# check a working set against the pin — in CI, or before a deploy
+agentids-rules verify --pins rules/packs.pins rules/
+```
+
+The shipped pack has a committed pin: [`rules/packs.pins`](../rules/packs.pins).
+`verify --pins` fails, non-zero, on **any** drift, naming each one:
+
+- **changed** — a pack is present but its bytes differ (digest mismatch);
+- **missing** — a pinned pack is not in the set; or
+- **unpinned** — a pack is present that the pin file does not account for.
+
+The pin describes the same files a collector would load — the same
+`*.yaml`/`*.yml`, non-recursive, sorted — so a pin cannot pass while the loaded
+set differs. It is **byte-exact on purpose**, the way Layer 2 hashes an agent
+file: the pin names the artifact, so a reformat that changes the bytes is a
+deliberate re-approval, not a silent pass.
+
+It is a lockfile, **not a signature**. Anyone can write or edit one; it says
+"this is the set we agreed on," and it detects accidental or uncoordinated
+drift, not a determined forger. Signing the pin file with an Ed25519 key — the
+mechanism Layer 2 already uses for agent manifests — is the next layer and is
+not built yet.
