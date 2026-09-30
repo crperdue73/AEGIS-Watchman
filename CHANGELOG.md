@@ -153,6 +153,14 @@ opt-in design.
 
 ### Fixed
 
+- **The collector deploy guide's "short version" could not start the service.**
+  `docs/deploy-collector.md` §5 installed the binary and the unit but not
+  `/etc/agentids/collector.yaml`, so a reader copying the snippet got a collector
+  that exits 1 on `read config: open ...: no such file or directory` (the
+  collector, unlike central, treats a missing config as fatal). The snippet now
+  creates `/etc/agentids`, installs the config, and says to edit it first. Its
+  Scope line also named auditd and eBPF but omitted the Docker events adapter,
+  which has its own §3.
 - **The TLS guide omitted the one thing that stops central from starting.**
   Both systemd units run as `User=agentids`, but `deploy/gen-certs.sh` writes the
   private keys `0600` owned by whoever ran it — so an operator who generated them

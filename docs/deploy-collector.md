@@ -1,9 +1,9 @@
 # DEPLOY — COLLECTOR (LAYER 3 TELEMETRY)
 
 **Audience:** the operator standing up an `agentids` collector on a host.
-**Scope:** enabling the Layer 3 telemetry sources — auditd (every host) and the
-optional eBPF `file.access` adapter (modern kernels). Layers 1/2 need none of
-this; see the README.
+**Scope:** enabling the Layer 3 telemetry sources — auditd (every host), the
+optional eBPF `file.access` adapter (modern kernels), and the Docker events
+adapter (hosts running a daemon). Layers 1/2 need none of this; see the README.
 
 > For the **every-key reference** to `collector.yaml` (all fields, defaults, and
 > what the loader rejects), see [`collector-config.md`](collector-config.md).
@@ -263,9 +263,18 @@ for the spool and cursor. The short version:
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin agentids
 sudo usermod -aG adm agentids          # read /var/log/audit/audit.log (systemd-journal on RHEL)
 sudo install -m 0755 bin/agentids-collector /usr/local/bin/
+sudo install -d -m 0750 -o agentids -g agentids /etc/agentids
+sudo install -m 0640 -o agentids -g agentids examples/collector.yaml /etc/agentids/collector.yaml
 sudo install -m 0644 deploy/agentids-collector.service /etc/systemd/system/
-sudo systemctl enable --now agentids-collector
+sudo systemctl daemon-reload && sudo systemctl enable --now agentids-collector
 ```
+
+**Edit `/etc/agentids/collector.yaml` before enabling the unit** — set your
+`agent_roots`, and the `behavior` block if you turned on Layer 3. The collector
+**fails to start** if the config file is missing (`read config: open
+/etc/agentids/collector.yaml: no such file or directory`) — unlike central, whose
+missing config falls back to defaults. `/var/lib/agentids` (the spool + cursor)
+is created by the unit's `StateDirectory=`, so you do not make it by hand.
 
 The `agentids` user needs read access to the audit log and to each `agent_roots`
 path — and nothing else. The full walkthrough, the capability deltas for the
@@ -293,6 +302,18 @@ After deploying a collector:
 - [ ] Central logs alerts with a **name**, not `uid:N` (if `uid_map` is set).
 
 ## Log
+- **2026-09-30** — **Re-read as the operator (heartbeat 71); two fixes.** (1) §5's
+  "short version" installed the binary and the unit but **not** the config, so a
+  reader copying it got a collector that fails to start (`read config: ... no such
+  file or directory` — fatal, exit 1, unlike central, whose missing config falls
+  back to defaults). The snippet now creates `/etc/agentids`, installs
+  `collector.yaml`, and says to edit it before enabling the unit. (2) The Scope
+  line named auditd and eBPF but not the Docker events adapter, which has its own
+  §3. Every other claim was checked against the tree and held: the action-name
+  table, the two adapter degrade strings, the three `container.start` rule ids,
+  the `-tags ebpf` build (compiles; the stub reports the documented
+  "not yet implemented"), and the §6 checklist rule ids all exist in
+  `rules/carbonato.yaml`.
 - **2026-09-30** — **§5 "Running as a service" added.** The quickstart runs the
   collector once; nothing showed an operator how to run it persistently. Added
   systemd unit templates (`deploy/agentids-{collector,central}.service`) and a

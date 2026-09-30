@@ -3070,3 +3070,56 @@ by hand; `bash -n deploy/gen-certs.sh` clean and its new output checked;
   last walked at heartbeat 65, before the container work); or (b) the open P2.0
   eBPF toolchain decision, which needs Dad. Take (a) — it is the one deploy guide
   not yet re-read against the current tree, and the method keeps paying.
+
+---
+
+## Heartbeat 71 — read docs/deploy-collector.md as the operator; the short version couldn't start
+
+Last heartbeat's method, applied to the last deploy guide not yet re-read against
+the current tree (`docs/deploy-collector.md`; it was last walked at heartbeat 65,
+before the container work). This time the doc mostly **held** — so the honest
+result is a verification with two small fixes, not a haul.
+
+**Checked and true.** The action-name table (`execve`→`process.exec`,
+`connect`→`net.egress`, `bind`/`listen`→`net.listen`, `-w -p wa`→`file.write`)
+matches the telemetry constants. Both adapter degrade strings match the source
+byte for byte (`…eBPF file.access adapter unavailable, running auditd-only: %v`;
+`…docker events adapter unavailable, continuing without it: %v`). All three
+`container.start` rule ids exist in the pack. The `-tags ebpf` build compiles
+(confirmed) and the run-time stub reports `telemetry: ebpf source not yet
+implemented (R2.2)` — the doc's claim restated, not wrong. Every rule id in the
+§6 checklist (`carbonato.secret.read_order_follows_constraint`,
+`carbonato.persist.file_write`, `carbonato.container.privileged_start`) is real in
+`rules/carbonato.yaml`. And the §1 actions are the ones the demo actually fires.
+
+**Fixed — the §5 "short version" could not start the collector.** Its snippet
+installed the binary and the systemd unit but never installed
+`/etc/agentids/collector.yaml` or created `/etc/agentids`. Followed verbatim, the
+unit dies at once:
+
+```
+agentids-collector: read config: open /etc/agentids/collector.yaml: no such file or directory
+```
+
+exit 1 — a **fatal**, not a degradation. (Note the asymmetry the doc never named:
+central's missing config falls back to defaults; the collector's does not.) The
+snippet now creates `/etc/agentids`, installs the example config, and says to
+edit `agent_roots` before enabling the unit. It also notes that
+`/var/lib/agentids` is made by `StateDirectory=` and should not be created by
+hand.
+
+**Fixed — the Scope line omitted a third of the doc.** It named auditd and the
+eBPF adapter but not the Docker events adapter, which has its own §3. Now named.
+
+**Verification:** the missing-config failure and its exit code reproduced with the
+deployed binary; the `-tags ebpf` build run; the rule-id and message greps all
+against the tree. `make lint` green; `go test ./...` green (docs-only here).
+
+- **Next step (heartbeat 72):** all four deploy/operator guides (quickstart,
+  collector, central, deploy/README) have now been re-read against the current
+  tree, and three of the four gave up real bugs. The method has diminishing
+  returns on prose it has already walked — so next, stop reading and **run** the
+  one path never exercised end to end: the systemd units themselves
+  (`systemd-analyze verify` was done at heartbeat 65, but no unit has been
+  installed and started). If this host cannot run systemd, fall back to the open
+  P2.0 eBPF toolchain decision and take it to Dad with a concrete ask.
