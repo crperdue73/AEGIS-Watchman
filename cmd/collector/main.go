@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -86,7 +87,16 @@ func main() {
 		log.Printf("agentids-collector: mutual TLS enabled -> %s", cfg.Report.Endpoint)
 	} else {
 		client = collector.NewClient(cfg.Report.Endpoint)
-		log.Printf("agentids-collector: WARNING plaintext report -> %s", cfg.Report.Endpoint)
+		// The warning names what is actually missing. Without report.tls an https
+		// endpoint still speaks TLS — it just presents no client identity and
+		// pins no CA, so a central running mutual TLS will reject it. Calling that
+		// "plaintext" is only true for an http:// endpoint and sends the operator
+		// looking for the wrong problem.
+		if strings.HasPrefix(strings.ToLower(cfg.Report.Endpoint), "https://") {
+			log.Printf("agentids-collector: WARNING report TLS has no client identity -> %s (set report.tls; a central with mutual TLS will reject this)", cfg.Report.Endpoint)
+		} else {
+			log.Printf("agentids-collector: WARNING plaintext report -> %s", cfg.Report.Endpoint)
+		}
 	}
 
 	// Layer 3: action rules. One engine, bound to the single agent root when

@@ -2927,3 +2927,86 @@ green (91 links); `go test ./...` unchanged green. Docs-only, no code change.
   P2.0 toolchain decision, which needs Dad. Take (a) if the host still has a live
   Docker daemon — it is the last path a reader would hit and the only deploy mode
   never exercised with authentication on.
+
+---
+
+## Heartbeat 69 — ran the container path with mutual TLS on; it found three bugs
+
+Heartbeat 68 closed with one honest option left: the container deploy path had
+never been exercised *with authentication on*. Every other deploy mode had
+(`docs/quickstart.md` local, `deploy/README.md` systemd, and the plain-HTTP
+container pair from heartbeat 66), but the TLS container story was a paragraph
+nobody had run. This heartbeat ran it. It did not survive contact.
+
+**Setup.** Built the image (`docker build -f deploy/docker/Dockerfile -t
+agentids .`), generated certs with `deploy/gen-certs.sh /tmp/agentids-tls central`
+(so the SAN carries the container name `central`), put both containers on a
+`agentids-net` bridge, and mounted the cert dir plus a named volume for central's
+stores.
+
+**Finding 1 — the documented mount shadows the baked rule pack.** The first move
+was to run the image exactly as its own header comment and `deploy/README.md`
+show: `-v /etc/agentids:/etc/agentids:ro`. The collector died immediately:
+
+```
+agentids-collector: config: behavior.rules_dir "/etc/agentids/rules": stat
+  /etc/agentids/rules: no such file or directory
+```
+
+A bind mount at `/etc/agentids` **hides** the rule pack the same Dockerfile
+brags about baking to `/etc/agentids/rules`. Layer 3, the reason the product
+exists, silently has no rules — except it does *not* do it silently, which is the
+one saving grace: the collector refused to start. Fixed the mount to `/config` in
+the Dockerfile header and `deploy/README.md`, with the "why" inline.
+
+**Finding 2 — the startup log lied about retention.** Central's first TLS boot
+logged:
+
+```
+agentids-central: fleet view records -> /var/lib/agentids/records.json (backend=file, retain=0d, max=0)
+```
+
+`0d` / `max=0` reads as *retention disabled / unbounded* — the exact opposite of
+the truth. The store has always resolved those zeroes to `7d`/`10000` inside
+`RecordStoreFn`, but `cmd/central/main.go` printed the **raw config**, so an
+operator relying on the documented defaults saw a number that meant "keep
+nothing" next to a store that keeps a week. Added
+`Config.ResolvedRecordRetention()` — one source of truth — and both the store and
+the log now read it. The line is `retain=7d, max=10000`, and it is true.
+
+**Finding 3 — the collector called an `https://` endpoint "plaintext".** Running
+the no-cert negative case (as a would-be attacker without a client identity), the
+collector warned:
+
+```
+WARNING plaintext report -> https://central:8080/api/v1/events
+```
+
+The scheme is `https`. Nothing about that hop is plaintext; it simply presents no
+client cert and pins no CA, so an mTLS central rejects it — which is correct
+behaviour described with the wrong word. The warning is now scheme-aware: `http://`
+still says "plaintext", `https://` says `report TLS has no client identity`.
+
+**What actually worked, and was proven.** With configs at `/config`, certs at
+`/tls`, and both containers on the network:
+
+- **mTLS pair, enrolled.** Collector: `mutual TLS enabled -> ...`, `Layer 3
+  loaded 20 rule(s) from 1 pack(s)`, `enrolled /agent-root (1 files)`, exit 0.
+- **The ingest landed.** Central's durable baseline (`/var/lib/agentids/
+  baselines.json`, mode `0600`) held the agent root and its `SOUL.md` hash —
+  read back from the volume, not assumed from a log line.
+- **Fail-closed, both ways.** No client cert → handshake refused (`x509:
+  certificate signed by unknown authority`). Right CA, wrong `server_name` →
+  `certificate is valid for central, localhost, not wrong.host`.
+
+**Verification:** `go vet`, `gofmt -l`, and `go test ./...` all green; the two new
+`ResolvedRecordRetention` tests pass; the image rebuilt and both container paths
+re-run against the new binaries.
+
+- **Next step (heartbeat 70):** the deploy surface — local, systemd, container,
+  TLS container — is now all exercised, and the container guide is honest. The
+  open P2.0 eBPF toolchain decision still needs Dad (it is the last *capability*
+  gap, not a doc one). Absent that, the highest-value move is to re-read
+  `deploy/README.md` top to bottom as the operator it is written for and fix
+  whatever the reading turns up — the same method that just found three bugs in a
+  file three heartbeats of work had already "finished".

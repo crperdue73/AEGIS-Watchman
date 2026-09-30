@@ -330,6 +330,14 @@ agentids-central: mutual TLS required on the ingest listener
 If a line is missing — or reads `disabled` / `in-memory only` / `WARNING
 plaintext ingest` — that is your configuration, stated plainly.
 
+> **In a container instead?** Central runs from the same image with
+> `--entrypoint /agentids-central`. Two container-specific gotchas: mount the
+> config directory at a path *other than* `/etc/agentids` (a bind mount there
+> shadows the rule pack the image bakes), and — for mTLS — make the mounted cert
+> files readable by the image's `nonroot` uid (`65532`). The exact `docker run`
+> flags, verified end to end, are in
+> [`deploy/README.md`](../deploy/README.md) §"Mutual TLS in containers".
+
 ---
 
 ## 9. Sanity checklist

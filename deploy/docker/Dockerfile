@@ -10,21 +10,28 @@
 # host-specific); mount them.
 #
 # Run the collector — mount the config, the audit log it tails, and the agent
-# workspaces it hashes:
+# workspaces it hashes. Mount configs at a path OTHER than /etc/agentids: a bind
+# mount there would shadow the rule pack this image bakes at /etc/agentids/rules,
+# and Layer 3 would fail to load ("rules_dir ... no such file or directory").
 #
 #   docker run --rm \
-#     -v /etc/agentids:/etc/agentids:ro \
+#     -v /etc/agentids:/config:ro \
 #     -v /var/log/audit/audit.log:/var/log/audit/audit.log:ro \
 #     -v /home:/home:ro \
-#     agentids -config /etc/agentids/collector.yaml
+#     agentids -config /config/collector.yaml
 #
 # Run central instead (override the entrypoint) and persist its stores:
 #
 #   docker run --rm -p 8080:8080 \
-#     -v /etc/agentids:/etc/agentids:ro \
+#     -v /etc/agentids:/config:ro \
 #     -v agentids-state:/var/lib/agentids \
 #     --entrypoint /agentids-central \
-#     agentids -config /etc/agentids/central.yaml
+#     agentids -config /config/central.yaml
+#
+# For mutual TLS (the default for any real fleet), also mount the cert directory
+# and put both containers on one network so the collector can reach central by
+# name. The image runs as uid 65532 (nonroot), so the mounted key/config files
+# must be readable by it. Full walkthrough: deploy/README.md §"Mutual TLS".
 #
 # The collector needs no root and no capabilities. Two optional sources do:
 #   - eBPF file.access  -> --cap-add=BPF --cap-add=PERFMON, and a binary built

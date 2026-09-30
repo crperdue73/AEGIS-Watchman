@@ -62,7 +62,8 @@ func main() {
 	} else {
 		svc.SetRecordStore(rs)
 		if cfg.Records != "" {
-			log.Printf("agentids-central: fleet view records -> %s (backend=%s, retain=%dd, max=%d)", cfg.Records, cfg.RecordBackendOrDefault(), cfg.RecordRetentionDays, cfg.RecordMax)
+			retain := cfg.ResolvedRecordRetention()
+			log.Printf("agentids-central: fleet view records -> %s (backend=%s, retain=%dd, max=%d)", cfg.Records, cfg.RecordBackendOrDefault(), int(retain.Window.Hours()/24), retain.MaxRecords)
 		} else {
 			log.Printf("agentids-central: fleet view records in-memory only (set records to persist)")
 		}

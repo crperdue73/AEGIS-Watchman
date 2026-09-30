@@ -198,13 +198,11 @@ func (c Config) RecordBackendOrDefault() string {
 	return c.RecordBackend
 }
 
-// RecordStoreFn builds the event-record store behind the fleet view. With a
-// records path configured, it is durable (FileRecordStore by default, or the
-// SQLite backend when record_backend: sqlite and the sqlite build is present);
-// without one, an in-memory store is returned (the view works but resets on
-// restart). It never returns nil — the fleet endpoint is always functional — so
-// callers can wire it unconditionally.
-func (c Config) RecordStoreFn() (RecordStore, error) {
+// ResolvedRecordRetention returns the retention that will actually be applied,
+// with the defaults filled in for any zero-valued field. The startup log reports
+// this rather than the raw config so an operator who relies on the defaults sees
+// 7d/10000 — not the 0/0 that would read as "unbounded".
+func (c Config) ResolvedRecordRetention() RecordRetention {
 	retain := RecordRetention{
 		Window:     time.Duration(c.RecordRetentionDays) * 24 * time.Hour,
 		MaxRecords: c.RecordMax,
@@ -215,6 +213,17 @@ func (c Config) RecordStoreFn() (RecordStore, error) {
 	if retain.MaxRecords <= 0 {
 		retain.MaxRecords = DefaultRecordRetention.MaxRecords
 	}
+	return retain
+}
+
+// RecordStoreFn builds the event-record store behind the fleet view. With a
+// records path configured, it is durable (FileRecordStore by default, or the
+// SQLite backend when record_backend: sqlite and the sqlite build is present);
+// without one, an in-memory store is returned (the view works but resets on
+// restart). It never returns nil — the fleet endpoint is always functional — so
+// callers can wire it unconditionally.
+func (c Config) RecordStoreFn() (RecordStore, error) {
+	retain := c.ResolvedRecordRetention()
 	if c.Records == "" {
 		return NewMemoryRecordStore(retain), nil
 	}

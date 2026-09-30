@@ -151,6 +151,27 @@ opt-in design.
   adapter is documented in a commented block. `docs/deploy-collector.md` gained
   §5 "Running as a service".
 
+### Fixed
+
+- **The startup log lied about record retention.** With a `records` path set and
+  the retention fields left to their documented defaults, central logged
+  `retain=0d, max=0` — the raw config, not what the store enforces. The store has
+  always resolved those to `7d`/`10000`, so the log read as *unbounded* when the
+  truth was the opposite. `Config.ResolvedRecordRetention()` now exposes the
+  resolved values and both the store and the startup log use it, so the line an
+  operator reads is the retention they actually get. Covered by two tests.
+- **The collector called an `https://` endpoint "plaintext".** With no
+  `report.tls` block, the startup warning fired regardless of scheme:
+  `WARNING plaintext report -> https://central:8080/...`. The transport is TLS;
+  what is missing is the client identity and pinned CA, and an mTLS central will
+  reject it. The warning is now scheme-aware: an `http://` endpoint still says
+  "plaintext", an `https://` one says `report TLS has no client identity`.
+- **The container examples shadowed the baked rule pack.** The Dockerfile and
+  `deploy/README.md` showed `-v /etc/agentids:/etc/agentids:ro`, a bind mount
+  that *hides* the rule pack the same image bakes at `/etc/agentids/rules` —
+  Layer 3 then fails to load (`rules_dir ... no such file or directory`). Both
+  now mount configs at `/config`. Found by running the documented command.
+
 ### Changed
 
 - **Central has an operator guide now.** The collector has had
@@ -165,6 +186,15 @@ opt-in design.
   alert batching with non-fatal delivery, and the two retention limits. Linked
   from the README, the quickstart, and `deploy/README.md`. Docs-only — no code
   change.
+- **The container path now covers mutual TLS.** The Dockerfile and
+  `deploy/README.md` showed a plain-HTTP `docker run` only; the TLS story for the
+  container path was untested and undocumented. A collector + central pair was
+  built and run over a Docker network with mutual TLS on — enrol succeeded, the
+  baseline landed in the volume, and the two failure modes were confirmed to fail
+  closed (no client cert; wrong `server_name`). `deploy/README.md` gains a
+  "Mutual TLS in containers" section with the verified flags and the two things
+  that bite (the `nonroot` uid must be able to read the mounted certs; the mount
+  path must not shadow the baked pack).
 - **The container image actually works now.** `deploy/docker/Dockerfile` was
   stale ("Phase 1 work in progress"): it shipped only the collector and central,
   carried no rule pack, and — because a Go build in a host with a C compiler

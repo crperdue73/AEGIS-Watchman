@@ -102,25 +102,76 @@ baked in (they are host-specific), so mount them; the rule pack **is** baked in
 at `/etc/agentids/rules`, and `/var/lib/agentids` is a volume for the durable
 stores:
 
+> **Mount configs at `/config`, not `/etc/agentids`.** A bind mount at
+> `/etc/agentids` *shadows* the rule pack the image bakes there, and Layer 3 then
+> fails to load — `behavior.rules_dir "/etc/agentids/rules": no such file or
+> directory`. Move the mount one level over and the baked pack survives (or point
+> `behavior.rules_dir` at wherever you mounted a pack).
+
 ```sh
 # collector — mount what it reads: config, audit log, agent workspaces
 docker run --rm \
-  -v /etc/agentids:/etc/agentids:ro \
+  -v /etc/agentids:/config:ro \
   -v /var/log/audit/audit.log:/var/log/audit/audit.log:ro \
   -v /home:/home:ro \
-  agentids -config /etc/agentids/collector.yaml
+  agentids -config /config/collector.yaml
 
 # central — override the entrypoint, persist the stores
 #   (no -p 8080:8080 needed if collectors share a Docker network with it)
 docker run --rm -p 8080:8080 \
-  -v /etc/agentids:/etc/agentids:ro \
+  -v /etc/agentids:/config:ro \
   -v agentids-state:/var/lib/agentids \
   --entrypoint /agentids-central \
-  agentids -config /etc/agentids/central.yaml
+  agentids -config /config/central.yaml
 ```
 
-Two container-specific caveats: there is no `docker` CLI inside the image, so the
-Docker adapter still fires but with **identity only** (no `inspect` enrichment);
-and the eBPF adapter needs `--cap-add=BPF --cap-add=PERFMON` and an image built
-with `-tags ebpf`. The binaries are compiled `CGO_ENABLED=0` — required for the
+Three container-specific caveats: there is no `docker` CLI inside the image, so
+the Docker adapter still fires but with **identity only** (no `inspect`
+enrichment); the eBPF adapter needs `--cap-add=BPF --cap-add=PERFMON` and an image
+built with `-tags ebpf`; and a bind mount at `/etc/agentids` shadows the baked
+pack (above). The binaries are compiled `CGO_ENABLED=0` — required for the
 distroless (no-libc) runtime, and true to the project's no-CGO promise.
+
+### Mutual TLS in containers
+
+A container fleet should authenticate the collector → central hop, and the flags
+are small. Generate material with `deploy/gen-certs.sh <dir> <central-name>` —
+the `<central-name>` becomes a SAN, so use the name the collector will dial (the
+central container's network alias):
+
+```sh
+./deploy/gen-certs.sh ./tls central        # SAN: DNS:central, DNS:localhost, 127.0.0.1
+docker network create agentids-net
+```
+
+Point central's `tls: {cert, key, ca}` and each collector's
+`report.tls: {cert, key, ca, server_name}` at that material (`server_name: central`), mount
+the cert directory **separately** from the configs, and put both containers on the
+network so the collector can resolve `central`:
+
+```sh
+# central — serves mTLS on :8080
+docker run -d --name central --network agentids-net \
+  -v ./tls:/tls:ro -v agentids-state:/var/lib/agentids \
+  --entrypoint /agentids-central \
+  agentids -config /config/central.yaml
+
+# collector — reaches central by name over the network
+docker run --rm --network agentids-net \
+  -v ./tls:/tls:ro \
+  -v /home:/home:ro \
+  agentids -config /config/collector.yaml -once
+```
+
+Two things to get right, both verified end to end:
+
+- **The cert files must be readable by uid `65532`.** The image is distroless
+  `nonroot`; `gen-certs.sh` writes keys mode `0600` owned by you, so a mounted
+  key is unreadable inside the container. Make the cert directory `0755` and the
+  files `0644` (or `chown 65532` them) — the container can then read them.
+- **`server_name` must match a SAN.** Dialing `https://central:8080/...` with
+  `server_name: central` verifies; a mismatch fails closed with
+  `certificate is valid for central, localhost, not <name>`. With `report.tls`
+  unset entirely against an mTLS central, the collector fails the handshake —
+  and now says so plainly (`report TLS has no client identity`) rather than
+  calling an `https://` endpoint "plaintext".
