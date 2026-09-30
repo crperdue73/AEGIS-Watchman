@@ -1,8 +1,9 @@
 // Command agentids-collector is the per-host collector.
 //
 // Phase 1: inventory + hash agent identity/persona/skill/config files and
-// submit them to the central service. `-dry-run` prints the inventory and exits
-// without contacting anything. See PHASE0-DISCOVERY.md.
+// submit them to the central service. `-dry-run` validates the config and the
+// Layer 3 rule pack, prints the inventory, and exits without contacting
+// anything. See PHASE0-DISCOVERY.md.
 package main
 
 import (
@@ -26,7 +27,7 @@ func main() {
 	configPath := flag.String("config", "collector.yaml", "path to collector config")
 	hostID := flag.String("host-id", "", "stable host id (defaults to hostname)")
 	hostName := flag.String("host-name", "", "human host name (defaults to hostname)")
-	dryRun := flag.Bool("dry-run", false, "print the inventory to stdout and exit")
+	dryRun := flag.Bool("dry-run", false, "validate config + rules, print the inventory, and exit")
 	once := flag.Bool("once", false, "run one collection cycle and exit")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
@@ -49,6 +50,17 @@ func main() {
 	host := resolveHost(*hostID, *hostName)
 
 	if *dryRun {
+		// Validate the Layer 3 rule pack too: config-only checking would leave the
+		// most common first-run failure (a malformed, empty, or pin-mismatched
+		// pack) for the first live run. -dry-run is the "check it before you trust
+		// it" path, so it checks everything startup would — just without telemetry.
+		if cfg.Behavior.RulesDir != "" {
+			packs, nRules, err := collector.CheckBehaviorRules(cfg)
+			if err != nil {
+				log.Fatalf("agentids-collector: %v", err)
+			}
+			log.Printf("agentids-collector: -dry-run: rules ok — %d rule(s) from %d pack(s)", nRules, packs)
+		}
 		out := struct {
 			Host   schema.Host           `json:"host"`
 			Agents []collector.Collected `json:"agents"`

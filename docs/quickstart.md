@@ -12,7 +12,7 @@ Depth lives elsewhere, and this page links to it rather than repeating it.
 
 ```sh
 git clone <repo> && cd agentids
-make            # -> ./bin/agentids-{collector,central,manifest}
+make            # -> ./bin/agentids-{collector,central,manifest,rules}
 ```
 
 Needs Go (one build dependency, no CGO). `make build` stamps version, commit,
@@ -38,15 +38,21 @@ one screen.
 
 ## 3. Run it yourself (local, harmless)
 
+From the repository root:
+
 ```sh
-./bin/agentids-central   -config examples/central.yaml       # the service
-./bin/agentids-collector -config examples/collector.yaml -once -dry-run
+./bin/agentids-central   -config examples/central.local.yaml          # the service
+./bin/agentids-collector -config examples/collector.local.yaml -once -dry-run
 ```
 
-`-dry-run` parses config and loads rules without shipping anything; `-once`
-does a single pass instead of the poll loop. Drop `-dry-run` and the collector
-submits to central's ingest endpoint. Every `collector.yaml` key, with its
-default, is in [`collector-config.md`](collector-config.md).
+The `.local` configs use only paths that exist in a fresh clone (the shipped
+rule pack, the demo persona) and none of the `/etc/agentids/...` system paths,
+so they work with nothing installed. `-dry-run` validates the config **and the
+rule pack**, prints the inventory, and ships nothing; drop it and the collector
+submits to central's ingest endpoint. `-once` does a single pass instead of the
+poll loop. The operator templates with real system paths are
+`examples/central.yaml` and `examples/collector.yaml`; every `collector.yaml`
+key, with its default, is in [`collector-config.md`](collector-config.md).
 
 ## 4. The thing that makes it actually fire
 

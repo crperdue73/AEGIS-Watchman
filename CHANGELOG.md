@@ -145,6 +145,17 @@ opt-in design.
 
 ### Changed
 
+- **The "run it yourself" step now works on a fresh clone.** The example configs
+  the quickstart and README named (`examples/{central,collector}.yaml`) reference
+  `/etc/agentids/...` and `/var/lib/agentids/...`, so the documented commands
+  failed immediately on a host without those paths. Added
+  `examples/{central,collector}.local.yaml` — no system paths, no alerting, no
+  TLS, stores under `demo/out` — and the docs now point at them. `-dry-run` also
+  **validates the rule pack** (via `collector.CheckBehaviorRules`, the same load
+  + pin-enforcement path startup uses) rather than checking config alone, so the
+  most common first-run failure — a malformed, empty, or pin-mismatched pack —
+  surfaces before anything looks protected; its help text and the docs were
+  corrected to describe what it actually does.
 - **Shipped fixtures and examples are neutral, and committed in their pre-run
   state.** The demo's stand-in persona (`demo/agent-root/SOUL.md`) is committed
   *clean* — the attacker edit is applied by `run.sh` at run time and restored

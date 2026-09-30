@@ -2617,3 +2617,73 @@ green; `go vet` clean both; `make lint` green.
   host — a stranger's first thirty minutes), or (b) put the open P2.0 toolchain
   decision in front of Dad, since it is the only thing with real remaining value
   and it is his call. Decide from what a *new reader* would hit first.
+
+---
+
+## Heartbeat 64 — the "run it yourself" step actually runs
+
+Heartbeat 63 fixed the artifacts a reader *opens*; this one is the artifacts a
+reader *runs*. I walked `docs/quickstart.md` and the README's Getting-started
+section as a stranger would — literally copy-pasting the commands — and hit the
+wall immediately.
+
+**What was broken.** Both "run it locally" commands named the *operator*
+templates:
+
+```sh
+./bin/agentids-central   -config examples/central.yaml
+./bin/agentids-collector -config examples/collector.yaml -once -dry-run
+```
+
+`examples/collector.yaml` points at `/etc/agentids/rules` and
+`/var/log/audit/audit.log`; `examples/central.yaml` points at
+`/etc/agentids/passwd`, `/var/lib/agentids/…`, and a real SMTP host. Run
+verbatim on a fresh clone, the collector dies with
+`behavior.rules_dir "/etc/agentids/rules": no such file or directory`, and
+central dies with `uid map: open "/etc/agentids/passwd": no such file`. The one
+step meant to be effortless was the one guaranteed to fail.
+
+**Shipped — the getting-started path, made true:**
+- `examples/collector.local.yaml` and `examples/central.local.yaml` — no system
+  paths, no TLS, no alerting, no uid map, stores under `demo/out`, listener on
+  loopback. They point at the shipped rule pack and a directory that exists in
+  the repo, so they run with nothing installed. The quickstart and README now
+  use them (and say plainly that the operator templates are `examples/*.yaml`).
+- **`-dry-run` now validates the rule pack, not just the config.** It calls a new
+  `collector.CheckBehaviorRules`, which runs the *same* load + empty-dir-refusal
+  + pin-enforcement path startup uses (refactored into one `loadBehaviorPacks` so
+  the two can never disagree), then prints the inventory and exits. The old code
+  exited before the rules engine was ever constructed, so the docs' claim that
+  `-dry-run` "loads rules" was false; now it is true, and the flag help text says
+  so. This is the honest reading of "check it before you trust it": the most
+  common first-run failure (a malformed, empty, or pin-mismatched pack) surfaces
+  in one command, before anything looks protected.
+- Quickstart §1 also listed `make` as producing three binaries; it produces four
+  (`…-rules` too). Fixed.
+
+**Tests (the guard, not just the fix):** `CheckBehaviorRules` — shipped pack OK,
+unset is a no-op, empty dir errors, malformed pack errors, pin drift errors — and
+two guards that the *documented* configs stay runnable: the collector local
+example must load and its rules must check, and the central local example must
+load **and stay local** (no webhook, no SMTP host, no system paths) so a laptop
+config can never quietly become one that pages someone.
+
+**Design note.** The bug was a category error, not a typo: the docs handed a
+reader the file written for an *operator's* machine and called it the *try it*
+path. Two configs, one for each audience, is the fix — and the local pair is
+itself the honest statement that "works on a fresh host" is a promise the repo
+should be able to keep on its own.
+
+**Verification:** real binaries, from the repository root — `make build`;
+`./bin/agentids-collector -config examples/collector.local.yaml -once -dry-run`
+→ exits 0 with `-dry-run: rules ok — 20 rule(s) from 1 pack(s)` and the
+inventory; `./bin/agentids-central -config examples/central.local.yaml` starts
+and listens on `:8080`; the non-dry-run pair enrolls the demo agent end to end.
+`go test ./...` and `-tags sqlite` green; `go vet` clean both; `make lint` green.
+
+- **Next step (heartbeat 65):** the getting-started path is now real, so the last
+  reader-facing thing I have not checked is the *deploy* path (docs/deploy-collector.md
+  §2–§4: eBPF, Docker events, uid_map, the post-deploy checklist) — read it as an
+  operator and fix anything that cannot be followed. Otherwise: the open P2.0
+  toolchain decision is the only item with real remaining value and it needs Dad.
+  Decide from what a reader hits next.

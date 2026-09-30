@@ -200,13 +200,19 @@ listener rule. Full details and the per-rule breakdown:
 
 ### Run it locally
 
+From the repository root — the `.local` configs use only paths that exist in a
+fresh clone and no `/etc/agentids/...` system paths:
+
 ```sh
-./bin/agentids-central -config examples/central.yaml      # the service
-./bin/agentids-collector -config examples/collector.yaml -once -dry-run
+./bin/agentids-central   -config examples/central.local.yaml
+./bin/agentids-collector -config examples/collector.local.yaml -once -dry-run
 ```
 
-`-dry-run` parses config and loads rules without shipping; `-once` does a single
-pass instead of the poll loop. Every binary answers `-version` (and
+`-dry-run` validates the config **and the rule pack** (the fail-loud checks
+startup would run), prints the inventory, and ships nothing; `-once` does a
+single pass instead of the poll loop. The operator templates with real system
+paths, TLS, provenance, and alerting are `examples/central.yaml` and
+`examples/collector.yaml`. Every binary answers `-version` (and
 `agentids-manifest version`) with its version, git commit, and build date —
 stamped at link time by `make build`.
 

@@ -81,7 +81,12 @@ func (w *sourceWatch) observe() (string, bool) {
 //
 // A malformed pack IS an error: silently running with no rules would make the
 // host look protected when it is not.
-func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submitter ActionSubmitter) (*BehaviorEngine, error) {
+// loadBehaviorPacks loads and validates the configured rule pack set exactly as
+// the runtime engine does — the same strict parser, the same empty-dir refusal,
+// the same pin enforcement — and returns the packs. It is the one code path, so
+// `-dry-run` (via CheckBehaviorRules) and startup can never disagree about
+// whether a pack set is acceptable.
+func loadBehaviorPacks(cfg *Config) ([]*rules.Pack, error) {
 	if cfg.Behavior.RulesDir == "" {
 		return nil, nil
 	}
@@ -102,7 +107,6 @@ func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submi
 	if total == 0 {
 		return nil, fmt.Errorf("behavior.rules_dir %q contains no rules — Layer 3 would be enabled but detect nothing", cfg.Behavior.RulesDir)
 	}
-	log.Printf("collector: behavior: Layer 3 loaded %d rule(s) from %d pack(s)", total, len(packs))
 
 	// Pinning, enforced: when a pin file is configured, the loaded set must
 	// match it — and, when a public key is given, the pin itself must be
@@ -112,6 +116,42 @@ func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submi
 		if err := verifyBehaviorPins(cfg); err != nil {
 			return nil, err
 		}
+	}
+	return packs, nil
+}
+
+// CheckBehaviorRules validates the Layer 3 configuration without starting any
+// telemetry: it loads the pack set and enforces the pin exactly as startup
+// would, and returns the pack and rule counts. `-dry-run` calls it, so a
+// stranger can validate config AND rules on a host with no live auditd feed —
+// the documented promise of `-dry-run`, made true. A malformed pack, an empty
+// dir, or a pin mismatch is an error here, before anything looks protected.
+func CheckBehaviorRules(cfg *Config) (packs, ruleCount int, err error) {
+	ps, err := loadBehaviorPacks(cfg)
+	if err != nil {
+		return 0, 0, err
+	}
+	total := 0
+	for _, p := range ps {
+		total += len(p.Rules)
+	}
+	return len(ps), total, nil
+}
+
+func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submitter ActionSubmitter) (*BehaviorEngine, error) {
+	if cfg.Behavior.RulesDir == "" {
+		return nil, nil
+	}
+	packs, err := loadBehaviorPacks(cfg)
+	if err != nil {
+		return nil, err
+	}
+	total := 0
+	for _, p := range packs {
+		total += len(p.Rules)
+	}
+	log.Printf("collector: behavior: Layer 3 loaded %d rule(s) from %d pack(s)", total, len(packs))
+	if cfg.Behavior.Pins != "" {
 		log.Printf("collector: behavior: pack set matches pinned set %s", cfg.Behavior.Pins)
 	}
 
