@@ -5,8 +5,10 @@ copy-pasteable and needs **no root, no live auditd, and no Docker daemon**.
 Depth lives elsewhere, and this page links to it rather than repeating it.
 
 > This is the *fastest path*. The full product overview is the
-> [README](../README.md); the operator setup (auditd rules, central's TLS,
-> alerting) is in [`deploy-collector.md`](deploy-collector.md).
+> [README](../README.md); the operator setup is split in two —
+> [`deploy-central.md`](deploy-central.md) (the service, its stores, TLS,
+> alerting) and [`deploy-collector.md`](deploy-collector.md) (auditd rules,
+> eBPF, Docker events).
 
 ## 1. Build
 
@@ -86,8 +88,10 @@ silence is the most common first-run confusion. Per-rule breakdown:
 
 - **Write a rule** — format, predicates, correlation, the seed pack:
   [`rules.md`](rules.md).
-- **Operate it** — auditd prerequisite, eBPF source, Docker events, uid_map,
+- **Operate the collector** — auditd prerequisite, eBPF source, Docker events,
   post-deploy checklist: [`deploy-collector.md`](deploy-collector.md).
+- **Operate central** — the two stores, mutual TLS, Layer 2 provenance,
+  `uid_map`, alerting, retention/backends: [`deploy-central.md`](deploy-central.md).
 - **Read the fleet view** — `GET /` (human page) and `GET /api/v1/fleet`
   (JSON): [`fleet-view.md`](fleet-view.md).
 - **Understand the data flow** before adding a source or rule:

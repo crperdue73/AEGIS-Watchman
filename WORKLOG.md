@@ -2807,3 +2807,69 @@ change); Docker build + the five container checks above, all green.
   of its own (the collector has one); or (b) the open P2.0 toolchain decision,
   which needs Dad. Take (a): it is in scope, needs no kernel, and fills the last
   doc gap an operator would hit.
+
+---
+
+## Heartbeat 67 — central gets the operator guide it was missing
+
+Heartbeats 65–66 closed the *deployment* surface: systemd units, an install
+walkthrough, and a container image that was proven by running it. What that work
+made obvious was a doc asymmetry — the collector has had an operator guide
+(`docs/deploy-collector.md`) since R2.3, but **central**, the stateful half, had
+only the annotated `examples/central.yaml`. Every hard decision central forces on
+an operator — the two stores, TLS, provenance, alerting, retention — lived as
+comments in an example file, not as a page you can read as an operator.
+
+**Shipped:** `docs/deploy-central.md`. It walks the same ground as the collector
+guide but for the service:
+
+- **The two stores, and why they are separate.** `store` is the drift *baseline*
+  — lose it and the next ingest re-baselines, silently turning every existing
+  drift into a "first sight." `records` is the fleet view — append-only,
+  time-bounded, and safe to lose. Same directory, different failure semantics,
+  which is exactly why they are different files. Retention is bounded by **both**
+  a time window and a count (a severity storm cannot grow it; a quiet fleet
+  cannot keep stale detail forever).
+- **The mTLS trust boundary.** The ingest payload is a map of the fleet's soft
+  spots, so the hop is authenticated both ways. The fail-closed rules are spelled
+  out: setting any of `cert`/`key`/`ca` enables TLS and then all three are
+  required — a cert with no CA is *refused*, because encrypting to an
+  unauthenticated stranger is worse than plaintext as it looks safe. The startup
+  `WARNING plaintext ingest` line is called out as the tell.
+- **The load-time stances, which are deliberately not uniform.** Layer 2 and a
+  *configured but unreadable* `uid_map` **fail startup** ("we checked provenance"
+  and "we meant to" must not look the same in a log); an unknown
+  `record_backend` **falls back to `file` with a log line** (the view still
+  works, and the log says why). The page names the difference instead of leaving
+  it to be discovered.
+- **Alerting.** One batch per ingest cycle, class-named summaries, three composed
+  sinks, and delivery failures logged but never fatal — dropping an event to
+  protect a notification channel would invert the priority.
+- **Running as a service, and reading the startup log.** The six log lines
+  central prints actually *are* the resolved configuration (store, backend +
+  retention, Layer 2, uid resolution, alert target, TLS), so an operator can
+  confirm the config took without reading it back.
+
+**Cross-linked** from the README's Deploying section (now split into central and
+collector), the quickstart (header note + "where to go next"), and
+`deploy/README.md`. `check-links` now counts **91** relative links, up from 78 —
+every one resolves.
+
+**Verified, not assumed:** every quoted string checked against the source —
+`cmd/central/main.go` (the startup lines and TLS branch),
+`internal/central/config.go` (defaults, the validation rules, the backend
+fallback), `internal/central/http.go` (the endpoints, the 1 MiB cap, the method
+and `host.id` checks), and `internal/central/alert.go` (`Alert.Summary()`). The
+demo and the local configs were the reference for the run-it path. No code change
+in this step, so no behavior risk: `make lint` green (91 links), `go test ./...`
+green.
+
+- **Next step (heartbeat 68):** the deployment and operator guides are now
+  symmetric — quickstart → collector → central → systemd/container, each walked
+  as its reader. Remaining honest options: (a) the container section of
+  `deploy/README.md` and `docs/deploy-central.md` §8 could name the exact
+  `docker run` flags for a *central-with-TLS* container (mounts + port), closing
+  the last gap between the systemd path and the container path; or (b) the open
+  P2.0 toolchain decision, which needs Dad. Take (a) only if it is real work —
+  otherwise consolidate: re-read `quickstart.md` end to end as a first-time
+  reader and fix whatever actually bites.

@@ -51,6 +51,11 @@ The collector hashes the agent workspaces it is configured to watch, so the
 `ProtectHome=read-only` for the collector for exactly this reason, and
 `ProtectHome=yes` for central (it never needs the workspaces).
 
+For the service-side decisions behind this install — the two stores, the
+mutual-TLS trust boundary, Layer 2 provenance, `uid_map`, and alerting — see
+[`../docs/deploy-central.md`](../docs/deploy-central.md). For the collector's
+telemetry sources, [`../docs/deploy-collector.md`](../docs/deploy-collector.md).
+
 ## What the hardening assumes
 
 The units are written for the common case and are meant to be read, not copied

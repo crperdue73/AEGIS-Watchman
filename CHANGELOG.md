@@ -153,6 +153,18 @@ opt-in design.
 
 ### Changed
 
+- **Central has an operator guide now.** The collector has had
+  `docs/deploy-collector.md` since R2.3, but the stateful half — the service with
+  the baseline store, the record store, mutual TLS, Layer 2 provenance,
+  `uid_map`, alerting, and retention/backend bounds — had only the annotated
+  `examples/central.yaml`. Added `docs/deploy-central.md`: the two stores and why
+  losing the baseline is not like losing the record store, the mTLS trust
+  boundary and its fail-closed validation (a cert with no CA is refused, not
+  silently downgraded), the load-time stances (Layer 2 and a misconfigured
+  `uid_map` fail startup; an unknown record backend falls back with a log line),
+  alert batching with non-fatal delivery, and the two retention limits. Linked
+  from the README, the quickstart, and `deploy/README.md`. Docs-only — no code
+  change.
 - **The container image actually works now.** `deploy/docker/Dockerfile` was
   stale ("Phase 1 work in progress"): it shipped only the collector and central,
   carried no rule pack, and — because a Go build in a host with a C compiler

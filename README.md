@@ -147,7 +147,9 @@ Built so far:
   and concurrent readers; Postgres is scoped. See
   [`docs/P2.1C-RECORD-STORE-BACKENDS.md`](docs/P2.1C-RECORD-STORE-BACKENDS.md).
   Operator guide (endpoint, filters, the HTML page, config):
-  [`docs/fleet-view.md`](docs/fleet-view.md).
+  [`docs/fleet-view.md`](docs/fleet-view.md). To stand central up — the two
+  stores, TLS, provenance, alerting, retention — see
+  [`docs/deploy-central.md`](docs/deploy-central.md).
 
 ## Getting started
 
@@ -273,13 +275,23 @@ The public contract, versioned from day one. See
 
 ## Deploying
 
-[`docs/deploy-collector.md`](docs/deploy-collector.md) covers the Layer 3
-operator setup: the auditd rules per action type, the optional eBPF
-`file.access` source (kernel requirements + how it degrades), the Docker events
-source (the CARBONATO entry vector — a container appearing with host access),
-the central `uid_map`, and a post-deploy checklist. Through-line: everything
-degrades, nothing there is a hard dependency. Every `collector.yaml` key, with
-its default, is in [`docs/collector-config.md`](docs/collector-config.md).
+Agentids has two deployable halves, and each has its own operator guide.
+
+**Central** — the service the whole fleet talks to — is
+[`docs/deploy-central.md`](docs/deploy-central.md): the two stores (baseline vs.
+record) and why they are separate, the mutual-TLS trust boundary and its
+fail-closed validation, Layer 2 provenance, the `uid_map`, alerting sinks and
+non-fatal delivery, and the retention/backend bounds.
+
+**The collector** — one per host — is
+[`docs/deploy-collector.md`](docs/deploy-collector.md): the auditd rules per
+action type, the optional eBPF `file.access` source (kernel requirements + how
+it degrades), the Docker events source (the CARBONATO entry vector — a
+container appearing with host access), and a post-deploy checklist.
+Through-line for both: everything degrades, nothing there is a hard dependency.
+Every `collector.yaml` key, with its default, is in
+[`docs/collector-config.md`](docs/collector-config.md); every `central.yaml` key
+is commented in [`examples/central.yaml`](examples/central.yaml).
 
 ## Layout
 
