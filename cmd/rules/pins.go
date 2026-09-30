@@ -80,30 +80,5 @@ func short(sha string) string {
 	return sha
 }
 
-// splitPinsFlag extracts an optional --pins <file> / --pins=<file> from args,
-// returning the pin file (empty when absent) and the remaining positional
-// paths. It errors on a --pins with no value, rather than silently treating the
-// next path as a pin file.
-func splitPinsFlag(args []string) (string, []string, error) {
-	var pins string
-	rest := make([]string, 0, len(args))
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		switch {
-		case a == "--pins":
-			if i+1 >= len(args) {
-				return "", nil, fmt.Errorf("--pins needs a file argument")
-			}
-			pins = args[i+1]
-			i++
-		case strings.HasPrefix(a, "--pins="):
-			pins = strings.TrimPrefix(a, "--pins=")
-			if pins == "" {
-				return "", nil, fmt.Errorf("--pins needs a file argument")
-			}
-		default:
-			rest = append(rest, a)
-		}
-	}
-	return pins, rest, nil
-}
+// splitPinsFlag was folded into parseVerifyArgs (see signpins.go), which also
+// understands --pubkey/--sig. Removed to keep one parser for `verify`.

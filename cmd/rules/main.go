@@ -32,6 +32,8 @@ func main() {
 		list(os.Args[2:])
 	case "pin":
 		runPin(os.Args[2:])
+	case "sign-pins":
+		runSignPins(os.Args[2:])
 	case "version", "-version", "--version":
 		fmt.Println(buildinfo.String("agentids-rules"))
 	case "-h", "--help", "help":
@@ -47,9 +49,10 @@ func usage() {
 	fmt.Fprint(os.Stderr, `agentids-rules — Layer 3 rule tooling
 
 commands:
-  verify [--pins <file>] [path...]  parse, validate, and (optionally) check a pack set
+  verify [--pins <file> [--pubkey <key>]] [path...]  parse, validate, and check a pack set
   list   [path...]                  list the rules a pack set defines, sorted by id
   pin    [path...]                  write a pin file for a pack set (to stdout)
+  sign-pins --key <key> <pins>      detach-sign a pin file (<pins>.sig)
   version                           print version and build info
 
 A path may be a pack file (*.yaml/*.yml) or a directory of packs. Rule ids must
@@ -57,33 +60,43 @@ be unique across everything given, not just within one pack.
 
 A pin file is a byte-exact record of an approved pack set (name@version and
 sha256 per pack). Regenerate one with 'pin'; check a set against one with
-'verify --pins'. The pin describes the same files a collector would load.
+'verify --pins'; sign one with 'sign-pins' and check that signature with
+'verify --pins ... --pubkey ...'. The pin describes the same files a collector
+would load.
 `)
 }
 
 func verify(args []string) {
 	if isHelp(args) {
-		fmt.Fprintln(os.Stderr, "usage: agentids-rules verify [--pins <file>] [pack-file-or-dir ...]")
+		fmt.Fprintln(os.Stderr, "usage: agentids-rules verify [--pins <file> [--pubkey <key>]] [pack-file-or-dir ...]")
 		return
 	}
-	pinsFile, paths, err := splitPinsFlag(args)
+	o, err := parseVerifyArgs(args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "agentids-rules: %v\n", err)
 		os.Exit(2)
 	}
-	packs, err := loadSet(paths)
+	packs, err := loadSet(o.Paths)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "agentids-rules: %v\n", err)
 		os.Exit(1)
 	}
 	summarize(os.Stdout, packs)
 
-	if pinsFile != "" {
-		resolved := paths
+	if o.Pins != "" {
+		resolved := o.Paths
 		if len(resolved) == 0 {
 			resolved = []string{defaultPackPath}
 		}
-		if err := checkPins(os.Stdout, pinsFile, resolved); err != nil {
+		// A signature is checked first: comparing a set against a pin whose
+		// provenance is unproven would be checking against the wrong document.
+		if o.Pub != "" {
+			if err := checkPinSignature(os.Stdout, o.Pins, o.Pub, o.Sig); err != nil {
+				fmt.Fprintf(os.Stderr, "agentids-rules: %v\n", err)
+				os.Exit(1)
+			}
+		}
+		if err := checkPins(os.Stdout, o.Pins, resolved); err != nil {
 			fmt.Fprintf(os.Stderr, "agentids-rules: %v\n", err)
 			os.Exit(1)
 		}

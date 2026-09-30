@@ -221,32 +221,6 @@ func trimSpace(s string) string {
 	return s[start:end]
 }
 
-func loadKey(path string) (ed25519.PrivateKey, error) {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read key: %w", err)
-	}
-	b, err := base64.StdEncoding.DecodeString(trimSpace(string(raw)))
-	if err != nil {
-		return nil, fmt.Errorf("decode key: %w", err)
-	}
-	if len(b) != ed25519.PrivateKeySize {
-		return nil, fmt.Errorf("bad private key size %d", len(b))
-	}
-	return ed25519.PrivateKey(b), nil
-}
+func loadKey(path string) (ed25519.PrivateKey, error) { return provenance.LoadPrivateKey(path) }
 
-func loadPub(path string) (ed25519.PublicKey, error) {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read public key: %w", err)
-	}
-	b, err := base64.StdEncoding.DecodeString(trimSpace(string(raw)))
-	if err != nil {
-		return nil, fmt.Errorf("decode public key: %w", err)
-	}
-	if len(b) != ed25519.PublicKeySize {
-		return nil, fmt.Errorf("bad public key size %d", len(b))
-	}
-	return ed25519.PublicKey(b), nil
-}
+func loadPub(path string) (ed25519.PublicKey, error) { return provenance.LoadPublicKey(path) }

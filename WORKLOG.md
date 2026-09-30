@@ -2302,3 +2302,56 @@ Committed.
   so a fleet can trust a *third-party* pack set, not just its own. Then: whether
   the collector should refuse to start when its `rules_dir` disagrees with a
   configured pin (the enforcement half of "pin the fleet's packs").
+
+---
+
+## Heartbeat 59 — pin signed: a third-party pack set can be trusted
+
+Last heartbeat the pin was a lockfile, and I wrote that limit down on purpose:
+anyone can edit a pin file, so it catches drift, not a forger. This closes that
+gap — the "signed" half of the BRIEF's "versioned, signed" — by reusing the exact
+Ed25519 machinery Layer 2 already uses for agent manifests, applied to the pin
+file's bytes.
+
+**Shipped:**
+- `internal/provenance/keys.go` — `LoadPrivateKey`/`LoadPublicKey` (the
+  `agentids-manifest keygen` base64 format), `SignDetached`, and
+  `VerifyDetached` over arbitrary bytes. `LoadPublicKey` accepts **either** the
+  `.pub` file or the private key (deriving the public half), because operators
+  keep one file more often than two — the common slip was "I passed ops.key" and
+  got "bad public key size".
+- `agentids-rules sign-pins --key <priv> [--out <sig>] <pins>` — writes a
+  **detached** `<pins>.sig` (base64 Ed25519 over the pin's exact bytes). Detached
+  on purpose: signing must not change the artifact it signs.
+- `agentids-rules verify --pins <f> --pubkey <key> [--sig <s>] [paths...]` —
+  checks the signature **first**, then the drift. Comparing a set against a pin
+  whose provenance is unproven would be checking against the wrong document.
+- `parseVerifyArgs` replaces `splitPinsFlag`: one parser for `verify`, so
+  `--pins`/`--pubkey`/`--sig` with a missing value is an arg error, and
+  `--pubkey` without `--pins` (or `--sig` without `--pubkey`) is rejected.
+- Refactor: `cmd/manifest`'s private key loaders now delegate to the shared
+  `provenance` ones (deletes the duplicate; picks up the private-key→public
+  convenience for free).
+- Tests: `internal/provenance/keys_test.go` (round-trip, tamper, wrong key,
+  public-from-private, bad input) and `cmd/rules/pins_test.go`
+  (`parseVerifyArgs` table + `checkPinSignature` ok/tamper/wrong-key/missing).
+- Docs: `docs/rules.md` gains "Signing a pin" (detached, first-check ordering,
+  the one-file convenience); CHANGELOG; `rules/README.md`.
+
+**Design note:** no key or `.sig` is committed for the shipped pack. Pinning is
+enough for a set you build yourself, and committing a signing *key* to a public
+repo would be the opposite of the point; signing earns its keep when you trust
+someone else's pack set. The repo demonstrates the workflow in tests instead.
+
+**Verification:** real binaries: `keygen` → `pin` → `sign-pins` →
+`verify --pins --pubkey` → `signature: ok … / pins: ok`, exit 0; appending one
+line to the pin file → exit 1, `provenance: signature does not verify` before any
+drift check. `go test ./...` and `-tags sqlite` green; `go vet` clean both;
+`make lint` green; `make pin` a no-op diff; `demo/run.sh` exit 0. Committed.
+
+- **Next step (heartbeat 60):** the *enforcement* half of "pin the fleet's
+  packs": let a collector refuse to start Layer 3 when its `rules_dir` disagrees
+  with a configured pin (config key like `behavior.pins` + optional pubkey), so
+  the pin stops being a CI-only artifact and becomes a runtime guarantee. Then
+  the leftover open fronts: P2.0 (eBPF toolchain — still Dad's call) and
+  P2.1c-4 (Postgres, on demand).

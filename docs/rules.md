@@ -259,8 +259,29 @@ set differs. It is **byte-exact on purpose**, the way Layer 2 hashes an agent
 file: the pin names the artifact, so a reformat that changes the bytes is a
 deliberate re-approval, not a silent pass.
 
-It is a lockfile, **not a signature**. Anyone can write or edit one; it says
-"this is the set we agreed on," and it detects accidental or uncoordinated
-drift, not a determined forger. Signing the pin file with an Ed25519 key — the
-mechanism Layer 2 already uses for agent manifests — is the next layer and is
-not built yet.
+### Signing a pin
+
+A pin on its own is a lockfile: anyone can write or edit one, so it detects
+accidental or uncoordinated drift, not a determined forger. To trust a pack set
+you did not build yourself — a community pack — sign the pin. Signing reuses the
+Ed25519 keys Layer 2 already uses for agent manifests, and is a **detached**
+signature over the pin file's exact bytes (kept out of the file, so signing never
+changes the thing being signed):
+
+```sh
+# once: a signing key (the agentids-manifest keygen format)
+agentids-manifest keygen -out ops.key
+
+# sign the pin; writes packs.pins.sig next to it
+agentids-rules sign-pins --key ops.key rules/packs.pins
+
+# verify the signature AND the set against the pin
+agentids-rules verify --pins rules/packs.pins --pubkey ops.key.pub rules/
+```
+
+`verify --pubkey` checks the signature **first** — comparing a set against a pin
+whose provenance is unproven would be checking against the wrong document — and
+then the drift. A tampered pin, a signature from another key, or a missing
+`.sig` all fail non-zero. `--pubkey` accepts either the public key file or the
+private key (the public half is derived), since operators often keep one file.
+The signature path defaults to `<pins>.sig`; override with `--sig`.

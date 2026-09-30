@@ -100,8 +100,14 @@ opt-in design.
   line per pack with its `name@version` and sha256. `verify --pins` fails
   non-zero on any drift (a **changed**, **missing**, or **unpinned** pack) and
   names each one; `make pin` regenerates it; CI rejects a pack edited without
-  re-pinning. The pin describes the same files a collector would load, and is a
-  lockfile, not a signature (signing is a later layer).
+  re-pinning. The pin describes the same files a collector would load.
+- **Signed pins** (`agentids-rules sign-pins`, `verify --pins --pubkey`): a pin
+  can carry a detached Ed25519 signature over its exact bytes, reusing the same
+  key format as Layer 2's agent manifests (`internal/provenance`). `verify
+  --pubkey` checks the signature before the drift, so a fleet can trust a
+  third-party pack set, not only one it built. A tampered pin, a wrong key, or a
+  missing signature all fail non-zero; the public key may be given as either the
+  `.pub` file or the private key (the public half is derived).
 - Build provenance: every binary answers `-version` with the product version, git
   commit, and build date, stamped at link time by `make build` (and `make
   version` prints the stamp). Distinct from the event wire format version.
