@@ -27,6 +27,16 @@ type Config struct {
 type Behavior struct {
 	// RulesDir is a directory of *.yaml rule packs, loaded sorted by name.
 	RulesDir string `yaml:"rules_dir"`
+	// Pins is an optional path to a rule-pack pin file (see docs/rules.md). When
+	// set, the collector checks rules_dir against it at startup and refuses to
+	// start Layer 3 on any drift — a changed, missing, or unpinned pack — so "the
+	// fleet runs the packs we approved" is a runtime guarantee, not only a CI
+	// check. Requires rules_dir.
+	Pins string `yaml:"pins"`
+	// PinPubKey is an optional Ed25519 public key file. When set with pins, the
+	// pin file's detached signature (<pins>.sig) must verify before the pin is
+	// trusted — so a pin fetched from elsewhere is authenticated, not merely read.
+	PinPubKey string `yaml:"pin_pubkey"`
 	// AuditLog is the auditd log to tail for process.exec actions, e.g.
 	// /var/log/audit/audit.log. Empty -> no telemetry source (rules loaded but
 	// idle, useful for validating a pack without a live feed). If set, the path
@@ -153,6 +163,24 @@ func (c *Config) validate() error {
 	}
 	if err := c.Behavior.Docker.Validate(); err != nil {
 		return fmt.Errorf("config: behavior.%w", err)
+	}
+	// Pinning is checked at load for existence (and coherence), and enforced at
+	// startup by the behavior engine, which can compute pack digests.
+	if c.Behavior.Pins != "" {
+		if c.Behavior.RulesDir == "" {
+			return fmt.Errorf("config: behavior.pins requires behavior.rules_dir (nothing to pin)")
+		}
+		if _, err := os.Stat(c.Behavior.Pins); err != nil {
+			return fmt.Errorf("config: behavior.pins %q: %w", c.Behavior.Pins, err)
+		}
+	}
+	if c.Behavior.PinPubKey != "" {
+		if c.Behavior.Pins == "" {
+			return fmt.Errorf("config: behavior.pin_pubkey requires behavior.pins")
+		}
+		if _, err := os.Stat(c.Behavior.PinPubKey); err != nil {
+			return fmt.Errorf("config: behavior.pin_pubkey %q: %w", c.Behavior.PinPubKey, err)
+		}
 	}
 	return nil
 }

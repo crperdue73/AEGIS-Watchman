@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/CRPerdue/agentids/internal/provenance"
 	"github.com/CRPerdue/agentids/internal/rules"
 	"github.com/CRPerdue/agentids/internal/schema"
 	"github.com/CRPerdue/agentids/internal/telemetry"
@@ -101,6 +103,18 @@ func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submi
 		return nil, fmt.Errorf("behavior.rules_dir %q contains no rules — Layer 3 would be enabled but detect nothing", cfg.Behavior.RulesDir)
 	}
 	log.Printf("collector: behavior: Layer 3 loaded %d rule(s) from %d pack(s)", total, len(packs))
+
+	// Pinning, enforced: when a pin file is configured, the loaded set must
+	// match it — and, when a public key is given, the pin itself must be
+	// signed — or the collector refuses to start Layer 3. "We run the packs we
+	// approved" stops being a CI-only claim and becomes true on the host.
+	if cfg.Behavior.Pins != "" {
+		if err := verifyBehaviorPins(cfg); err != nil {
+			return nil, err
+		}
+		log.Printf("collector: behavior: pack set matches pinned set %s", cfg.Behavior.Pins)
+	}
+
 	eng := rules.NewEngine(packs...)
 	tl := rules.NewTimeline()
 	// Compose telemetry sources through a MultiSource so a second backend (the
@@ -193,6 +207,54 @@ func cursorPath(cfg *Config) string {
 		return cfg.Behavior.Spool + ".cursor"
 	}
 	return ""
+}
+
+// verifyBehaviorPins enforces a configured pin file against the collector's rule
+// set: it optionally verifies the pin's detached Ed25519 signature, then checks
+// every pack in rules_dir against the pin. Any drift — a changed, missing, or
+// unpinned pack — is returned as an error, so the caller refuses to start rather
+// than run a pack set nobody approved.
+func verifyBehaviorPins(cfg *Config) error {
+	pinBytes, err := os.ReadFile(cfg.Behavior.Pins)
+	if err != nil {
+		return fmt.Errorf("read pins %q: %w", cfg.Behavior.Pins, err)
+	}
+	pinned, err := rules.ParsePins(pinBytes)
+	if err != nil {
+		return err
+	}
+	if cfg.Behavior.PinPubKey != "" {
+		pub, err := provenance.LoadPublicKey(cfg.Behavior.PinPubKey)
+		if err != nil {
+			return err
+		}
+		sigPath := cfg.Behavior.Pins + ".sig"
+		sigRaw, err := os.ReadFile(sigPath)
+		if err != nil {
+			return fmt.Errorf("read pin signature %s: %w", sigPath, err)
+		}
+		if err := provenance.VerifyDetached(pub, pinBytes, string(sigRaw)); err != nil {
+			return fmt.Errorf("pin signature: %w", err)
+		}
+	}
+	actual, err := rules.PinSet([]string{cfg.Behavior.RulesDir})
+	if err != nil {
+		return err
+	}
+	if issues := rules.DiffPins(pinned, actual); len(issues) > 0 {
+		return fmt.Errorf("rules_dir %q does not match pins %q: %s", cfg.Behavior.RulesDir, cfg.Behavior.Pins, summarizePinIssues(issues))
+	}
+	return nil
+}
+
+// summarizePinIssues renders pin drift as "changed a.yaml, missing b.yaml,
+// unpinned c.yaml" so one startup error names every pack that is off.
+func summarizePinIssues(issues []rules.PinIssue) string {
+	parts := make([]string, 0, len(issues))
+	for _, is := range issues {
+		parts = append(parts, is.Kind+" "+is.File)
+	}
+	return strings.Join(parts, ", ")
 }
 
 // ObserveDrift feeds Layer 1/2 file events into the timeline so correlation

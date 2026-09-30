@@ -2355,3 +2355,58 @@ drift check. `go test ./...` and `-tags sqlite` green; `go vet` clean both;
   the pin stops being a CI-only artifact and becomes a runtime guarantee. Then
   the leftover open fronts: P2.0 (eBPF toolchain — still Dad's call) and
   P2.1c-4 (Postgres, on demand).
+
+---
+
+## Heartbeat 60 — the pin is now enforced at runtime, not just in CI
+
+Heartbeats 58–59 built the pin and its signature as *tooling*: something a
+operator or CI runs. But the collector would load any pack in `rules_dir` and
+never look at a pin — so "we run the packs we approved" was a claim about a CI
+job, not a property of the host. This closes that: the collector can require a
+pin and refuse to run without one.
+
+**Shipped:**
+- `internal/collector/config.go` — `behavior.pins` (path to a pin file) and
+  `behavior.pin_pubkey` (an Ed25519 public key). `validate()` checks coherence
+  and existence: `pins` requires `rules_dir` (nothing to pin otherwise), the pin
+  file must exist, and `pin_pubkey` requires `pins` and must exist.
+- `internal/collector/behavior.go` — `verifyBehaviorPins` runs at startup when
+  `pins` is set: it (a) reads and parses the pin, (b) when `pin_pubkey` is set,
+  verifies the pin's detached `<pins>.sig` **before** trusting it, and (c)
+  compares `rules_dir` against the pin via `rules.PinSet`/`DiffPins`. Any drift
+  — a changed, missing, or **unpinned** pack — refuses to start Layer 3, and the
+  error names each off pack (`changed carbonato.yaml, unpinned extra.yaml`).
+  Success logs `pack set matches pinned set <file>`.
+- Tests: `internal/collector/pins_test.go` (matching set starts; drifted pack,
+  unpinned pack, and tampered signed pin each refuse) and
+  `TestConfigPinsValidation` (pins without rules_dir, missing pin file,
+  pin_pubkey without pins).
+- Docs: `docs/collector-config.md` (keys + validation list), `examples/
+  collector.yaml` (a commented pins block), `docs/rules.md` ("Enforced on the
+  host"), CHANGELOG.
+
+**Design note — same reflex as the other startup guards.** This is the third
+time the same principle has shipped: an empty rules dir, a missing audit log, now
+an unapproved pack set. In each case the failure mode is identical — a collector
+that *looks* protected and detects nothing — and the answer is the same: refuse
+to start and say why. The pin check also orders correctly: signature before
+drift, because comparing a set against a pin whose provenance is unproven is
+checking against the wrong document. Pins stay optional (`pins` unset → no
+enforcement) — this is a guarantee you opt into, not a new default that breaks
+existing deployments.
+
+**Verification:** real binary: collector config with a matching pin logs
+`pack set matches pinned set …` and starts; one appended line to the pinned pack
+→ exit 1, `agentids-collector: behavior: rules_dir "…" does not match pins "…":
+changed carbonato.yaml`. `go test ./...` and `-tags sqlite` green; `go vet` clean
+both; `make lint` green; `demo/run.sh` exit 0. Committed.
+
+- **Next step (heartbeat 61):** the pin story is closed end to end (write → sign
+  → enforce). Remaining open fronts from the plan: **P2.0** (eBPF `file.access`
+  kernel half — still blocked on the toolchain call to Dad, `PHASE1-PLAN.md`
+  §open decision) and **P2.1c-4** (Postgres record backend, on demand). Neither
+  is unblocked, so next heartbeat: re-read `PHASE0-COVERAGE.md` and pick the
+  highest-value gap that *is* reachable — candidates: the `file.write`
+  persistence gap (G3's writable half), or surfacing pin/provenance status in the
+  fleet view. Decide from the coverage matrix, not momentum.

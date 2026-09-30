@@ -83,6 +83,8 @@ Omit the block, or leave `rules_dir` empty, to run Layers 1/2 only.
 | `spool` | — | File where matches are queued **before** shipping, so a central outage costs latency, not evidence. Empty → best-effort ship, dropped on failure. |
 | `spool_max_bytes` | `16777216` (16 MiB) | Bound on the spool; oldest entries are dropped past it. `0` → the default. |
 | `cursor` | — | Persisted audit-log read offset, so a restart resumes instead of replaying the log. Empty → derived as `<spool>.cursor` when a spool is set, else not persisted. |
+| `pins` | — | Path to a rule-pack **pin file** (see [rules.md § Publishing and pinning](rules.md#publishing-and-pinning-a-pack-set)). When set, the collector checks `rules_dir` against it at startup and **refuses to start Layer 3 on any drift** — a changed, missing, or unpinned pack. Requires `rules_dir`. |
+| `pin_pubkey` | — | Ed25519 public key file. With `pins`, the pin's detached signature (`<pins>.sig`) must verify **before** the pin is trusted, so a pin fetched from elsewhere is authenticated, not merely read. Requires `pins`. |
 
 ### `behavior.ebpf`
 
@@ -134,7 +136,8 @@ stream and infers novelty from the actions already emitted, marking its output
 `LoadConfig` fails fast rather than run misconfigured. It rejects: no
 `agent_roots`; an `agent_roots` entry with an empty `path`; an `hash` other than
 `sha256`; a `rules_dir` that does not exist or holds no rules; a `behavior.audit_log`
-that is set but does not exist; a `tls` block that does not validate;
+that is set but does not exist; a `behavior.pins` without a `rules_dir` or whose
+file does not exist; a `behavior.pin_pubkey` without `pins`; a `tls` block that does not validate;
 and a `behavior.ebpf` / `behavior.docker` block with contradictions (checked even
 when the adapter is disabled, so a typo is caught at startup, not at first poll).
 

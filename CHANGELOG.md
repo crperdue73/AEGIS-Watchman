@@ -108,6 +108,13 @@ opt-in design.
   third-party pack set, not only one it built. A tampered pin, a wrong key, or a
   missing signature all fail non-zero; the public key may be given as either the
   `.pub` file or the private key (the public half is derived).
+- **Collector pin enforcement** (`behavior.pins` / `behavior.pin_pubkey`): a
+  collector can require a pin, so "we run the packs we approved" becomes a
+  runtime guarantee rather than a CI-only claim. When `pins` is set it compares
+  `rules_dir` against the pin at startup and **refuses to start Layer 3** on any
+  drift, naming each off pack; `pin_pubkey` additionally requires the pin's
+  detached signature to verify first. Requires `rules_dir`, and the failure mode
+  matches the empty-rules-dir / missing-audit-log guards.
 - Build provenance: every binary answers `-version` with the product version, git
   commit, and build date, stamped at link time by `make build` (and `make
   version` prints the stamp). Distinct from the event wire format version.

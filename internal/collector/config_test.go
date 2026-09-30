@@ -269,3 +269,52 @@ func TestConfigRejectsBadEBPF(t *testing.T) {
 		t.Error("empty ebpf watch path should fail validation")
 	}
 }
+
+func writeConfig(t *testing.T, body string) *Config {
+	t.Helper()
+	cfg, err := tryLoad(t, body)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	return cfg
+}
+
+// tryLoad writes body to a temp config and returns LoadConfig's result.
+func tryLoad(t *testing.T, body string) (*Config, error) {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "c.yaml")
+	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return LoadConfig(p)
+}
+
+// behavior.pins must be coherent: needs rules_dir, and the file must exist.
+func TestConfigPinsValidation(t *testing.T) {
+	dir := t.TempDir()
+	rulesDir := filepath.Join(dir, "rules")
+	if err := os.MkdirAll(rulesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pins := filepath.Join(dir, "packs.pins")
+	if err := os.WriteFile(pins, []byte("# empty\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	refuse := map[string]string{
+		"pins without rules_dir":  "agent_roots:\n  - path: /x\nbehavior:\n  pins: " + pins + "\n",
+		"missing pins file":       "agent_roots:\n  - path: /x\nbehavior:\n  rules_dir: " + rulesDir + "\n  pins: " + filepath.Join(dir, "nope.pins") + "\n",
+		"pin_pubkey without pins": "agent_roots:\n  - path: /x\nbehavior:\n  rules_dir: " + rulesDir + "\n  pin_pubkey: k.pub\n",
+	}
+	for name, body := range refuse {
+		if _, err := tryLoad(t, body); err == nil {
+			t.Errorf("%s: expected a validation error", name)
+		}
+	}
+
+	// A coherent block: accepted.
+	cfg := writeConfig(t, "agent_roots:\n  - path: /x\nbehavior:\n  rules_dir: "+rulesDir+"\n  pins: "+pins+"\n")
+	if cfg.Behavior.Pins != pins {
+		t.Errorf("pins = %q, want %q", cfg.Behavior.Pins, pins)
+	}
+}

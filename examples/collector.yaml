@@ -44,6 +44,12 @@ attribution:
 behavior:
   rules_dir: /etc/agentids/rules   # *.yaml rule packs, loaded sorted by name
   audit_log: /var/log/audit/audit.log   # execve + connect source; must exist if set; empty = rules idle
+  # Pin the pack set: the collector then refuses to start Layer 3 if rules_dir
+  # does not match the pin (a changed, missing, or unpinned pack). Add
+  # pin_pubkey to also require the pin's detached Ed25519 signature. See
+  # docs/rules.md. Generate with `agentids-rules pin` + `sign-pins`.
+  # pins: /etc/agentids/packs.pins
+  # pin_pubkey: /etc/agentids/ops.key.pub
   # Durable spool: rule matches are queued here BEFORE shipping, so a central
   # outage costs latency, not evidence. Recommended on any host you care about.
   spool: /var/lib/agentids/spool.jsonl

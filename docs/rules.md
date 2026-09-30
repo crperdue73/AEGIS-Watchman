@@ -285,3 +285,13 @@ then the drift. A tampered pin, a signature from another key, or a missing
 `.sig` all fail non-zero. `--pubkey` accepts either the public key file or the
 private key (the public half is derived), since operators often keep one file.
 The signature path defaults to `<pins>.sig`; override with `--sig`.
+
+### Enforced on the host
+
+A pin is not only a CI artifact. A collector can be told to require one: set
+`behavior.pins` (and, to authenticate the pin, `behavior.pin_pubkey`) in the
+collector config, and it **refuses to start Layer 3** when `rules_dir` disagrees
+with the pin — the same "look protected, detect nothing" reasoning as an empty
+rules dir or a missing audit log. The signature is checked before the drift, so a
+tampered pin is rejected as tampered, not merely as mismatched. See
+[`collector-config.md`](collector-config.md) for the keys.
