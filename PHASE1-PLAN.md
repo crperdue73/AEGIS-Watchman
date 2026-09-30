@@ -88,7 +88,11 @@ These close the remaining *cheap* gaps and make the repo honest enough to publis
 - **Status:** the kernel-free pieces ship (`MultiSource`, build-tagged stub,
   graceful fallback). The CO-RE object + loader do **not**.
 - **Blocker:** a host with `clang` + `libbpf-dev` headers. This box has a modern
-  kernel (6.12) and BTF but neither compiler nor headers.
+  kernel (6.12), BTF, CAP_BPF/CAP_PERFMON (running as root) and a mounted bpffs,
+  so **LOAD** is ready — but neither the compiler nor the headers, so **BUILD**
+  is not. Checked by `scripts/ebpf-preflight.sh` (`make ebpf-preflight`), which
+  prints a BUILD/LOAD verdict and nothing else; the same command on a candidate
+  build host confirms the toolchain before anyone installs it.
 - **Acceptance:** builds with `-tags ebpf` on a capable host; loads on a modern
   kernel; emits `file.access` for secret-path opens; degrades to a single log
   line and auditd-only on a host that cannot load it; a test proves both paths.
@@ -149,6 +153,9 @@ One item needs a call, not a code change:
   unblock the kernel-dependent eBPF half, or leave it for a purpose-built test
   host? It is the only remaining strategic gap and it is gated entirely on that
   tooling. (Asking first — installing system packages is not mine to decide.)
+  The ask now comes with a command: `scripts/ebpf-preflight.sh` reports this
+  host as **LOAD ready / BUILD not** (needs clang + libbpf headers). Either
+  answer unblocks R2.2; the only difference is *where* the object is compiled.
 
 ## Log
 

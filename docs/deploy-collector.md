@@ -111,6 +111,23 @@ argv said. That closes the evasion on the rule this threat class turns on.
 | a binary built with `-tags ebpf` | the object + loader are compiled in | `go build -tags ebpf ./cmd/collector` |
 | `clang` + libbpf headers | only to *build* the object | build host only, not the fleet |
 
+You do not have to check those by hand. `scripts/ebpf-preflight.sh` (or
+`make ebpf-preflight`) reads them all and prints a BUILD / LOAD verdict, and it
+changes nothing on the host:
+
+```
+$ scripts/ebpf-preflight.sh
+...
+  -> BUILD possible          NO
+  -> LOAD possible           YES
+verdict: LOAD ready; BUILD needs clang + libbpf headers
+```
+
+Use `--require-build` or `--require-load` in a script or CI step to fail when a
+capability you depend on is absent (exit 1) instead of parsing the output. The
+same command on the build host is how you confirm a `-tags ebpf` build has what
+it needs.
+
 **It is additive.** eBPF rides alongside auditd; it never replaces it. A host
 that cannot load it runs auditd-only and logs one line saying so.
 

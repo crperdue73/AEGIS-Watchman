@@ -15,7 +15,7 @@ DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)
 PKG     := github.com/CRPerdue/agentids/internal/buildinfo
 LDFLAGS := -X $(PKG).Version=$(VERSION) -X $(PKG).Commit=$(COMMIT) -X $(PKG).Date=$(DATE)
 
-.PHONY: all build build-collector build-central build-manifest build-rules test lint check-links clean fmt vet version pin
+.PHONY: all build build-collector build-central build-manifest build-rules test lint check-links clean fmt vet version pin ebpf-preflight
 
 all: build
 
@@ -44,6 +44,11 @@ check-links:
 
 lint: vet check-links
 	@echo "add golangci-lint when the tree has code"
+
+# Report whether this host can build/load the optional eBPF file.access source.
+# Read-only; needs no toolchain to run. See docs/deploy-collector.md §2.
+ebpf-preflight:
+	./scripts/ebpf-preflight.sh
 
 # Re-pin the shipped rule packs. Run after editing rules/ and commit the result;
 # CI fails if rules/packs.pins drifts from the packs.

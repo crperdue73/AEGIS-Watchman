@@ -209,3 +209,11 @@ This keeps every heartbeat shipping something real without a risky install.
   that shape everything: eBPF is additive (D1), and the collector must degrade
   not fail (D6). Deliverable order R2.0–R2.4 set; R2.0 (`MultiSource`) needs no
   kernel and is the recommended next step.
+- **2026-09-30** — **`scripts/ebpf-preflight.sh` shipped** (kernel-free,
+  read-only). The environment probe that answered "can this host build/load it?"
+  was a hand-typed shell check re-trusted from scratch each time; it is now one
+  command with a BUILD/LOAD verdict and `--require-build`/`--require-load` exit
+  codes for CI. Re-run on this host: **LOAD ready** (kernel 6.12, BTF,
+  CAP_BPF/CAP_PERFMON as root, bpffs mounted), **BUILD not** (no clang, no
+  libbpf headers). Nothing changes on the host. R2.2 stays gated on the toolchain
+  decision, but the ask now names a command instead of a paragraph.

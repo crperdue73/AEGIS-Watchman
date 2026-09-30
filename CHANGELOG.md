@@ -142,6 +142,12 @@ opt-in design.
   named with an owner), and a Phase-1 plan with acceptance criteria.
 - `SECURITY.md` (private vulnerability disclosure + the tool's own posture),
   `CODE_OF_CONDUCT.md`, and `scripts/check-links.py` wired into `make lint`.
+- **`scripts/ebpf-preflight.sh`** — reads this host's eBPF build/load
+  prerequisites (clang, libbpf headers, kernel floor, BTF, CAP_BPF/CAP_PERFMON,
+  bpffs) and prints a BUILD/LOAD verdict with nothing changed on the host. Wired
+  into `make ebpf-preflight`; `--require-build`/`--require-load` give it an exit
+  code for CI. Referenced from `docs/deploy-collector.md` §2 so "does this host
+  qualify?" is a command, not a hand-typed probe.
 - **Deployment artifacts for a real host** (`deploy/`): systemd unit templates
   for the collector and central — unprivileged, hardened, with a private state
   directory for the spool and cursor — plus a `deploy/README.md` install

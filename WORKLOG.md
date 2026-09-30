@@ -3189,3 +3189,64 @@ container-TLS are all now exercised end to end.
   CI. Take it to Dad as a concrete ask (a one-line decision), rather than
   guessing. If no answer, the fallback is to check whether this host could build
   the object at all (`clang`/libbpf present?) so the ask comes with facts.
+
+---
+
+## Heartbeat 73 — the eBPF ask got a command: `scripts/ebpf-preflight.sh`
+
+Heartbeat 72 closed the last deploy path (systemd, run for real) and left one
+item: the **P2.0 eBPF toolchain decision**, to be taken to Dad as a concrete ask,
+with the fallback of probing this host first so the ask carries facts. This
+heartbeat did both — the probe, and the thing that makes the probe repeatable.
+
+**The probe (fallback), done by hand first.** `clang`, `llc`, `llvm-strip`,
+`bpftool` all absent; libbpf **runtime** present (`libbpf.so.1.5.0`) but no
+`/usr/include/bpf/` headers. Kernel `6.12.85`, `/sys/kernel/btf/vmlinux` present.
+So the kernel-side is ready and the build toolchain is not — the same conclusion
+the Sept 28 design note reached, now re-confirmed.
+
+**The step.** A hand-typed shell probe is re-trusted from scratch every time an
+operator or a CI job asks "does this host qualify?", and the answer is the same
+table in three places (design doc, deploy doc, and someone's terminal). So the
+probe is now a shipped artifact: `scripts/ebpf-preflight.sh`, wired as
+`make ebpf-preflight`, and referenced from `docs/deploy-collector.md` §2. It
+reads this host's clang / libbpf-headers / kernel-floor / BTF / CAP_BPF /
+CAP_PERFMON / bpffs state and prints a **BUILD** and a **LOAD** verdict — and it
+changes nothing on the host (read-only, by construction). `--require-build` and
+`--require-load` turn it into a CI gate (exit 1) without anyone parsing output.
+
+**Run on this host just now:**
+
+```
+  -> BUILD possible          NO
+  -> LOAD possible           YES
+verdict: LOAD ready; BUILD needs clang + libbpf headers
+```
+
+`LOAD ready` because this box is root with CAP_BPF/CAP_PERFMON and bpffs mounted;
+`BUILD not` because there is no clang and no libbpf-dev. That is the ask, in one
+line: R2.2 is blocked on a toolchain, not on the kernel, and the only decision is
+*where the object gets compiled* — here (`apt install clang libbpf-dev`) or on a
+purpose-built host with CI doing it.
+
+**Verification:** `make ebpf-preflight` run (output above); `--require-build`
+exits 1, `--nope` exits 2, `bash -n` clean; `make lint` green (check-links now
+93 links, all resolve); `go test ./...` green (no Go change — this is a script,
+two docs, the Makefile, and the changelog).
+
+**What didn't happen, and why.** No `apt install` — installing system packages on
+a shared box is Dad's call, not a heartbeat's (PHASE1-PLAN.md records the open
+decision). And no R2.2 C/loader code — writing a CO-RE program I cannot compile
+or load would ship something unverified, which is the exact thing this repo's
+"run it, don't just analyse it" standard exists to prevent. The preflight is what
+*can* be built, tested, and trusted today.
+
+- **Next step (heartbeat 74):** this is now a genuine decision gate — every
+  kernel-free item in Phase 1 and the whole P2.1 fleet view are done, all four
+  deploy modes are run, and R2.2 is the only remaining gap, gated on one word
+  from Dad. Post the ask (preflight output attached) and hold. If Dad answers
+  "install it here," install `clang libbpf-dev` (re-run the preflight: BUILD
+  flips to YES), then write the CO-RE `openat` program + loader as R2.2 and take
+  R2.4 (the argv-free secret read, caught). If the answer is "CI/hand it to a
+  host," write the CI job that builds the object behind `--require-build`. Either
+  way the preflight is the first thing run on the candidate host.
