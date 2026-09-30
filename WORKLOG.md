@@ -2873,3 +2873,57 @@ green.
   P2.0 toolchain decision, which needs Dad. Take (a) only if it is real work —
   otherwise consolidate: re-read `quickstart.md` end to end as a first-time
   reader and fix whatever actually bites.
+
+---
+
+## Heartbeat 68 — ran the quickstart as a first-timer; it lied in step 3
+
+Heartbeat 67 left two honest options: (a) document TLS container flags for central,
+or (b) consolidate by re-reading `quickstart.md` end to end as a first-time
+reader. Took (b) — the project's own thesis is that an artifact nobody runs is an
+artifact nobody can trust, and the quickstart is the one page a new user *does*
+run. Not reading it: *executing* it, command by command, on this host.
+
+**What held.** Build (`make build`, four binaries, ~1.6s), the demo
+(`demo/run.sh` — twelve rule matches across two passes, one `identity.drift`,
+five critical including the container entry vector and the
+`after_identity_change` correlation, and the fleet rollup reporting 13 events /
+`carbonato@7`), and the local dry-run (`-dry-run` loads 20 rules and ships
+nothing, exit 0). All as documented. No fix needed.
+
+**What did not.** Step 3, "Run it yourself (local, harmless)", presented two
+commands as a sequence:
+
+```sh
+./bin/agentids-central   -config examples/central.local.yaml          # the service
+./bin/agentids-collector -config examples/collector.local.yaml -once -dry-run
+```
+
+Two reader traps in one block. First, **central runs in the foreground** — copy
+both lines and the second never executes; you are staring at a service that
+never returns, with no hint that it wants its own terminal. Second, and worse,
+**central is irrelevant to that collector command**: `-dry-run` ships nothing, so
+the whole point of starting central is missing. The sentence below the block
+("drop it and the collector submits…") *explains* the relationship but the
+command block *contradicts* it. The README's "Run it locally" section repeated
+the same sequence.
+
+**Shipped (docs only):** step 3 now runs the dry-run alone (nothing needs to be
+running), then shows the submit path as two *labelled* terminals
+(`# terminal 1 — leave it running`, `# terminal 2 — drop -dry-run`). README's
+"Run it locally" mirrored. Every command in the new text was then run for real:
+central in the background, `-once` without `-dry-run` — the collector enrolled
+the agent and exited 0, and the fleet view answered (0 events, correct: a first
+enrollment has no drift and no matching action).
+
+**Verification:** the whole quickstart re-run end to end on this host; `make lint`
+green (91 links); `go test ./...` unchanged green. Docs-only, no code change.
+
+- **Next step (heartbeat 69):** the run-it path is now honest and exercised.
+  Remaining honest options: (a) take heartbeat 67's option (a) properly — build
+  the container **with TLS** for real (gen-certs, `docker run` central + collector
+  over a network with mutual TLS), and only then document the exact flags, since
+  the Docker path's TLS story is currently the one unrun corner; or (b) the open
+  P2.0 toolchain decision, which needs Dad. Take (a) if the host still has a live
+  Docker daemon — it is the last path a reader would hit and the only deploy mode
+  never exercised with authentication on.

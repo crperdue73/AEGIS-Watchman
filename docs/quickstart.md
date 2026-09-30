@@ -40,19 +40,30 @@ one screen.
 
 ## 3. Run it yourself (local, harmless)
 
-From the repository root:
+**The dry-run needs nothing running.** It validates the config *and* the rule
+pack and ships nothing, so run it on its own first — from the repository root:
 
 ```sh
-./bin/agentids-central   -config examples/central.local.yaml          # the service
 ./bin/agentids-collector -config examples/collector.local.yaml -once -dry-run
+```
+
+To see an actual submission, start the service first. It runs in the
+**foreground**, so give it its own terminal (or append `&`; bring it back with
+`fg`) — then run the collector without `-dry-run` in another:
+
+```sh
+# terminal 1 — leave it running; Ctrl-C to stop
+./bin/agentids-central -config examples/central.local.yaml
+
+# terminal 2 — drop -dry-run to actually submit to the local central
+./bin/agentids-collector -config examples/collector.local.yaml -once
 ```
 
 The `.local` configs use only paths that exist in a fresh clone (the shipped
 rule pack, the demo persona) and none of the `/etc/agentids/...` system paths,
 so they work with nothing installed. `-dry-run` validates the config **and the
-rule pack**, prints the inventory, and ships nothing; drop it and the collector
-submits to central's ingest endpoint. `-once` does a single pass instead of the
-poll loop. The operator templates with real system paths are
+rule pack**, prints the inventory, and ships nothing. `-once` does a single pass
+instead of the poll loop. The operator templates with real system paths are
 `examples/central.yaml` and `examples/collector.yaml`; every `collector.yaml`
 key, with its default, is in [`collector-config.md`](collector-config.md).
 

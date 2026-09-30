@@ -203,11 +203,19 @@ listener rule. Full details and the per-rule breakdown:
 ### Run it locally
 
 From the repository root — the `.local` configs use only paths that exist in a
-fresh clone and no `/etc/agentids/...` system paths:
+fresh clone and no `/etc/agentids/...` system paths. The collector's dry-run
+needs nothing else running:
 
 ```sh
-./bin/agentids-central   -config examples/central.local.yaml
 ./bin/agentids-collector -config examples/collector.local.yaml -once -dry-run
+```
+
+To submit for real, start the service in another terminal first (it runs in the
+foreground) and drop `-dry-run`:
+
+```sh
+./bin/agentids-central -config examples/central.local.yaml            # terminal 1
+./bin/agentids-collector -config examples/collector.local.yaml -once  # terminal 2
 ```
 
 `-dry-run` validates the config **and the rule pack** (the fail-loud checks
