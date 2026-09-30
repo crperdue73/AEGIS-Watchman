@@ -17,7 +17,11 @@ type fleetHost struct {
 	LastSeen    time.Time      `json:"last_seen"`
 	BySeverity  map[string]int `json:"by_severity,omitempty"`
 	ByTechnique map[string]int `json:"by_technique,omitempty"`
-	Recent      []Record       `json:"recent,omitempty"`
+	// BySource counts records per signal provenance (action_source), so an
+	// operator can see how much of a host's story rests on a derived signal
+	// ("heuristic") versus an authoritative one.
+	BySource map[string]int `json:"by_source,omitempty"`
+	Recent   []Record       `json:"recent,omitempty"`
 }
 
 // fleetView is the `/api/v1/fleet` response: the operator's console, rendered
@@ -96,6 +100,7 @@ func buildFleetView(recs []Record, recentN int) fleetView {
 				HostName:    rec.HostName,
 				BySeverity:  map[string]int{},
 				ByTechnique: map[string]int{},
+				BySource:    map[string]int{},
 			}
 			byHost[rec.HostID] = h
 			order = append(order, rec.HostID)
@@ -104,6 +109,9 @@ func buildFleetView(recs []Record, recentN int) fleetView {
 		h.BySeverity[rec.Severity]++
 		if rec.Technique != "" {
 			h.ByTechnique[rec.Technique]++
+		}
+		if rec.ActionSource != "" {
+			h.BySource[rec.ActionSource]++
 		}
 		if severityRank(rec.Severity) > severityRank(h.MaxSeverity) {
 			h.MaxSeverity = rec.Severity

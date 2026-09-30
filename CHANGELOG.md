@@ -70,6 +70,13 @@ opt-in design.
   `min_severity` filters and a JSON response), and `GET /` rendering the same
   rollup as plain server-rendered HTML (no JS framework, no build step). One
   source of truth, two views.
+- **Derived signals are marked in the fleet view.** Central copies a behavior
+  event's `action.detail.source` onto the retained record as `action_source`, so
+  the rollup carries a `by_source` count per host and the HTML page badges each
+  affected event. An operator triaging `carbonato.tool.scope_new` can therefore
+  tell that the signal rests on the heuristic shim rather than a control-plane
+  fact — the unmarked-signal-vs-derivation distinction the shim promises, made
+  visible where operators actually look. Empty means unmarked, not verified.
 - Pluggable record backends behind a single `RecordStore`/`Query` contract,
   parameterised contract tests, and a pure-Go **SQLite** backend behind
   `-tags sqlite` (no CGO). Postgres is scoped, not shipped.

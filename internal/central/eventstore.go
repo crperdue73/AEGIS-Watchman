@@ -51,6 +51,13 @@ type Record struct {
 	Technique string `json:"technique,omitempty"`
 	// ActionType is set for behavior events (process.exec, net.egress, ...).
 	ActionType string `json:"action_type,omitempty"`
+	// ActionSource is the producer's provenance claim for a behavior signal,
+	// carried from action.detail.source. The scope.change shim sets it to
+	// "heuristic" so a derived signal is distinguishable from an authoritative
+	// one (a future agent-native feed would say "agent"). Empty means the
+	// producer made no claim — it is unmarked, not vetted; the fleet view shows
+	// a badge whenever it is set so an operator can see what rests on inference.
+	ActionSource string `json:"action_source,omitempty"`
 	// Path is set for file-oriented events.
 	Path string `json:"path,omitempty"`
 	// Summary is a one-line human description.
@@ -338,6 +345,12 @@ func RecordFromEvent(host schema.Host, agent schema.Agent, ev schema.Event, when
 	}
 	if ev.Action != nil {
 		rec.ActionType = ev.Action.Type
+		// Provenance marker, when the producer sets one (the scope shim's
+		// detail.source=heuristic). Recorded verbatim; central does not decide
+		// which values are "derived", so a new producer needs no central change.
+		if s, ok := ev.Action.Detail["source"].(string); ok {
+			rec.ActionSource = s
+		}
 		// Legacy fallback: an event producer that never carried a rule (or an
 		// older collector) may still put the technique in action.detail.
 		if rec.Technique == "" {

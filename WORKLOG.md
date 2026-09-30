@@ -2192,3 +2192,60 @@ Committed.
   view (so an operator can tell a derived signal from a real one), then the
   Phase 3 rule-pack publishing format (pin/audit which packs a fleet runs).
   Re-read `PHASE1-PLAN.md` §open decisions first.
+
+---
+
+## Heartbeat 57 — the derived signal is now visible where operators look
+
+`scope.go` is emphatic that its `scope.change` output is a **derivation**, not
+ground truth — `detail.source="heuristic"` is there, per its own doc, so that
+"a downstream reader (a rule, an operator, a blog post) must be able to tell a
+derived scope change from an authoritative one." The rule pack could see it
+(that is what `carbonato.tool.scope_new` keys on). The **operator could not**:
+the marker died at ingest. `RecordFromEvent` copied rule/technique/action_type
+but dropped `action.detail` entirely, so the fleet view showed a
+`scope.change` match indistinguishable from a `net.egress` one that a rule
+decided on real bytes. The honesty was in the shim and the rule, and nowhere the
+human triaging a page could see it.
+
+**Shipped:**
+- `internal/central/eventstore.go` — `Record` gains `ActionSource string
+  (json:"action_source,omitempty")`, populated in `RecordFromEvent` from
+  `ev.Action.Detail["source"]` **verbatim**. Central does not decide which values
+  mean "derived"; it carries whatever the producer claimed, so a future
+  `source=agent` feed needs no central change. Empty = the producer made **no
+  claim** (unmarked, never "trusted").
+- `internal/central/fleet.go` — `fleetHost` gains `BySource map[string]int`, a
+  rollup that parallels `BySeverity`/`ByTechnique`, so a host answers "how much
+  of this is heuristic?" not just "is there a heuristic event?"
+- `internal/central/fleetpage.go` — a **By source** column, and a dashed
+  `.derived` badge (with a `title`) on each recent event that carries a source,
+  reading as "inferred, not ground truth" next to a solid severity pill.
+- `internal/central/eventstore_sqlite.go` — the column is persisted, with an
+  additive `ensureColumn` (PRAGMA `table_info` → `ALTER TABLE ADD COLUMN`), so a
+  DB created by an earlier build evolves without a rebuild. Additive-only.
+- Tests: `TestIngestRetainsActionSource` (end-to-end: heuristic action →
+  record + `by_source`), `TestRecordFromEventNoSourceIsEmpty` (unmarked stays
+  empty), `TestActionSourceRoundTripsEveryBackend` (memory+file+sqlite, via the
+  existing `recordStoreImpls` contract matrix), `TestFleetPageMarksDerivedSignals`
+  (badge + column render).
+- Demo/docs: `demo/run.sh` prints a `by source:` line (so the demo now shows
+  `heuristic=2`), `docs/fleet-view.md` gains a "Derived vs ground truth" section
+  and the field/rollup, `CHANGELOG.md` (Added).
+
+**Design note:** the field name is `action_source`, not `derived` — central
+should not own the vocabulary of which sources are trustworthy. It echoes the
+existing `action_type`, and it is the producer's claim, kept verbatim. That keeps
+the "heuristic vs authoritative" judgement with the thing that actually knows
+(the shim / the future agent-native feed), which is the whole point of the
+marker.
+
+**Verification:** demo now prints `by source: heuristic=2`; `go test ./...` green
+(10 packages); `go test -tags sqlite ./internal/central/` green (sqlite in the
+contract matrix); `make lint` green (67 links); `gofmt`/`vet` clean;
+`demo/run.sh` exit 0. Committed.
+
+- **Next step (heartbeat 58):** the last item from the 55/56 notes — the **Phase 3
+  rule-pack publishing format** (pin/audit which packs a fleet runs; the "goes
+  public under Apache on GitHub" angle makes a signed/pinned pack set timely).
+  Re-read `PHASE1-PLAN.md` §open decisions and `docs/rules.md` first.

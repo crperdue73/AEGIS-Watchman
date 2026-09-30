@@ -138,6 +138,10 @@ const fleetHTML = `<!doctype html>
   .sev-medium { background: #3a360f; color: #f2e06b; }
   .sev-low { background: #17301f; color: #8fe0a8; }
   .sev-info { background: #1b2532; color: #8fb8e0; }
+  /* A derived signal is marked, not hidden: dashed outline reads as
+     "inferred, not ground truth" next to a solid severity pill. */
+  .derived { font-size: 11px; padding: 0 6px; border-radius: 999px;
+             border: 1px dashed #6b5340; color: #e0b98f; white-space: nowrap; }
   .host { font-weight: 700; color: #e8ebf0; }
   .empty { padding: 40px 0; color: #7b8291; text-align: center; }
   ul.recent { margin: 4px 0 0; padding-left: 16px; color: #a9b0be; }
@@ -160,7 +164,7 @@ const fleetHTML = `<!doctype html>
   <thead>
     <tr>
       <th>Host</th><th>Events</th><th>Max sev</th><th>Last seen</th>
-      <th>By severity</th><th>By technique</th><th>Recent</th>
+      <th>By severity</th><th>By technique</th><th>By source</th><th>Recent</th>
     </tr>
   </thead>
   <tbody>
@@ -172,11 +176,13 @@ const fleetHTML = `<!doctype html>
       <td class="muted">{{.LastSeen}}</td>
       <td class="muted">{{join .BySeverity}}</td>
       <td class="muted">{{join .ByTechnique}}</td>
+      <td class="muted">{{join .BySource}}</td>
       <td>
         <ul class="recent">
         {{range .Recent}}
           <li><span class="sev {{sevClass .Severity}}">{{.Severity}}</span>
-            {{if .Summary}}{{.Summary}}{{else if .RuleID}}{{.RuleID}}{{else}}{{.Event}}{{end}}</li>
+            {{if .Summary}}{{.Summary}}{{else if .RuleID}}{{.RuleID}}{{else}}{{.Event}}{{end}}
+            {{if .ActionSource}}<span class="derived" title="derived signal — inference, not ground truth">{{.ActionSource}}</span>{{end}}</li>
         {{end}}
         </ul>
       </td>

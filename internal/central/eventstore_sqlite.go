@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS records (
   rule_id      TEXT    NOT NULL DEFAULT '',
   technique    TEXT    NOT NULL DEFAULT '',
   action_type  TEXT    NOT NULL DEFAULT '',
+  action_source TEXT   NOT NULL DEFAULT '',
   path         TEXT    NOT NULL DEFAULT '',
   summary      TEXT    NOT NULL DEFAULT ''
 );
@@ -87,6 +88,45 @@ CREATE INDEX IF NOT EXISTS idx_records_sev ON records (severity_rank);
 	if _, err := s.db.Exec(schemaSQL); err != nil {
 		return fmt.Errorf("sqlite record store migrate: %w", err)
 	}
+	// CREATE TABLE IF NOT EXISTS does not evolve a table created by an earlier
+	// build, so an additive column is added explicitly. Additive-only: the store
+	// never drops or retypes a column (matching the event schema's policy).
+	if err := s.ensureColumn("records", "action_source", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ensureColumn adds col to table if it is not already present. Idempotent, so
+// it is safe to run on every open.
+func (s *SQLiteRecordStore) ensureColumn(table, col, decl string) error {
+	rows, err := s.db.Query(`PRAGMA table_info(` + table + `)`)
+	if err != nil {
+		return fmt.Errorf("sqlite record store pragma %s: %w", table, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			cid     int
+			name    string
+			ctype   string
+			notnull int
+			dflt    sql.NullString
+			pk      int
+		)
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return fmt.Errorf("sqlite record store pragma scan: %w", err)
+		}
+		if name == col {
+			return nil // already present
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("sqlite record store pragma iterate: %w", err)
+	}
+	if _, err := s.db.Exec(`ALTER TABLE ` + table + ` ADD COLUMN ` + col + ` ` + decl); err != nil {
+		return fmt.Errorf("sqlite record store add column %s.%s: %w", table, col, err)
+	}
 	return nil
 }
 
@@ -94,12 +134,12 @@ CREATE INDEX IF NOT EXISTS idx_records_sev ON records (severity_rank);
 func (s *SQLiteRecordStore) Append(ctx context.Context, rec Record) error {
 	const ins = `INSERT INTO records
   (when_unix, host_id, host_name, agent_root, event, severity, severity_rank,
-   rule_id, technique, action_type, path, summary)
-  VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+   rule_id, technique, action_type, action_source, path, summary)
+  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	_, err := s.db.ExecContext(ctx, ins,
 		rec.When.Unix(), rec.HostID, rec.HostName, rec.AgentRoot, rec.Event,
 		rec.Severity, severityRank(rec.Severity), rec.RuleID, rec.Technique,
-		rec.ActionType, rec.Path, rec.Summary,
+		rec.ActionType, rec.ActionSource, rec.Path, rec.Summary,
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite record store append: %w", err)
@@ -135,7 +175,7 @@ func (s *SQLiteRecordStore) prune(ctx context.Context) error {
 // floor by rank.
 func (s *SQLiteRecordStore) Query(ctx context.Context, q RecordQuery) ([]Record, error) {
 	sqlStr := `SELECT when_unix, host_id, host_name, agent_root, event, severity,
-  rule_id, technique, action_type, path, summary FROM records WHERE 1=1`
+  rule_id, technique, action_type, action_source, path, summary FROM records WHERE 1=1`
 	var args []any
 	if q.HostID != "" {
 		sqlStr += " AND host_id = ?"
@@ -173,7 +213,7 @@ func (s *SQLiteRecordStore) Query(ctx context.Context, q RecordQuery) ([]Record,
 		)
 		if err := rows.Scan(&whenUnix, &r.HostID, &r.HostName, &r.AgentRoot,
 			&r.Event, &r.Severity, &r.RuleID, &r.Technique, &r.ActionType,
-			&r.Path, &r.Summary); err != nil {
+			&r.ActionSource, &r.Path, &r.Summary); err != nil {
 			return nil, fmt.Errorf("sqlite record store scan: %w", err)
 		}
 		r.When = unixToTime(whenUnix)

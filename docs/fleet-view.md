@@ -82,6 +82,7 @@ Response shape:
       "last_seen": "2026-09-29T15:35:41Z",
       "by_severity": { "critical": 5, "high": 5, "medium": 2 },
       "by_technique": { "phase3/exfiltration": 1, "phase3/scope-expansion": 2 },
+      "by_source": { "heuristic": 2 },
       "recent": [ /* the newest Records for this host */ ]
     }
   ]
@@ -93,6 +94,20 @@ console leads with what an operator has to look at. A `severity` floor becomes
 an indexed range scan on the SQLite backend; on the JSON backend it is a filter
 over the same `recordMatches` predicate every backend shares.
 
+## Derived vs ground truth
+
+One signal in v1 is a **derivation, not an observation**: the `scope.change`
+shim infers "the agent reached for a capability it has never used before" from
+first-use telemetry, because no agent-native capability log exists yet (gap
+G5/A10). Every such action carries `detail.source=heuristic`, and central
+copies that marker onto the record as `action_source`. The fleet view surfaces
+it two ways — a `by_source` rollup per host and a dashed **badge** on each
+affected recent event — so an operator triaging `carbonato.tool.scope_new`
+knows it rests on inference, not a control-plane fact. An unmarked event has an
+empty `action_source`: that means the producer made **no claim**, not that it was
+verified. A future authoritative feed would set `source=agent` and the same
+column would show it, with no change to central.
+
 ```sh
 curl -s 'http://127.0.0.1:8080/api/v1/fleet?min_severity=high&recent=3'
 ```
@@ -100,8 +115,9 @@ curl -s 'http://127.0.0.1:8080/api/v1/fleet?min_severity=high&recent=3'
 ## `GET /`
 
 The same rollup as HTML: a table of hosts (id/name, event count, max severity,
-last seen, breakdown by severity and by technique, and the most recent events),
-colour-coded by severity. It answers the operator's first question at a glance
+last seen, breakdown by severity, by technique, and by signal source, and the
+most recent events), colour-coded by severity, with a dashed badge on any event
+whose signal was derived. It answers the operator's first question at a glance
 and needs nothing but a browser.
 
 The page shows the five most recent events per host; the endpoint's `recent=`
@@ -112,9 +128,9 @@ controls its own. That is the only intentional difference.
 A `Record` is a denormalised, self-contained summary — a copy of the fields an
 operator triages on, not the full `schema.Event`. It carries `when`, `host_id`,
 `host_name`, `agent_root`, `event`, `severity`, `rule_id`, `technique`,
-`action_type`, `path`, and a one-line `summary`. Keeping it a copy means the
-store is not coupled to every future schema addition, and an old record stays
-readable after a schema bump.
+`action_type`, `action_source`, `path`, and a one-line `summary`. Keeping it a
+copy means the store is not coupled to every future schema addition, and an old
+record stays readable after a schema bump.
 
 ## See it live
 

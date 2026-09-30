@@ -55,6 +55,36 @@ func TestFleetPageRendersHosts(t *testing.T) {
 // TestFleetPageEscapesHostInput is the security test: a host name is attacker-
 // influenced data (it comes from the collector's submission). html/template
 // must neutralise it, or a fleet view becomes an XSS vector.
+// TestFleetPageMarksDerivedSignals: a record whose signal was derived
+// (action_source set) must be visibly marked on the page, so an operator does
+// not read a heuristic scope.change as ground truth.
+func TestFleetPageMarksDerivedSignals(t *testing.T) {
+	svc := NewService(NewMemoryStore())
+	rs := NewMemoryRecordStore(DefaultRecordRetention)
+	svc.SetRecordStore(rs)
+	_ = rs.Append(context.Background(), Record{
+		HostID: "h1", Severity: "high",
+		RuleID: "carbonato.tool.scope_new", ActionSource: "heuristic",
+		When: time.Now().UTC(),
+	})
+
+	srv := httptest.NewServer(svc.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body := readAll(t, resp.Body)
+	if !strings.Contains(body, "By source") {
+		t.Errorf("page missing the By source column; got:\n%s", body)
+	}
+	if !strings.Contains(body, `class="derived"`) || !strings.Contains(body, "heuristic") {
+		t.Errorf("derived signal not marked on the page; got:\n%s", body)
+	}
+}
+
 func TestFleetPageEscapesHostInput(t *testing.T) {
 	svc := NewService(NewMemoryStore())
 	rs := NewMemoryRecordStore(DefaultRecordRetention)

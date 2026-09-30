@@ -193,6 +193,82 @@ func TestIngestRetainsRuleTechnique(t *testing.T) {
 	}
 }
 
+// TestIngestRetainsActionSource covers the honesty marker end to end: a
+// scope.change match whose action carries detail.source=heuristic must reach
+// the retained record (and the fleet rollup) as action_source, so an operator
+// can tell a derived signal from an authoritative one.
+func TestIngestRetainsActionSource(t *testing.T) {
+	ctx := context.Background()
+	svc := NewService(NewMemoryStore())
+	rs := NewMemoryRecordStore(DefaultRecordRetention)
+	svc.SetRecordStore(rs)
+
+	host := schema.Host{ID: "h1"}
+	agent := schema.Agent{Root: "/r"}
+	events := []schema.Event{{
+		Schema: schema.Version, Event: schema.EventBehaviorRuleMatch,
+		Severity: schema.SeverityHigh, Host: host,
+		Rule: &schema.Rule{ID: "carbonato.tool.scope_new", Technique: "phase3/scope-expansion"},
+		Action: &schema.Action{Type: "scope.change", Detail: map[string]any{
+			"source": "heuristic", "kind": "endpoint", "novel": "true",
+		}},
+	}}
+	if _, err := svc.IngestActions(ctx, host, agent, events); err != nil {
+		t.Fatal(err)
+	}
+
+	recs, err := rs.Recent(ctx, "h1", 10)
+	if err != nil || len(recs) != 1 {
+		t.Fatalf("records = %d, %v", len(recs), err)
+	}
+	if recs[0].ActionSource != "heuristic" {
+		t.Errorf("record action_source = %q, want heuristic", recs[0].ActionSource)
+	}
+	view := buildFleetView(recs, 10)
+	if len(view.Hosts) != 1 || view.Hosts[0].BySource["heuristic"] != 1 {
+		t.Errorf("fleet by_source not populated: %+v", view.Hosts)
+	}
+}
+
+// An ordinary event with no provenance marker records an empty action_source —
+// the field means "unmarked", never an accidental claim of trust.
+func TestRecordFromEventNoSourceIsEmpty(t *testing.T) {
+	ev := schema.Event{
+		Schema: schema.Version, Event: schema.EventBehaviorRuleMatch,
+		Host:   schema.Host{ID: "h1"},
+		Action: &schema.Action{Type: "process.exec", Detail: map[string]any{"exe": "/bin/sh"}},
+	}
+	rec := RecordFromEvent(ev.Host, schema.Agent{}, ev, time.Now().UTC())
+	if rec.ActionSource != "" {
+		t.Errorf("unmarked action got action_source=%q, want empty", rec.ActionSource)
+	}
+}
+
+// TestActionSourceRoundTripsEveryBackend keeps the provenance marker a
+// first-class record field, not something only the in-memory store happens to
+// keep: every backend in the contract matrix must return it.
+func TestActionSourceRoundTripsEveryBackend(t *testing.T) {
+	ctx := context.Background()
+	base := time.Now().UTC().Truncate(time.Second)
+	for name, mk := range recordStoreImpls(t) {
+		t.Run(name, func(t *testing.T) {
+			st := mk()
+			rec := rec("h1", "high", "carbonato.tool.scope_new", base)
+			rec.ActionSource = "heuristic"
+			if err := st.Append(ctx, rec); err != nil {
+				t.Fatal(err)
+			}
+			got, err := st.Query(ctx, RecordQuery{HostID: "h1"})
+			if err != nil || len(got) != 1 {
+				t.Fatalf("query = %d, %v", len(got), err)
+			}
+			if got[0].ActionSource != "heuristic" {
+				t.Errorf("%s: action_source did not round-trip: %q", name, got[0].ActionSource)
+			}
+		})
+	}
+}
+
 func TestBuildFleetViewRollup(t *testing.T) {
 	base := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
 	// newest-first, as Recent returns.

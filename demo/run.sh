@@ -90,6 +90,10 @@ for h in hosts:
     if tech:
         print("      by technique: " + ", ".join(
             "%s=%d" % (k, tech[k]) for k in sorted(tech)))
+    src = h.get("by_source") or {}
+    if src:
+        print("      by source: " + ", ".join(
+            "%s=%d" % (k, src[k]) for k in sorted(src)))
 '
 else
   printf '   %s\n' "$fleet_json"
