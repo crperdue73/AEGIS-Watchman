@@ -27,6 +27,7 @@ func TestFleetPageRendersHosts(t *testing.T) {
 	_ = rs.Append(context.Background(), Record{
 		HostID: "builder-01", HostName: "builder", Severity: "critical",
 		Technique: "phase3/scope-expansion", RuleID: "carbonato.container.privileged_start",
+		RulePack: "carbonato", RuleVersion: "7",
 		When: now,
 	})
 
@@ -45,7 +46,7 @@ func TestFleetPageRendersHosts(t *testing.T) {
 		t.Errorf("content-type = %q, want text/html", ct)
 	}
 	body := readAll(t, resp.Body)
-	for _, want := range []string{"builder-01", "critical", "carbonato.container.privileged_start", "sev-critical"} {
+	for _, want := range []string{"builder-01", "critical", "carbonato.container.privileged_start", "sev-critical", "By pack", "carbonato@7"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("page missing %q", want)
 		}

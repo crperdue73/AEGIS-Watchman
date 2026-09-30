@@ -244,6 +244,29 @@ func TestRecordFromEventNoSourceIsEmpty(t *testing.T) {
 	}
 }
 
+// TestRecordFromEventCarriesPack proves the schema->record mapping copies the
+// rule's pack and version, not just its id: the fleet view's By pack rollup is
+// built from these two fields, so a mapping that dropped them would leave the
+// column silently empty.
+func TestRecordFromEventCarriesPack(t *testing.T) {
+	host := schema.Host{ID: "h1"}
+	ev := schema.Event{
+		Schema: schema.Version, Event: schema.EventBehaviorRuleMatch,
+		Severity: schema.SeverityHigh, Host: host,
+		Rule: &schema.Rule{
+			ID: "carbonato.persist.file_write", Pack: "carbonato", Version: "7",
+			Technique: "phase3/persistence",
+		},
+	}
+	rec := RecordFromEvent(host, schema.Agent{}, ev, time.Now().UTC())
+	if rec.RulePack != "carbonato" || rec.RuleVersion != "7" {
+		t.Errorf("record pack = %q@%q, want carbonato@7", rec.RulePack, rec.RuleVersion)
+	}
+	if got := packLabel(rec.RulePack, rec.RuleVersion); got != "carbonato@7" {
+		t.Errorf("packLabel = %q, want carbonato@7", got)
+	}
+}
+
 // TestActionSourceRoundTripsEveryBackend keeps the provenance marker a
 // first-class record field, not something only the in-memory store happens to
 // keep: every backend in the contract matrix must return it.
@@ -269,13 +292,39 @@ func TestActionSourceRoundTripsEveryBackend(t *testing.T) {
 	}
 }
 
+// TestRulePackRoundTripsEveryBackend keeps the pack provenance a first-class
+// record field across every backend, like action_source: the SQLite backend
+// stores it in real columns, so a query must return it.
+func TestRulePackRoundTripsEveryBackend(t *testing.T) {
+	ctx := context.Background()
+	base := time.Now().UTC().Truncate(time.Second)
+	for name, mk := range recordStoreImpls(t) {
+		t.Run(name, func(t *testing.T) {
+			st := mk()
+			r := rec("h1", "high", "carbonato.persist.file_write", base)
+			r.RulePack = "carbonato"
+			r.RuleVersion = "7"
+			if err := st.Append(ctx, r); err != nil {
+				t.Fatal(err)
+			}
+			got, err := st.Query(ctx, RecordQuery{HostID: "h1"})
+			if err != nil || len(got) != 1 {
+				t.Fatalf("query = %d, %v", len(got), err)
+			}
+			if got[0].RulePack != "carbonato" || got[0].RuleVersion != "7" {
+				t.Errorf("%s: pack did not round-trip: %q@%q", name, got[0].RulePack, got[0].RuleVersion)
+			}
+		})
+	}
+}
+
 func TestBuildFleetViewRollup(t *testing.T) {
 	base := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
 	// newest-first, as Recent returns.
 	recs := []Record{
-		{HostID: "h1", Severity: "critical", Technique: "phase3/exfiltration", When: base.Add(3 * time.Minute)},
+		{HostID: "h1", Severity: "critical", Technique: "phase3/exfiltration", RulePack: "carbonato", RuleVersion: "7", When: base.Add(3 * time.Minute)},
 		{HostID: "h2", Severity: "low", When: base.Add(2 * time.Minute)},
-		{HostID: "h1", Severity: "high", Technique: "phase3/secret-access", When: base.Add(time.Minute)},
+		{HostID: "h1", Severity: "high", Technique: "phase3/secret-access", RulePack: "carbonato", RuleVersion: "7", When: base.Add(time.Minute)},
 	}
 	v := buildFleetView(recs, 10)
 	if v.TotalEvents != 3 {
@@ -296,6 +345,14 @@ func TestBuildFleetViewRollup(t *testing.T) {
 	}
 	if v.Hosts[0].ByTechnique["phase3/exfiltration"] != 1 {
 		t.Errorf("h1 by_technique = %+v", v.Hosts[0].ByTechnique)
+	}
+	// Pack provenance rolls up as name@version; a host whose records carry no
+	// pack gets no bucket (not an empty-string key).
+	if v.Hosts[0].ByPack["carbonato@7"] != 2 {
+		t.Errorf("h1 by_pack = %+v, want carbonato@7=2", v.Hosts[0].ByPack)
+	}
+	if len(v.Hosts[1].ByPack) != 0 {
+		t.Errorf("h2 by_pack = %+v, want empty (no pack on its records)", v.Hosts[1].ByPack)
 	}
 	if !v.Hosts[0].LastSeen.Equal(base.Add(3 * time.Minute)) {
 		t.Errorf("last_seen = %v, want the latest", v.Hosts[0].LastSeen)

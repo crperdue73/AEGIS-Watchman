@@ -95,6 +95,10 @@ for h in hosts:
     if src:
         print("      by source: " + ", ".join(
             "%s=%d" % (k, src[k]) for k in sorted(src)))
+    pack = h.get("by_pack") or {}
+    if pack:
+        print("      by pack: " + ", ".join(
+            "%s=%d" % (k, pack[k]) for k in sorted(pack)))
 '
 else
   printf '   %s\n' "$fleet_json"

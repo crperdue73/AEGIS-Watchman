@@ -38,25 +38,27 @@ it **today**.
 | # | Forced action | Layer | Telemetry needed | Have it? |
 |---|---|---|---|---|
 | A1 | A persona/skill/config file is **edited or dropped** on an agent host | 1 / 2 | file hash + mtime + owner | ✅ shipped |
-| A2 | The edit is made by someone we can **attribute** | 1 | acting uid/pid | ⚠️ partial (see G1) |
+| A2 | The edit is made by someone we can **attribute** | 1 | acting uid/pid | ✅ shipped (G1 closed) |
 | A3 | A skill/persona file is **not ours** (unsigned, unmanifested) | 2 | signed approval manifest | ✅ shipped |
 | A4 | The agent **spawns a process** (shell, cat, curl, installer) | 3 | execve + argv | ✅ shipped (auditd) |
 | A5 | The agent **reads a secret** (SSH key, model key, env) | 3 | argv/file access | ✅ via argv · ❌ via file.read (see G3) |
 | A6 | The agent makes an **outbound connection** (chat / C2 / RPC) | 3 | connect + peer classification | ✅ shipped (auditd) |
 | A7 | The agent **opens a listener** (C2 / reverse shell) | 3 | bind/listen | ✅ shipped (R1, auditd bind/listen) |
-| A8 | The intrusion **persists** past session end (cron, rc, unit) | 3 | file write to known paths | ✅ via argv heuristics · ❌ via file.write (see G3) |
+| A8 | The intrusion **persists** past session end (cron, rc, unit) | 3 | file write to known paths | ✅ argv heuristics · ✅ `file.write` (kernel; G3 write half) |
 | A9 | The agent **escapes its container** (privileged + host mount) | 3 | container runtime events | ✅ via `docker events` (`container.start` rules, G4 closed) |
 | A10 | The agent **changes its own scope** (new tool, new API key) | 3 | agent-native control-plane log | ❌ gap (see G5) |
 
-**Reading of the matrix:** 7 of 10 forced actions are detected today on real
-telemetry. One more (A10) has rule and schema support but no live feed.
-Two (A2 attribution, A9 container escape) are genuine gaps with a clear owner
-and a clear adapter — nobody is currently claiming they're covered.
+**Reading of the matrix:** 8 of 10 forced actions are covered end to end today
+on real telemetry. The two that are not are *partial*, not missing: **A5** (a
+secret read) is caught via argv but not via a kernel file-open — the eBPF half,
+still gated on the toolchain (P2.0) — and **A10** (scope change) has rule and
+schema support and a live *heuristic* feed, but not yet an agent-native one
+(G5). No forced action lacks a rule; every remaining gap is a telemetry source
+behind the `telemetry.Source` interface.
 
-That is the honest Phase 0 statement: **70% covered end to end, 10% half-wired,
-20% named gaps.** For a tool that has not yet shipped v1, that is a strong
-position — and more importantly, none of the gaps are *architectural*. They are
-all "write the next adapter behind the `telemetry.Source` interface."
+That is the honest Phase 0 statement: **80% covered end to end, 20%
+half-wired** — both half-wired items with a named next adapter, neither
+architectural.
 
 ---
 
@@ -68,7 +70,7 @@ Grounded in the actual packages, not the plan.
 |---|---|---|---|
 | auditd `execve`/`execveat` | `internal/telemetry` (`text.go`, `telemetry.go`) | `process.exec` + argv, pid, uid, cwd | ✅ live, tested |
 | auditd `connect` | `internal/telemetry/egress.go` | `net.egress` + peer addr, port | ✅ live, tested |
-| auditd file-watch | (planned) | `file.access` (writes to watched paths) | ❌ not built |
+| auditd file-watch | `internal/telemetry/filewatch.go` | `file.write` + the watched path (nametype, watch key) | ✅ live, tested |
 | filesystem walk + sha256 | `internal/collector/drift.go` | `identity.drift` + unified diff | ✅ live, tested |
 | Ed25519 approval manifest | `internal/provenance`, `cmd/manifest` | `provenance.untrusted` | ✅ live, tested |
 | text stream (tests/demo) | `internal/telemetry/text.go` | `process.exec` | ✅ test/demo only |
@@ -118,8 +120,13 @@ biased toward what the brief calls out as the *reason the tool exists*.
   without naming it on the command line is invisible to the execve adapter.
 - **Why it matters:** "read the model key" is the whole point of the intrusion.
   argv heuristics are evadable by one `python -c` wrapper.
+- **Write half closed (2026-09-30):** `file.write` from auditd file watches
+  (`internal/telemetry/filewatch.go`) now catches a persistence write from the
+  kernel — the path the kernel reported, not the command line — with no eBPF
+  object at all. A cron drop or an rc edit by a wrapped interpreter fires
+  `carbonato.persist.file_write`. Only the **read** half still needs R2.
 - **Priority:** HIGH. This is the strongest argument for eBPF.
-- **Owner:** collector — new eBPF adapter (see roadmap R2).
+- **Owner:** collector — new eBPF adapter (see roadmap R2) for the read half.
 
 ### G4 — No container-runtime telemetry ✅ CLOSED (R3)
 - **What was missing:** the CARBONATO *entry vector* is unauthenticated Docker on
@@ -197,9 +204,10 @@ a heartbeat step.
 2. **auditd is sufficient for v1.** It carries execve and connect today with no
    kernel module and no caps beyond the audit subsystem. eBPF is the *upgrade*,
    not the prerequisite.
-3. **The gaps are adapter-shaped, not architectural.** 6/10 forced actions are
-   covered end to end today; the other 4 are named, owned, and each is a new
-   file behind one interface.
+3. **The gaps are adapter-shaped, not architectural.** 8/10 forced actions are
+   covered end to end today; the other 2 are partial (A5 via argv not kernel,
+   A10 via a heuristic not the control plane), each a new file behind one
+   interface.
 4. **Attribution quality is the quiet risk.** Detection is strong; *"who did
    it"* is best-effort numeric. Fixing G1 is cheap and should precede any demo
    to a human operator — an alert that names a uid instead of a person reads as
@@ -212,6 +220,21 @@ a heartbeat step.
 ---
 
 ## Log
+- **2026-09-30** — **Fleet view surfaces pack provenance.** The rollup gains a
+  `by_pack` count per host (`carbonato@7`) and a **By pack** column on the HTML
+  page, derived from `rule.pack`/`rule.version` already on every behavior event
+  (new `Record.RulePack`/`RuleVersion`; SQLite gains two columns). It is the
+  operator-visible half of the versioned-pack story: a pin guarantees the bytes
+  a host runs, `by_pack` shows what those bytes called themselves, so pack drift
+  across a fleet is visible without diffing configs. Coverage matrix brought
+  current: A2 (G1) and A8 (`file.write`, G3 write half) now read closed; the
+  summary is 8/10 end to end, 2 partial.
+- **2026-09-30** — **G3's write half closed.** `internal/telemetry/filewatch.go`
+  emits `file.write` from auditd file watches (`-w <path> -p wa`): CREATE/DELETE
+  nametypes and strictly-write syscalls are writes; an open-family record counts
+  only when it carries a watch key, so a bare read-open is dropped, not guessed.
+  Rule `carbonato.persist.file_write` (pack v7, 20 rules) catches the persistence
+  write the argv rule cannot see. Read half (eBPF) unchanged, still P2.0.
 - **2026-09-29** — **R5 partial (P1.3) + P1.4 quality pass.** `scope.change`
   heuristic shim derives novel-capability signals from first-use telemetry
   (`internal/telemetry/scope.go`, labelled `detail.source=heuristic`); A10 now

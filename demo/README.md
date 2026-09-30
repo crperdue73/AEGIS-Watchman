@@ -35,7 +35,8 @@ timed spine of the intrusion, and the thing this project was built for.
 
 Finally the demo asks central for the **fleet view** (`GET /api/v1/fleet`) and
 prints the rollup: how many events were retained, per host, worst-first, with a
-breakdown by severity and by ATT&CK-style technique. That is the operator
+breakdown by severity, by ATT&CK-style technique, by signal source, and by rule
+pack version. That is the operator
 console — the same data a human sees at `GET /` — and it is the difference
 between "grep the alert log" and "which hosts are alerting, and with what".
 

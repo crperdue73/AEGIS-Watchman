@@ -47,6 +47,15 @@ type Record struct {
 	Severity string `json:"severity,omitempty"`
 	// RuleID is set for behavior.rule_match events.
 	RuleID string `json:"rule_id,omitempty"`
+	// RulePack / RuleVersion identify the rule pack (and its own version) that
+	// produced a behavior.rule_match, when the event carried them. They are the
+	// operator-visible half of the "versioned, signed" pack story: the pin
+	// guarantees the bytes a host runs, and this records what those bytes called
+	// themselves, so a fleet rollup can answer "is every host on the same pack
+	// version?" — pack drift across a fleet is exactly the kind of quiet
+	// divergence a console should surface.
+	RulePack    string `json:"rule_pack,omitempty"`
+	RuleVersion string `json:"rule_version,omitempty"`
 	// Technique is the rule's ATT&CK-style tag, when known.
 	Technique string `json:"technique,omitempty"`
 	// ActionType is set for behavior events (process.exec, net.egress, ...).
@@ -342,6 +351,8 @@ func RecordFromEvent(host schema.Host, agent schema.Agent, ev schema.Event, when
 	if ev.Rule != nil {
 		rec.RuleID = ev.Rule.ID
 		rec.Technique = ev.Rule.Technique
+		rec.RulePack = ev.Rule.Pack
+		rec.RuleVersion = ev.Rule.Version
 	}
 	if ev.Action != nil {
 		rec.ActionType = ev.Action.Type

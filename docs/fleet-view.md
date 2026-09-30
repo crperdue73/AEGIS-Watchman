@@ -83,6 +83,7 @@ Response shape:
       "by_severity": { "critical": 5, "high": 5, "medium": 2 },
       "by_technique": { "phase3/exfiltration": 1, "phase3/scope-expansion": 2 },
       "by_source": { "heuristic": 2 },
+      "by_pack": { "carbonato@7": 12 },
       "recent": [ /* the newest Records for this host */ ]
     }
   ]
@@ -107,6 +108,20 @@ knows it rests on inference, not a control-plane fact. An unmarked event has an
 empty `action_source`: that means the producer made **no claim**, not that it was
 verified. A future authoritative feed would set `source=agent` and the same
 column would show it, with no change to central.
+
+## Which pack produced this?
+
+Every `behavior.rule_match` carries the pack and version that produced it, and
+central rolls that up per host as `by_pack` (`"carbonato@7": 12`). This is the
+operator-visible half of the **versioned, signed** pack story: a pin (see
+[rules.md](rules.md)) guarantees *which bytes* a host runs and refuses to start
+on drift, while `by_pack` shows *what those bytes called themselves* across the
+fleet. The two together answer the question that matters during an incident —
+"is every host actually running the pack I think it is, and the same one?" A
+host still reporting `carbonato@6` next to a fleet on `@7` is pack drift, and it
+shows up here without anyone diffing configs by hand. A record with no pack
+(an `identity.drift`, or an event from a collector too old to set it)
+contributes no bucket — the column shows `—`.
 
 ```sh
 curl -s 'http://127.0.0.1:8080/api/v1/fleet?min_severity=high&recent=3'

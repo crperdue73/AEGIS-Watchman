@@ -131,8 +131,9 @@ Built so far:
   stays numeric, and the numeric id is always preserved alongside the name.
 - **Fleet view** — every detected event is retained in a durable record store
   (`records`), and central exposes `GET /api/v1/fleet`: recent events rolled up
-  by host — total, max severity, last-seen, breakdown by severity and by
-  technique — ordered worst-first, with optional `host`, `since`, and
+  by host — total, max severity, last-seen, breakdown by severity, technique,
+  signal source, and rule pack version (`by_pack`, e.g. `carbonato@7`) — ordered
+  worst-first, with optional `host`, `since`, and
   `min_severity` filters (a single `RecordQuery` every backend serves). `GET /`
   renders the same rollup as a plain
   server-rendered HTML page (no JS framework, no build step), so the console is

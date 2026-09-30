@@ -75,6 +75,8 @@ CREATE TABLE IF NOT EXISTS records (
   severity_rank INTEGER NOT NULL DEFAULT 0,
   rule_id      TEXT    NOT NULL DEFAULT '',
   technique    TEXT    NOT NULL DEFAULT '',
+  rule_pack    TEXT    NOT NULL DEFAULT '',
+  rule_version TEXT    NOT NULL DEFAULT '',
   action_type  TEXT    NOT NULL DEFAULT '',
   action_source TEXT   NOT NULL DEFAULT '',
   path         TEXT    NOT NULL DEFAULT '',
@@ -92,6 +94,12 @@ CREATE INDEX IF NOT EXISTS idx_records_sev ON records (severity_rank);
 	// build, so an additive column is added explicitly. Additive-only: the store
 	// never drops or retypes a column (matching the event schema's policy).
 	if err := s.ensureColumn("records", "action_source", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("records", "rule_pack", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("records", "rule_version", "TEXT NOT NULL DEFAULT ''"); err != nil {
 		return err
 	}
 	return nil
@@ -134,12 +142,12 @@ func (s *SQLiteRecordStore) ensureColumn(table, col, decl string) error {
 func (s *SQLiteRecordStore) Append(ctx context.Context, rec Record) error {
 	const ins = `INSERT INTO records
   (when_unix, host_id, host_name, agent_root, event, severity, severity_rank,
-   rule_id, technique, action_type, action_source, path, summary)
-  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
+   rule_id, technique, rule_pack, rule_version, action_type, action_source, path, summary)
+  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	_, err := s.db.ExecContext(ctx, ins,
 		rec.When.Unix(), rec.HostID, rec.HostName, rec.AgentRoot, rec.Event,
 		rec.Severity, severityRank(rec.Severity), rec.RuleID, rec.Technique,
-		rec.ActionType, rec.ActionSource, rec.Path, rec.Summary,
+		rec.RulePack, rec.RuleVersion, rec.ActionType, rec.ActionSource, rec.Path, rec.Summary,
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite record store append: %w", err)
@@ -175,7 +183,7 @@ func (s *SQLiteRecordStore) prune(ctx context.Context) error {
 // floor by rank.
 func (s *SQLiteRecordStore) Query(ctx context.Context, q RecordQuery) ([]Record, error) {
 	sqlStr := `SELECT when_unix, host_id, host_name, agent_root, event, severity,
-  rule_id, technique, action_type, action_source, path, summary FROM records WHERE 1=1`
+  rule_id, technique, rule_pack, rule_version, action_type, action_source, path, summary FROM records WHERE 1=1`
 	var args []any
 	if q.HostID != "" {
 		sqlStr += " AND host_id = ?"
@@ -212,8 +220,8 @@ func (s *SQLiteRecordStore) Query(ctx context.Context, q RecordQuery) ([]Record,
 			r        Record
 		)
 		if err := rows.Scan(&whenUnix, &r.HostID, &r.HostName, &r.AgentRoot,
-			&r.Event, &r.Severity, &r.RuleID, &r.Technique, &r.ActionType,
-			&r.ActionSource, &r.Path, &r.Summary); err != nil {
+			&r.Event, &r.Severity, &r.RuleID, &r.Technique, &r.RulePack, &r.RuleVersion,
+			&r.ActionType, &r.ActionSource, &r.Path, &r.Summary); err != nil {
 			return nil, fmt.Errorf("sqlite record store scan: %w", err)
 		}
 		r.When = unixToTime(whenUnix)

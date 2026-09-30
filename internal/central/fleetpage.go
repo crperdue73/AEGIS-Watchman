@@ -164,7 +164,7 @@ const fleetHTML = `<!doctype html>
   <thead>
     <tr>
       <th>Host</th><th>Events</th><th>Max sev</th><th>Last seen</th>
-      <th>By severity</th><th>By technique</th><th>By source</th><th>Recent</th>
+      <th>By severity</th><th>By technique</th><th>By source</th><th>By pack</th><th>Recent</th>
     </tr>
   </thead>
   <tbody>
@@ -177,6 +177,7 @@ const fleetHTML = `<!doctype html>
       <td class="muted">{{join .BySeverity}}</td>
       <td class="muted">{{join .ByTechnique}}</td>
       <td class="muted">{{join .BySource}}</td>
+      <td class="muted">{{join .ByPack}}</td>
       <td>
         <ul class="recent">
         {{range .Recent}}

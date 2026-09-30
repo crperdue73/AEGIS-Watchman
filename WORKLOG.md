@@ -2492,3 +2492,67 @@ rule(s) … pins: ok`; `go test ./...` and `go test -tags sqlite ./...` green;
   (Postgres record backend, on demand), or (c) surfacing pin/provenance status in
   the fleet view — the one candidate from this heartbeat I did not take. Decide
   from the matrix, not momentum.
+
+---
+
+## Heartbeat 62 — the fleet view shows which pack produced the alerts
+
+Last heartbeat I closed the `file.write` half of G3, so I owed the coverage
+matrix an update (A8 was still marked ❌ while the code that closes it sat
+committed), and I still had the one candidate from heartbeat 61 I did not take:
+surfacing pack provenance in the fleet view. Did both, in that order.
+
+**The idea.** The pin story (heartbeats 58–60) answers *"are we running the
+bytes we approved?"* — a collector refuses to start on drift. But an operator
+looking at the fleet view could not answer the sibling question: *"is every host
+running the same pack version?"* A host still on `carbonato@6` next to a fleet on
+`@7` is pack drift, and the only way to see it was to diff configs by hand. The
+data was already there — every `behavior.rule_match` carries `rule.pack` and
+`rule.version` — but `RecordFromEvent` was dropping them.
+
+**Shipped:**
+- `Record.RulePack` / `Record.RuleVersion`, copied in `RecordFromEvent` (the one
+  schema→record mapping) — so a new producer gets this for free.
+- `fleetHost.ByPack` (`by_pack`) counting `name@version`, via a `packLabel`
+  helper: either part may be absent and the label shows whichever is present, so
+  an older collector's event never makes a spurious empty-string bucket.
+- The HTML page gains a **By pack** column, next to By severity / technique /
+  source — the same one-source-of-truth rollup, two views.
+- SQLite backend: two additive columns (`rule_pack`, `rule_version`) via the
+  existing `ensureColumn` path, plus the INSERT/SELECT/scan updates. The JSON
+  file and in-memory backends carry them in the struct; both are covered by the
+  same contract test.
+- Tests: a pack round-trip through **every** backend in the contract matrix
+  (`TestRulePackRoundTripsEveryBackend`, the same shape as the action_source
+  test), the rollup (`by_pack` counts, and a host with no pack gets no bucket),
+  `RecordFromEvent` copying the fields, and a page assertion that the column
+  renders `carbonato@7`.
+
+**Also: the coverage matrix, brought current.** `PHASE0-COVERAGE.md` still read
+"7 of 10 … ⚠️ partial (G1)" for A2 and "❌ file.write (G3)" for A8 — both stale,
+G1 having closed on R4 and A8 on the last heartbeat. Fixed: A2 and A8 read
+closed, the section-0.2 telemetry table credits the file-watch adapter, and the
+honest summary is **8/10 end to end, 2 partial** (A5 via argv not kernel; A10 via
+a heuristic not the control plane). A coverage matrix that under-claims is a real
+bug — it hides work the tool already does — so this is correctness, not
+bookkeeping.
+
+**Design note — the pattern is the argument.** This is the fourth time the fleet
+rollup has grown a dimension (severity → technique → source → pack) with no
+change to the query shape, the store contract, or the page's source of truth.
+Every dimension is one field on `Record`, one counter in `buildFleetView`, one
+column in the template. That the operator console keeps absorbing new provenance
+for the cost of a field is exactly what a small, denormalised record is for.
+
+**Verification:** real binaries — `demo/run.sh` exit 0, fleet rollup prints
+`by pack: carbonato@7=12`; `go test ./...` and `go test -tags sqlite ./...`
+green; `go vet` clean both; `make lint` green (73 links). Committed.
+
+- **Next step (heartbeat 63):** the reachable plan is now genuinely exhausted —
+  G3 read half and P2.0 are gated on the eBPF toolchain (Dad's call), P2.1c-4
+  (Postgres) is on demand, G5's authoritative feed needs a customer's agent
+  framework. So next: re-read `PHASE0-COVERAGE.md` and `PHASE1-PLAN.md` and either
+  (a) find the highest-value *honesty* or *operator-ergonomics* gap I can close
+  without a new dependency, or (b) surface the open P2.0 toolchain decision to Dad
+  again now that everything else in the critical path is done. Decide from the
+  matrices, not momentum.

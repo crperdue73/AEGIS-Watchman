@@ -83,6 +83,12 @@ opt-in design.
   tell that the signal rests on the heuristic shim rather than a control-plane
   fact — the unmarked-signal-vs-derivation distinction the shim promises, made
   visible where operators actually look. Empty means unmarked, not verified.
+- **The fleet view shows pack provenance.** Every behavior event carries the
+  pack and version that produced it, and the rollup gains a `by_pack` count per
+  host (`carbonato@7`) plus a **By pack** column on the HTML page. It is the
+  operator-visible half of the versioned-pack story: a pin guarantees the bytes a
+  host runs, and this shows what those bytes identified themselves as, so pack
+  drift across a fleet is visible without diffing configs by hand.
 - Pluggable record backends behind a single `RecordStore`/`Query` contract,
   parameterised contract tests, and a pure-Go **SQLite** backend behind
   `-tags sqlite` (no CGO). Postgres is scoped, not shipped.

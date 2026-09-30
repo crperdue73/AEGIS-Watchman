@@ -21,7 +21,11 @@ type fleetHost struct {
 	// operator can see how much of a host's story rests on a derived signal
 	// ("heuristic") versus an authoritative one.
 	BySource map[string]int `json:"by_source,omitempty"`
-	Recent   []Record       `json:"recent,omitempty"`
+	// ByPack counts records per rule pack version ("carbonato@7"), so an operator
+	// can see at a glance which pack version — and whether one single version —
+	// produced a host's alerts. Pack drift across a fleet shows up here.
+	ByPack map[string]int `json:"by_pack,omitempty"`
+	Recent []Record       `json:"recent,omitempty"`
 }
 
 // fleetView is the `/api/v1/fleet` response: the operator's console, rendered
@@ -101,6 +105,7 @@ func buildFleetView(recs []Record, recentN int) fleetView {
 				BySeverity:  map[string]int{},
 				ByTechnique: map[string]int{},
 				BySource:    map[string]int{},
+				ByPack:      map[string]int{},
 			}
 			byHost[rec.HostID] = h
 			order = append(order, rec.HostID)
@@ -112,6 +117,9 @@ func buildFleetView(recs []Record, recentN int) fleetView {
 		}
 		if rec.ActionSource != "" {
 			h.BySource[rec.ActionSource]++
+		}
+		if k := packLabel(rec.RulePack, rec.RuleVersion); k != "" {
+			h.ByPack[k]++
 		}
 		if severityRank(rec.Severity) > severityRank(h.MaxSeverity) {
 			h.MaxSeverity = rec.Severity
@@ -137,6 +145,23 @@ func buildFleetView(recs []Record, recentN int) fleetView {
 		return view.Hosts[i].Total > view.Hosts[j].Total
 	})
 	return view
+}
+
+// packLabel renders a record's rule pack as "name@version". Either part may be
+// absent (an older collector, or a pack with no declared version); the label
+// shows whichever is present. Empty when neither is set, so a record with no
+// pack never contributes a spurious "" bucket to the rollup.
+func packLabel(pack, version string) string {
+	switch {
+	case pack != "" && version != "":
+		return pack + "@" + version
+	case pack != "":
+		return pack
+	case version != "":
+		return "@" + version
+	default:
+		return ""
+	}
 }
 
 func atoiDefault(s string, def int) int {
