@@ -295,7 +295,7 @@ internal/mtls/      mutual-TLS config loaders (shared by both ends)
 internal/provenance/ Layer 2 signed approval manifests + verification
 internal/rules/     Layer 3 rule format, parser, and action-matching engine
 rules/              published rule packs (carbonato.yaml seed pack)
-deploy/docker/      collector + central containers
+deploy/             systemd units, TLS cert helper, container image
 docs/               architecture + schema docs
 examples/           sample collector + central config, sample events
 testdata/           fixtures

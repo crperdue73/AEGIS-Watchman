@@ -252,7 +252,29 @@ kept alongside the name.
 
 ---
 
-## 5. Sanity checklist
+## 5. Running as a service
+
+The [quickstart](quickstart.md) runs the collector once. To run it persistently,
+[`deploy/`](../deploy/README.md) ships **systemd unit templates** for both the
+collector and central — unprivileged, hardened, with a private state directory
+for the spool and cursor. The short version:
+
+```sh
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin agentids
+sudo usermod -aG adm agentids          # read /var/log/audit/audit.log (systemd-journal on RHEL)
+sudo install -m 0755 bin/agentids-collector /usr/local/bin/
+sudo install -m 0644 deploy/agentids-collector.service /etc/systemd/system/
+sudo systemctl enable --now agentids-collector
+```
+
+The `agentids` user needs read access to the audit log and to each `agent_roots`
+path — and nothing else. The full walkthrough, the capability deltas for the
+eBPF and Docker adapters, and the mutual-TLS step are in
+[`deploy/README.md`](../deploy/README.md).
+
+---
+
+## 6. Sanity checklist
 
 After deploying a collector:
 
@@ -271,6 +293,14 @@ After deploying a collector:
 - [ ] Central logs alerts with a **name**, not `uid:N` (if `uid_map` is set).
 
 ## Log
+- **2026-09-30** — **§5 "Running as a service" added.** The quickstart runs the
+  collector once; nothing showed an operator how to run it persistently. Added
+  systemd unit templates (`deploy/agentids-{collector,central}.service`) and a
+  `deploy/README.md` install walkthrough (unprivileged `agentids` user, the
+  exact read access it needs, the capability deltas for eBPF/Docker, TLS). Both
+  units verified with `systemd-analyze verify` (clean apart from the expected
+  "binary not yet installed"). The collector unit needs no root and no
+  capabilities by default.
 - **2026-09-28** — Written (R2.3). Covers auditd rules per action type, the
   optional eBPF source with its kernel requirements, the `uid_map`, and a
   post-deploy checklist. The through-line: everything degrades, nothing here is

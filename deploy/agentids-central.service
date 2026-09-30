@@ -1,0 +1,45 @@
+# agentids central — systemd unit (template)
+#
+# Install:
+#
+#   sudo install -m 0755 bin/agentids-central /usr/local/bin/
+#   sudo install -d -m 0750 -o agentids -g agentids /etc/agentids /var/lib/agentids
+#   sudo cp deploy/agentids-central.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now agentids-central
+#
+# Central reads its config, TLS material, uid_map, and approval manifests from
+# /etc/agentids (read-only) and writes its durable baseline + record stores to
+# /var/lib/agentids. It needs NO root and no capabilities. See deploy/README.md.
+
+[Unit]
+Description=agentids central (ingest, alerting, fleet view)
+Documentation=https://github.com/CRPerdue/agentids
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agentids
+Group=agentids
+ExecStart=/usr/local/bin/agentids-central -config /etc/agentids/central.yaml
+Restart=on-failure
+RestartSec=5s
+
+# Durable stores (baselines, records) live here; the rest of the filesystem is
+# read-only. Central does not need the agent workspaces, so /home is hidden
+# entirely (stronger than the collector's read-only).
+StateDirectory=agentids
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+# Ingest (TCP) plus, if you use an email sink, SMTP (TCP) — all AF_INET/INET6.
+RestrictAddressFamilies=AF_INET AF_INET6
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

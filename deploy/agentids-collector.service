@@ -1,0 +1,65 @@
+# agentids collector — systemd unit (template)
+#
+# Install (paths assume the binary at /usr/local/bin and config at
+# /etc/agentids — adjust to taste; see deploy/README.md for the full walkthrough):
+#
+#   sudo install -m 0755 bin/agentids-collector /usr/local/bin/
+#   sudo install -d -m 0750 -o agentids -g agentids /etc/agentids /var/lib/agentids
+#   sudo cp deploy/agentids-collector.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now agentids-collector
+#
+# The service runs unprivileged. It needs NO root: give the `agentids` user
+#   - read access to /var/log/audit/audit.log  (add it to the adm /
+#     systemd-journal group — varies by distro), and
+#   - read access to each agent workspace root the collector hashes.
+#
+# Every optional source degrades instead of failing to start, so a host without
+# eBPF, Docker, or even auditd still runs this unit cleanly — see
+# docs/deploy-collector.md.
+
+[Unit]
+Description=agentids collector (Layer 1/2/3 host agent)
+Documentation=https://github.com/CRPerdue/agentids
+After=network-online.target
+Wants=network-online.target
+# Start after auditd so /var/log/audit/audit.log exists before Layer 3 reads it.
+After=auditd.service
+
+[Service]
+Type=simple
+User=agentids
+Group=agentids
+ExecStart=/usr/local/bin/agentids-collector -config /etc/agentids/collector.yaml
+Restart=on-failure
+RestartSec=5s
+
+# A private, writable state dir (/var/lib/agentids) for the spool + cursor, the
+# only place this service writes. ProtectSystem=strict makes the rest of the
+# filesystem read-only; StateDirectory is implicitly writable.
+StateDirectory=agentids
+ProtectSystem=strict
+# Read (not write) access to agent workspaces, which commonly live under /home.
+ProtectHome=read-only
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+# The collector only reaches central (TCP) and, when the Docker adapter is on,
+# the daemon socket (Unix). Tighten further to AF_INET AF_INET6 if you do not
+# use the Docker adapter.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+
+# --- To enable the eBPF file.access adapter, uncomment (needs kernel >= 5.8
+# --- and a binary built with `-tags ebpf`; the design grants only these two
+# --- capabilities, never CAP_SYS_ADMIN — see docs/R2-EBPF-DESIGN.md D7):
+# AmbientCapabilities=CAP_BPF CAP_PERFMON
+# CapabilityBoundingSet=CAP_BPF CAP_PERFMON
+#
+# --- If central uses a hostname that only resolves at boot, add:
+# After=nss-lookup.target
+
+[Install]
+WantedBy=multi-user.target

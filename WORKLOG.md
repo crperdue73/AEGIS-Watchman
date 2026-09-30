@@ -2687,3 +2687,57 @@ and listens on `:8080`; the non-dry-run pair enrolls the demo agent end to end.
   operator and fix anything that cannot be followed. Otherwise: the open P2.0
   toolchain decision is the only item with real remaining value and it needs Dad.
   Decide from what a reader hits next.
+
+---
+
+## Heartbeat 65 — deploy artifacts: an operator can now actually run it
+
+Heartbeats 63–64 fixed what a reader *opens* and *runs once*. This one is the
+step after that: how an operator runs it *persistently*. I read
+`docs/deploy-collector.md` as an operator, checking every quotable claim against
+the code — and the guide held up (the `eBPF support not compiled in` line, the
+`docker events adapter unavailable` line, the `docker inspect --format '{{json
+.HostConfig}}'` call, and the `-tags ebpf` build all match the source exactly;
+`systemd-analyze verify` later confirmed the units). What the guide did *not*
+have was the last mile: nothing in the repo showed how to keep the thing running
+after the shell closes. No unit, no service account, no install steps.
+
+**Shipped:**
+- `deploy/agentids-collector.service` and `deploy/agentids-central.service` —
+  systemd unit templates. Both run **unprivileged** (`User=agentids`, no root, no
+  capabilities by default) with a hardened profile: `ProtectSystem=strict`,
+  `PrivateTmp`, `NoNewPrivileges`, `RestrictSUIDSGID`, `ProtectKernel*`, a
+  private `StateDirectory=agentids` for the spool and cursor, and an
+  address-family restriction. The collector gets `ProtectHome=read-only` (it must
+  *read* agent workspaces); central gets `ProtectHome=yes` (it never touches
+  them).
+- The collector unit documents the exact capability delta for the optional
+  sources in commented blocks: `CAP_BPF` + `CAP_PERFMON` for eBPF (never
+  `CAP_SYS_ADMIN` — the design's D7), `AF_UNIX` retained for the Docker adapter.
+  The hardening is written to be *read*, not pasted blindly, and the docs say so.
+- `deploy/README.md` — the install walkthrough: the `agentids` service account,
+  the two things it needs read access to (the audit log — `adm` on Debian,
+  `systemd-journal` on RHEL — and each `agent_roots` path) and nothing else, the
+  binary/config/unit install, the eBPF/Docker deltas, and the TLS step.
+- `docs/deploy-collector.md` gains **§5 "Running as a service"** (short, points
+  at `deploy/README.md`); the sanity checklist renumbered to §6. README layout
+  updated.
+
+**Why this, and not more detection work.** The detection surface is done for v1:
+every reachable adapter has shipped, and the two that remain are gated (eBPF on a
+toolchain, Postgres on demand). The honest next gap for a tool about to go public
+is the one between "works in a terminal" and "runs on a host" — that is where an
+operator actually gives up. This closes it without a new dependency.
+
+**Verification:** `systemd-analyze verify` on both units — clean apart from the
+expected `Command … is not executable` (the binary is installed at deploy time,
+not in the repo). `make lint` green (78 links, the two new cross-links resolve);
+`go test ./...` green. No code change in this step, so no behavior risk.
+
+- **Next step (heartbeat 66):** the reader-facing surface is now consistent from
+  quickstart → deploy → service. Remaining honest options: (a) the container path
+  is stale — `deploy/docker/Dockerfile` says "Phase 1 work in progress", copies
+  only two binaries, and drops the `rules/` pack, so central/collector in a
+  container would find no rules; give it the same care as the units. (b) the open
+  P2.0 toolchain decision needs Dad. Take (a) first — it is a known-broken
+  artifact, in scope, and needs no kernel.

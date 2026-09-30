@@ -142,6 +142,14 @@ opt-in design.
   named with an owner), and a Phase-1 plan with acceptance criteria.
 - `SECURITY.md` (private vulnerability disclosure + the tool's own posture),
   `CODE_OF_CONDUCT.md`, and `scripts/check-links.py` wired into `make lint`.
+- **Deployment artifacts for a real host** (`deploy/`): systemd unit templates
+  for the collector and central — unprivileged, hardened, with a private state
+  directory for the spool and cursor — plus a `deploy/README.md` install
+  walkthrough, alongside the existing `gen-certs.sh` (mutual-TLS material) and
+  the container `Dockerfile`. The collector unit grants no root and no
+  capabilities; the exact `CAP_BPF`/`CAP_PERFMON` delta for the optional eBPF
+  adapter is documented in a commented block. `docs/deploy-collector.md` gained
+  §5 "Running as a service".
 
 ### Changed
 
