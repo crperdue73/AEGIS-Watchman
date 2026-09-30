@@ -44,14 +44,20 @@ opt-in design.
 - Correlation rules decided against a per-host timeline (e.g. an outbound call
   within 5m of an identity-file change).
 - Telemetry adapters reading real host activity: auditd `execve` → `process.exec`,
-  auditd `connect` → `net.egress`, auditd `bind`/`listen` → `net.listen`.
+  auditd `connect` → `net.egress`, auditd `bind`/`listen` → `net.listen`,
+  auditd file watches (`-w <path> -p wa`) → `file.write`.
+- A **file-watch** adapter for the write half of file telemetry (G3): an auditd
+  watch on the persistence paths emits `file.write`, so a cron drop or an rc
+  edit is caught from the kernel even when the command line never names the file.
+  Feeds `carbonato.persist.file_write`; needs no eBPF object — only the watch
+  rules in `docs/deploy-collector.md`.
 - A Docker **events** adapter — `container.start` on a host, catching the
   CARBONATO entry vector even when the container was created via the
   unauthenticated API on `:2375` rather than the `docker` CLI.
 - A `scope.change` **heuristic shim** deriving "the agent reached for new scope"
   (new listener, new outbound endpoint, new executable under an agent root) from
   existing telemetry; `detail.source="heuristic"` marks it as a derivation.
-- Seed rule pack `rules/carbonato.yaml` (v6, 19 rules) encoding the CARBONATO
+- Seed rule pack `rules/carbonato.yaml` (v7, 20 rules) encoding the CARBONATO
   chain, with a fire-test and a quiet-test per rule.
 - Durable action spool in the collector: matches are appended before they ship,
   so a central outage costs latency, never evidence.

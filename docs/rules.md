@@ -56,7 +56,7 @@ except `detail_equals` and `detail_non_empty`, which are AND over their entries.
 
 | Predicate | Type | Fires when |
 |---|---|---|
-| `type` | string | `action.type` equals this exactly (`process.exec`, `net.egress`, `net.listen`, `file.access`, `scope.change`, `container.start`). |
+| `type` | string | `action.type` equals this exactly (`process.exec`, `net.egress`, `net.listen`, `file.access`, `file.write`, `scope.change`, `container.start`). |
 | `exe` | string | The executable equals this (full path or basename). |
 | `exe_any` | [string] | The executable equals **any** of these (full path or basename). |
 | `argv_any` | [glob] | **Any** argument — or the executable itself — matches **any** glob. |
@@ -146,7 +146,7 @@ arguments (or its executable) must look like an SSH-key operation.
 
 ## The shipped pack
 
-`rules/carbonato.yaml` — pack **carbonato**, version **6**, **19 rules** encoding
+`rules/carbonato.yaml` — pack **carbonato**, version **7**, **20 rules** encoding
 the CARBONATO-class "agent as insider" chain. Rule → severity → technique →
 the action it keys on:
 
@@ -161,7 +161,8 @@ the action it keys on:
 | `carbonato.exec.obfuscation` | medium | `phase3/defense-evasion` | `process.exec` | an encode/decode pipeline |
 | `carbonato.tool.package_install` | medium | `phase3/execution` | `process.exec` | package install / executable download |
 | `carbonato.persist.survives_session` | medium | `phase3/persistence` | `process.exec` | process outlives its parent session |
-| `carbonato.persist.cron_or_rc` | high | `phase3/persistence` | `process.exec` | write to a persistence location |
+| `carbonato.persist.cron_or_rc` | high | `phase3/persistence` | `process.exec` | write to a persistence location (path named in argv) |
+| `carbonato.persist.file_write` | high | `phase3/persistence` | `file.write` | write to a persistence location (path from the kernel, no argv needed) |
 | `carbonato.infra.privileged_container` | high | `phase3/container-escape` | `process.exec` | privileged container launched with host mounts |
 | `carbonato.net.new_listener` | medium | `phase3/command-and-control` | `process.exec` | agent process opens a listening socket |
 | `carbonato.net.listener_bound` | medium | `phase3/command-and-control` | `net.listen` | a process binds a listening socket |

@@ -79,7 +79,7 @@ Omit the block, or leave `rules_dir` empty, to run Layers 1/2 only.
 | Key | Default | Meaning |
 |---|---|---|
 | `rules_dir` | — | Directory of `*.yaml` rule packs, loaded **sorted by name** for determinism. Must exist if set, and must contain **at least one rule** — a dir that exists but is empty is a startup error, not a silent no-op, so a mis-pointed or emptied dir cannot leave Layer 3 looking enabled while it detects nothing. |
-| `audit_log` | — | auditd log to tail for `process.exec` / `net.egress` / `net.listen`. Empty → rules load but stay idle (useful for validating a pack with no live feed). If **set**, the path must exist — a named-but-absent log is a startup error, so a mis-pointed path cannot leave Layer 3 looking enabled while it reads nothing. If it later **disappears at runtime** (a delete or rename, a dropped mount, auditd stopped and its log rotated away), the collector keeps running but logs the loss of the auditd feed **once**, and once again when it returns — never every poll. |
+| `audit_log` | — | auditd log to tail for `process.exec` / `net.egress` / `net.listen` / `file.write`. Empty → rules load but stay idle (useful for validating a pack with no live feed). If **set**, the path must exist — a named-but-absent log is a startup error, so a mis-pointed path cannot leave Layer 3 looking enabled while it reads nothing. If it later **disappears at runtime** (a delete or rename, a dropped mount, auditd stopped and its log rotated away), the collector keeps running but logs the loss of the auditd feed **once**, and once again when it returns — never every poll. |
 | `spool` | — | File where matches are queued **before** shipping, so a central outage costs latency, not evidence. Empty → best-effort ship, dropped on failure. |
 | `spool_max_bytes` | `16777216` (16 MiB) | Bound on the spool; oldest entries are dropped past it. `0` → the default. |
 | `cursor` | — | Persisted audit-log read offset, so a restart resumes instead of replaying the log. Empty → derived as `<spool>.cursor` when a spool is set, else not persisted. |
@@ -88,10 +88,12 @@ Omit the block, or leave `rules_dir` empty, to run Layers 1/2 only.
 
 ### `behavior.ebpf`
 
-The optional kernel-side `file.access` adapter. **Additive to `audit_log`,
-never a replacement** — it catches a secret read that never names the path on the
-command line (a `python -c` wrapper), which argv rules cannot. Needs a modern
-kernel + `CAP_BPF` and a binary built with `-tags ebpf`.
+The optional kernel-side `file.access` adapter (the **read** half of G3; the
+write half — `file.write` — comes from auditd file watches and needs no kernel
+object, see [deploy-collector.md](deploy-collector.md) §1). **Additive to
+`audit_log`, never a replacement** — it catches a secret read that never names
+the path on the command line (a `python -c` wrapper), which argv rules cannot.
+Needs a modern kernel + `CAP_BPF` and a binary built with `-tags ebpf`.
 
 | Key | Default | Meaning |
 |---|---|---|

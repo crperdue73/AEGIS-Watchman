@@ -13,7 +13,7 @@ through the **real** collector binary, the **real** rules engine, and the
 
 The demo replays two captured streams — an auditd log and a `docker events`
 log — that together encode a CARBONATO-class intrusion. Across two collector
-passes you should see **eleven rule matches and one drift, five of them
+passes you should see **twelve rule matches and one drift, five of them
 critical**:
 
 | Rule | Severity | What it caught |
@@ -22,6 +22,7 @@ critical**:
 | `carbonato.exec.ssh_key_heredoc` | high | it reached for an SSH key |
 | `carbonato.exfil.egress_after_change` | high | it called out to a chat/C2 endpoint |
 | `carbonato.net.listener_bound` | medium | it opened a listening socket (a foothold) |
+| `carbonato.persist.file_write` | high | a wrapped interpreter dropped a cron entry — **no command line named the file**; the kernel did |
 | `carbonato.container.privileged_start` | **critical** | a **privileged, host-mounted container appeared** — the entry vector |
 | `carbonato.container.host_root_mount` | **critical** | it mounted the host root / Docker socket |
 | `carbonato.tool.scope_new` (×2) | high | it reached for capabilities/endpoints not seen before (the scope shim) |
@@ -57,7 +58,7 @@ between "grep the alert log" and "which hosts are alerting, and with what".
 | File | What it is |
 |---|---|
 | `run.sh` | the one-command driver: build, start central, two collector passes, print alerts, print the fleet rollup |
-| `fixtures/audit.log` | captured auditd stream: execve → connect → bind/listen |
+| `fixtures/audit.log` | captured auditd stream: execve → connect → bind/listen, plus a file-watch write (openat/CREATE) |
 | `fixtures/docker-events.jsonl` | captured `docker events`: a container start |
 | `fake-docker.sh` | a `docker` CLI stand-in (`events` + `inspect`), no daemon |
 | `collector.yaml` | collector config pointed at the fixtures and the fake CLI |

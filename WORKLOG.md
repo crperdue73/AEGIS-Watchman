@@ -2410,3 +2410,85 @@ both; `make lint` green; `demo/run.sh` exit 0. Committed.
   highest-value gap that *is* reachable — candidates: the `file.write`
   persistence gap (G3's writable half), or surfacing pin/provenance status in the
   fleet view. Decide from the coverage matrix, not momentum.
+
+---
+
+## Heartbeat 61 — the write half of G3: the kernel names the file
+
+The pin story closed last heartbeat (write → sign → enforce), so I went back to
+`PHASE0-COVERAGE.md` and picked from the matrix instead of momentum. The list is
+short and two candidates were reachable: G3's writable half (`file.write`) or
+surfacing pin/provenance status in the fleet view. I took `file.write`.
+
+**Why this one.** Persistence — forced action A8 — is a *write to a known
+location*: a cron drop, an rc line, an authorized_keys addition. The pack
+already had `carbonato.persist.cron_or_rc`, but it matches on `process.exec`
+argv, so it only fires when the command line names the file. A `python -c` or a
+script that drops a cron entry without naming it walks straight past it. The
+coverage matrix called this "✅ via argv heuristics · ❌ via file.write (see
+G3)". This heartbeat builds the ❌ half — and unlike the read half (eBPF, still
+gated on Dad's toolchain call, P2.0), the write half needs **no kernel object at
+all**: auditd file watches have reported writes forever. So G3 is now half
+closed with zero new dependencies, and the remaining half is unchanged and
+still documented as a gap.
+
+**Shipped:**
+- `internal/telemetry/filewatch.go` — the auditd file-watch adapter emitting
+  `file.write`. The load/read/write decision lives in exactly one place
+  (`writeTarget`), so the parser's `isActionable` and the dispatcher's
+  `AnyAction` can never disagree about whether a record is a write.
+- `AuditRecord` gains the two fields the decision needs: `PathRecs` (each PATH
+  with auditd's `nametype` — PARENT/NORMAL/CREATE/DELETE) and `WatchKey` (the
+  audit rule `key=` from the SYSCALL line). `applyAuditLine` folds both.
+- Routing: `AnyAction`/`isActionable` send connect→egress, bind/listen→listen,
+  a write-shaped file record→`file.write`, everything else→`process.exec`. The
+  execve case is the one that could have regressed — an execve carries a PATH
+  with `nametype=NORMAL` for the binary — so it is pinned by a test
+  (`TestExecveWithNormalPathStaysProcessExec`).
+- **The read/write rule, in one place:** a CREATE or DELETE nametype is a write
+  whatever the syscall; a strictly-write syscall (`creat`, `unlink`, `rename`,
+  `truncate`, `chmod`, the xattr family) is a write; an open-family syscall is
+  ambiguous (same syscall reads and writes, auditd records no flags) and counts
+  as a write **only when the record carries a watch key** — i.e. it came from an
+  operator `-w` watch, and the deploy guide watches with `-p wa`. A bare
+  read-open with no key is dropped, not guessed.
+- Rule `carbonato.persist.file_write` (pack v7, 20 rules) — the kernel-side
+  counterpart to `carbonato.persist.cron_or_rc`, keyed on `file.write` +
+  persistence-path globs. It fires for the same write the argv rule misses.
+- Tests: `internal/telemetry/filewatch_test.go` — create names the target not
+  the PARENT dir; append-to-watched-existing-file; unlink/DELETE; the two
+  false-positive guards (a bare read-open is not a write; the identical record
+  minus the watch key is not a write); execve stays process.exec; strict syscall
+  fires without a key. Plus a rules fire-test and a benign-corpus case.
+- Docs: `deploy-collector.md` §1 gains the file-watch rules (with the explicit
+  "do not add `-p r`" warning and a note to watch only paths that matter) and a
+  row in the "what each rule buys you" table; `collector-config.md`,
+  `event-schema.md`, `rules.md` (type list + rule table + counts), `rules/README.md`,
+  `README.md` (action list + the G3 blind-spot entry now says the write half is
+  built and only the read half waits on eBPF), CHANGELOG.
+- Demo: a fourth auditd frame — a wrapped interpreter drops
+  `/etc/cron.d/agentids-beacon` with no command line naming it — so `run.sh`
+  now shows **twelve matches + one drift (13 events), five critical**, and the
+  fleet rollup gains `phase3/persistence=1`. Verified through the real binaries.
+
+**Design note — the same reflex as the other adapters.** The read/write
+ambiguity is resolved by an *honest* signal (a watch key) rather than a guess,
+and where the signal is absent the record is dropped: "a wrong path is worse
+than no event," the same line as uid resolution and saddr decoding. The
+watch-key precondition is also what keeps this from flooding a host that merely
+has a broad `-S openat` rule — without `-w`, nothing is emitted. Pins
+regenerated (`carbonato@7`); the pin is now a runtime guarantee, so it had to
+move with the pack.
+
+**Verification:** real binaries — `make build`; `demo/run.sh` exit 0 with
+`file.write → carbonato.persist.file_write` present in `demo/out/records.json`;
+`agentids-rules verify --pins rules/packs.pins rules/` → `ok: 1 pack(s), 20
+rule(s) … pins: ok`; `go test ./...` and `go test -tags sqlite ./...` green;
+`go vet` clean both; `make lint` green (72 links). Committed.
+
+- **Next step (heartbeat 62):** re-read the coverage matrix. The `file.write`
+  half is done; the honest next candidates are (a) the read-half-adjacent
+  `file.access` still blocks on P2.0 (eBPF toolchain — Dad's call), (b) P2.1c-4
+  (Postgres record backend, on demand), or (c) surfacing pin/provenance status in
+  the fleet view — the one candidate from this heartbeat I did not take. Decide
+  from the matrix, not momentum.

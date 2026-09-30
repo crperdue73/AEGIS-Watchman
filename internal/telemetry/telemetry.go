@@ -17,9 +17,11 @@
 //   - A simple line-oriented text stream ("exe<TAB>arg1<TAB>arg2..."), used for
 //     tests, demos, and anything that can pipe commands somewhere.
 //
-// The adapter emits process.exec actions only. net.egress / file.access /
-// scope.change come from later adapters (eBPF, FIM, agent control plane); the
-// Action shape and the rule predicate set already support them.
+// The adapter emits process.exec actions here, and the sibling adapters in this
+// package add net.egress (egress.go), net.listen (egress.go), file.write
+// (filewatch.go), scope.change (scope.go) and container.start (docker.go).
+// file.access (the readable half) still comes from the eBPF adapter; the
+// Action shape and the rule predicate set already support it.
 package telemetry
 
 import (
@@ -34,11 +36,18 @@ import (
 // ProcessExec is the action type emitted by the execve adapters.
 const ProcessExec = "process.exec"
 
-// NetEgress, FileAccess, and ScopeChange are the action types later adapters
-// will emit. Declared here so rule authors have one place to look.
+// The remaining action types, one per adapter. Declared together so rule authors
+// have one place to look.
 const (
-	NetEgress   = "net.egress"
-	FileAccess  = "file.access"
+	// NetEgress is emitted by the auditd connect adapter (egress.go).
+	NetEgress = "net.egress"
+	// FileAccess (the file *read* half) is emitted by the eBPF adapter; declared
+	// here so the shape is documented even where the source is not yet built.
+	FileAccess = "file.access"
+	// FileWrite (the file *write* half) is emitted by the auditd file-watch
+	// adapter (filewatch.go).
+	FileWrite = "file.write"
+	// ScopeChange is emitted by the collector's scope shim (scope.go).
 	ScopeChange = "scope.change"
 )
 
@@ -75,6 +84,18 @@ type AuditRecord struct {
 	Cwd   string
 	Paths []string
 
+	// PathRecs is the ordered PATH list with each entry's nametype (PARENT,
+	// NORMAL, CREATE, DELETE). The file-write adapter needs the nametype: it is
+	// how auditd says whether a path was created or removed rather than merely
+	// touched, and how a PARENT directory is told apart from the target file.
+	PathRecs []PathRec
+
+	// WatchKey is the audit rule key= from the SYSCALL line. It is set when the
+	// record matched an operator's file watch (-w path -p wa -k <key>) rather
+	// than a broad syscall rule, and the file-write adapter uses its presence to
+	// read an otherwise-ambiguous open as a write.
+	WatchKey string
+
 	// From type=SOCKADDR (connect/bind records): the peer address, hex-encoded.
 	SockAddr string
 
@@ -83,6 +104,14 @@ type AuditRecord struct {
 	// the address is local (e.g. 0.0.0.0:4444) — reporting it as a "peer" would
 	// mislabel whose address it is.
 	BindAddr string
+}
+
+// PathRec is one auditd PATH entry: the file name and auditd's nametype. The
+// nametype is the load-bearing part — PARENT names the directory a create
+// happened in, NORMAL a path merely referenced, CREATE/DELETE the actual change.
+type PathRec struct {
+	Name     string
+	Nametype string
 }
 
 // Action converts an execve-ish audit record into a scheme.Action. It returns
@@ -143,9 +172,9 @@ func (r *AuditRecord) user() string {
 }
 
 // AnyAction converts any actionable audit record into the right schema.Action:
-// net.egress for connect records, net.listen for bind/listen records,
-// process.exec otherwise. This is the single dispatch point FileSource uses so
-// one audit tail yields every telemetry shape.
+// net.egress for connect records, net.listen for bind/listen records, file.write
+// for a file-watch write, process.exec otherwise. This is the single dispatch
+// point FileSource uses so one audit tail yields every telemetry shape.
 func (r *AuditRecord) AnyAction() (schema.Action, *schema.Actor, bool) {
 	switch r.Syscall {
 	case EgressConnect:
@@ -153,6 +182,9 @@ func (r *AuditRecord) AnyAction() (schema.Action, *schema.Actor, bool) {
 	case ListenBind, ListenListen:
 		return r.ListenAction()
 	default:
+		if _, ok := r.writeTarget(); ok {
+			return r.WriteAction()
+		}
 		return r.Action()
 	}
 }
@@ -215,7 +247,10 @@ func (r *AuditRecord) isActionable() bool {
 	case "", "execve", "execveat":
 		return r.Exe != "" || len(r.Argv) > 0
 	default:
-		return false
+		// A file-watch record (openat/creat/unlink/… naming a target path) is
+		// actionable only when it is a write; a bare read-open is not.
+		_, ok := r.writeTarget()
+		return ok
 	}
 }
 
@@ -326,6 +361,9 @@ func applyAuditLine(rec *AuditRecord, typ, line string) {
 		rec.PPID = auditInt(line, "ppid")
 		rec.UID = auditInt(line, "uid")
 		rec.AUid = auditInt(line, "auid")
+		if k := auditField(line, "key"); k != "" {
+			rec.WatchKey = k
+		}
 	case "EXECVE":
 		rec.Type = "EXECVE"
 		rec.Argv = append(rec.Argv, parseExecveArgs(line)...)
@@ -336,7 +374,9 @@ func applyAuditLine(rec *AuditRecord, typ, line string) {
 		}
 	case "PATH":
 		if v := auditField(line, "name"); v != "" {
-			rec.Paths = append(rec.Paths, unquote(v))
+			v = unquote(v)
+			rec.Paths = append(rec.Paths, v)
+			rec.PathRecs = append(rec.PathRecs, PathRec{Name: v, Nametype: auditField(line, "nametype")})
 		}
 	}
 }

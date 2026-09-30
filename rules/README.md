@@ -40,7 +40,7 @@ Initial rule-set target: ~20–30 rules. Seed ideas from the brief (Part 3):
 - Container launched privileged with host mounts (the 2375 entry vector)
 
 > **Status:** the format, parser, and evaluator are implemented in
-> `internal/rules/`; `carbonato.yaml` is the seed pack (v6 — 19 rules, including
+> `internal/rules/`; `carbonato.yaml` is the seed pack (v7 — 20 rules, including
 > three correlation rules). The telemetry adapters that turn real host activity
 > (execve, sockets, file opens, container starts) into `action` events live in
 > `internal/telemetry/`, and the engine is wired into the collector. Pack

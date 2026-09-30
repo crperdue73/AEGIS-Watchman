@@ -109,12 +109,13 @@ Built so far:
   `technique`, a `match` block over action fields) and a deterministic evaluator
   that turns matching actions into `behavior.rule_match` events. Telemetry
   adapters read real host activity (auditd `execve` → `process.exec`, auditd
-  `connect` → `net.egress`, auditd `bind`/`listen` → `net.listen`) so rules
+  `connect` → `net.egress`, auditd `bind`/`listen` → `net.listen`, auditd file
+  watches → `file.write`) so rules
   match what an agent *does*, not just what a file looks like. A fourth source,
   the Docker events adapter (`container.start`), watches for a container
   *appearing* on the host with host-level access — the CARBONATO entry vector,
   caught even when it was created via the unauthenticated API on `:2375` rather
-  than the `docker` CLI. The seed pack `rules/carbonato.yaml` (v6, 19 rules)
+  than the `docker` CLI. The seed pack `rules/carbonato.yaml` (v7, 20 rules)
   encodes the CARBONATO chain — secret-store reads, SSH-key argv, chat/C2 egress,
   chain-RPC C2 (a public blockchain RPC provider — the Graphalgo C2 leg), shell
   spawn, novel scope, persistence, privileged/host-mounted containers —
@@ -224,10 +225,13 @@ A public detection tool that hides its blind spots is a liability. What this
   control plane emits no host telemetry the collector can read. No host, no
   auditd, no actions — it is invisible to this tool by construction. Owned here in
   the docs rather than implied-as-covered.
-- **`file.access` on a stock build (G3).** Reads of a secret file are caught today
-  only when the read is visible in `argv` (e.g. `cat ~/.ssh/id_ed25519`). A
+- **`file.access` on a stock build (G3, read half).** Reads of a secret file are
+  caught today only when the read is visible in `argv` (e.g. `cat ~/.ssh/id_ed25519`). A
   process that reads a secret without naming it on a command line needs the eBPF
-  source, whose kernel-dependent half is not built (P2.0).
+  source, whose kernel-dependent half is not built (P2.0). The **write** half is
+  built (`file.write`, from auditd file watches — `carbonato.persist.file_write`),
+  so a persistence write is caught from the kernel even when argv never names the
+  file; the read half still needs eBPF.
 - **`scope.change` is partial (G5).** "The agent changed its own scope" is
   detected heuristically from host actions, not from an agent-native control-plane
   log. The first slice lands as P1.3; the full signal is still open.

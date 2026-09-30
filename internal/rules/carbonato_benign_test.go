@@ -67,6 +67,12 @@ func TestShippedPackQuietOnBenignCorpus(t *testing.T) {
 			}},
 		},
 		{
+			"a build writing its own output file (not a persistence path)",
+			schema.Action{Type: "file.write", Detail: map[string]any{
+				"path": "/tmp/build/output.log", "syscall": "openat", "nametype": "CREATE",
+			}},
+		},
+		{
 			"a listener on loopback from a dev server the operator started",
 			// NOTE: this one is EXPECTED to fire listener_bound — a listener is
 			// a listener. It is here to document that we do NOT special-case

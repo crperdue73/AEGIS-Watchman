@@ -218,6 +218,58 @@ func TestShippedCarbonatoFiresOnBlockchainC2(t *testing.T) {
 	}
 }
 
+// TestShippedCarbonatoFiresOnFileWrite covers the writable half of G3: a
+// file.write action naming a persistence path — the path the kernel reported,
+// with no command line naming it — fires the persistence rule. This is the
+// counterpart to the argv rule (carbonato.persist.cron_or_rc): the same write
+// by a wrapped interpreter still fires here.
+func TestShippedCarbonatoFiresOnFileWrite(t *testing.T) {
+	p, err := LoadPack(filepath.Join("..", "..", "rules", "carbonato.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := NewEngine(p)
+	host := schema.Host{ID: "h"}
+
+	fired := func(path string) []string {
+		var out []string
+		for _, ev := range e.Match(host, nil, schema.Action{
+			Type: "file.write", Detail: map[string]any{
+				"path": path, "syscall": "openat", "nametype": "CREATE",
+			},
+		}, nil, timeNow()) {
+			out = append(out, ev.Rule.ID)
+		}
+		return out
+	}
+	has := func(ids []string, want string) bool {
+		for _, id := range ids {
+			if id == want {
+				return true
+			}
+		}
+		return false
+	}
+
+	// A cron drop, an rc-file overwrite, an authorized_keys addition — each is a
+	// persistence write the kernel named.
+	for _, path := range []string{
+		"/etc/cron.d/payload",
+		"/home/vivi/.bashrc",
+		"/home/vivi/.ssh/authorized_keys",
+		"/etc/systemd/system/beacon.service",
+	} {
+		if got := fired(path); !has(got, "carbonato.persist.file_write") {
+			t.Errorf("file.write to %s did not fire persist.file_write: %v", path, got)
+		}
+	}
+
+	// A write to a working directory is not persistence and must stay quiet.
+	if got := fired("/tmp/build/output.log"); len(got) != 0 {
+		t.Errorf("benign file.write fired rules (should be quiet): %v", got)
+	}
+}
+
 // TestContainerRuleQuietOnOrdinaryContainer guards the low-noise promise: an
 // ordinary container with no host access must NOT fire the container rules.
 func TestContainerRuleQuietOnOrdinaryContainer(t *testing.T) {

@@ -64,7 +64,7 @@ type FileInfo struct {
 
 // Action carries behavior-oriented detail for Layer 3 events.
 type Action struct {
-	Type   string         `json:"type"`             // process.exec | net.egress | file.access | scope.change
+	Type   string         `json:"type"`             // process.exec | net.egress | net.listen | file.access | file.write | scope.change | container.start
 	Detail map[string]any `json:"detail,omitempty"` // rule-specific fields
 }
 

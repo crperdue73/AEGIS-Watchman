@@ -35,6 +35,20 @@ listeners. Those come from auditd. Enable the rules the collector can use:
 -a always,exit -F arch=b32 -S connect  -k agentids
 -a always,exit -F arch=b32 -S bind     -k agentids
 -a always,exit -F arch=b32 -S listen   -k agentids
+
+# File watches (optional) — the WRITE half of file telemetry. A write to a
+# persistence path is caught even when the command line never names the file
+# (a script, a wrapped interpreter). Watch with -p wa (write + attribute
+# change); do NOT add -p r to the same watch — an open is read/write-ambiguous
+# and a read-watch would report reads as writes.
+-w /etc/cron.d             -p wa -k agentids
+-w /etc/cron.daily         -p wa -k agentids
+-w /etc/cron.hourly        -p wa -k agentids
+-w /etc/crontab            -p wa -k agentids
+-w /etc/systemd/system     -p wa -k agentids
+-w /root/.bashrc           -p wa -k agentids
+-w /root/.profile          -p wa -k agentids
+-w /root/.ssh/authorized_keys -p wa -k agentids
 ```
 
 Apply with `augenrules --load` (or `service auditd restart`).
@@ -54,10 +68,21 @@ behavior:
 | `execve` | `process.exec` | shell spawn, secret reads via argv, installer, obfuscation, persistence |
 | `connect` | `net.egress` | chat/C2 egress, and the correlation `egress_after_identity_change` |
 | `bind` / `listen` | `net.listen` | `carbonato.net.listener_bound` — a foothold opening a socket |
+| `-w <path> -p wa` | `file.write` | `carbonato.persist.file_write` — a write to a persistence path, named by the kernel, not by argv |
 
 Without `connect`, `egress_after_identity_change` — the rule this project was
 built for — cannot fire. Without `bind`/`listen`, the kernel-side listener rule
 stays idle. `execve` alone is the minimum; all four is the intended set.
+
+**The file watches are the exception worth adding deliberately.** `execve`
+reports the command line, so a persistence write is only seen when the command
+names the file (`carbonato.persist.cron_or_rc`). A `python -c` or a script that
+drops a cron entry without naming it walks past that. The kernel, however,
+always knows which file was written — so a watch on the persistence paths turns
+that into `file.write` and fires `carbonato.persist.file_write`. It is the write
+half of coverage gap G3; the read half still needs the eBPF source (§2). Watch
+only the paths that matter (a `-w` on `/` is a flood); the set above is the
+minimum that covers the common persistence locations.
 
 **Permissions:** reading `/var/log/audit/audit.log` needs membership in the
 `adm`/`systemd-journal` group (varies by distro) or root. The collector does not
@@ -236,6 +261,8 @@ After deploying a collector:
 - [ ] Editing an agent's `SOUL.md` produces an `identity.drift` event (Layer 1).
 - [ ] A `bash -c "cat ~/.ssh/id_ed25519"` in the audit log fires
       `carbonato.secret.read_order_follows_constraint` (Layer 3, argv path).
+- [ ] If file watches are enabled: a write to a watched persistence path fires
+      `carbonato.persist.file_write` (Layer 3, the path from the kernel, no argv).
 - [ ] If eBPF is enabled: startup logs either "adapter attached" or exactly one
       "unavailable" line — never a crash.
 - [ ] If Docker is enabled: starting an ordinary container fires nothing;

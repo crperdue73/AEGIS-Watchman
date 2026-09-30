@@ -8,9 +8,10 @@
 #
 #   ./run.sh          run the demo, print the alerts, tear down
 #
-# What you should see: six rule matches, two of them critical — the privileged,
-# host-mounted container (the entry vector) and the egress-after-identity-change
-# correlation (the chain's spine).
+# What you should see: twelve rule matches across two passes and one drift,
+# five of them critical — the privileged, host-mounted container (the entry
+# vector), the container-after-identity-change correlation (the chain's spine),
+# and the kernel-side persistence write (a cron drop no command line names).
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"

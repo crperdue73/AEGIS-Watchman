@@ -57,7 +57,7 @@ change?"; Layer 2 asks "was this ever ours?"
 
 Fires when a rule matches an observed action.
 
-- `action.type` ∈ `process.exec · net.egress · file.access · scope.change`.
+- `action.type` ∈ `process.exec · net.egress · net.listen · file.access · file.write · scope.change · container.start`.
 - `action.detail` carries rule-specific fields (e.g. endpoint, argv, path, scope).
 - `rule` carries `{ id, pack, version, technique? }` so consumers can trace which
   rule fired and, when the rule declares one, group by technique. `technique` is
