@@ -78,7 +78,7 @@ Omit the block, or leave `rules_dir` empty, to run Layers 1/2 only.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `rules_dir` | — | Directory of `*.yaml` rule packs, loaded **sorted by name** for determinism. Must exist if set. |
+| `rules_dir` | — | Directory of `*.yaml` rule packs, loaded **sorted by name** for determinism. Must exist if set, and must contain **at least one rule** — a dir that exists but is empty is a startup error, not a silent no-op, so a mis-pointed or emptied dir cannot leave Layer 3 looking enabled while it detects nothing. |
 | `audit_log` | — | auditd log to tail for `process.exec` / `net.egress` / `net.listen`. Empty → rules load but stay idle (useful for validating a pack with no live feed). |
 | `spool` | — | File where matches are queued **before** shipping, so a central outage costs latency, not evidence. Empty → best-effort ship, dropped on failure. |
 | `spool_max_bytes` | `16777216` (16 MiB) | Bound on the spool; oldest entries are dropped past it. `0` → the default. |
@@ -133,7 +133,7 @@ stream and infers novelty from the actions already emitted, marking its output
 
 `LoadConfig` fails fast rather than run misconfigured. It rejects: no
 `agent_roots`; an `agent_roots` entry with an empty `path`; an `hash` other than
-`sha256`; a `rules_dir` that does not exist; a `tls` block that does not validate;
+`sha256`; a `rules_dir` that does not exist or holds no rules; a `tls` block that does not validate;
 and a `behavior.ebpf` / `behavior.docker` block with contradictions (checked even
 when the adapter is disabled, so a typo is caught at startup, not at first poll).
 

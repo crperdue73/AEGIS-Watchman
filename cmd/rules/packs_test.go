@@ -59,6 +59,14 @@ func TestLoadSetRejectsDuplicateIDAcrossPaths(t *testing.T) {
 	}
 }
 
+// A path that exists but holds no rules is a mistake, not an empty success:
+// loadSet must refuse it rather than report a vacuous "ok".
+func TestLoadSetRejectsEmptyDir(t *testing.T) {
+	if _, err := loadSet([]string{t.TempDir()}); err == nil {
+		t.Fatal("expected an error for a rules dir with no rules")
+	}
+}
+
 func TestSummarize(t *testing.T) {
 	packs, err := loadSet([]string{writeFile(t, t.TempDir(), "p.yaml", oneRule)})
 	if err != nil {

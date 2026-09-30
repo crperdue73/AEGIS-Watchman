@@ -2039,3 +2039,50 @@ green (67 links); `gofmt`/`vet` clean; `demo/run.sh` exit 0. Committed.
   with a named primitive + a benign lookalike), not count-driven. Other
   unblocked candidate: the Phase 3 **rule-pack publishing format** (pin/audit
   which packs a fleet runs). Re-read `PHASE1-PLAN.md` §open decisions first.
+
+---
+
+## Heartbeat 54 — an empty rules dir is no longer a silent blind spot
+
+Found a quiet hole in the collector that the code's own comment swore it did not
+have. `NewBehaviorEngine` says: "A malformed pack IS an error: silently running
+with no rules would make the host look protected when it is not." True for a
+*malformed* pack — but `LoadPacks` returns an empty slice, no error, for a
+directory that **exists and contains no rule packs**. So an operator who
+mis-pointed `rules_dir` (or whose packs got deleted/renamed) got a collector that
+logged "Layer 3 enabled" and then detected nothing, forever, while looking
+healthy. Exactly the failure the comment promised to prevent; the promise just
+wasn't enforced for the empty case.
+
+**Shipped:**
+- `internal/collector/behavior.go` — after loading, count the rules; **zero is a
+  startup error** naming the dir ("contains no rules — Layer 3 would be enabled
+  but detect nothing"). On success it now logs `Layer 3 loaded N rule(s) from M
+  pack(s)`, so the count is visible rather than implied.
+- `cmd/rules/packs.go` — `loadSet` refuses a path (or set of paths) with no
+  rules: a vacuous "ok: 0 rules" is a green light for nothing.
+- Tests: `TestBehaviorEngineRejectsEmptyRulesDir` (collector) and
+  `TestLoadSetRejectsEmptyDir` (CLI).
+- Docs: `collector-config.md` (`rules_dir` must contain at least one rule, and a
+  no-rules dir is on the validation list), `docs/rules.md` (verify refuses an
+  empty set), `CHANGELOG.md` (`### Changed`).
+
+**Design note:** kept `rules.LoadPacks` lenient (a low-level loader; "a dir with
+no packs is not an error" is a fine loader contract) and pushed the
+"must be meaningful" check to the **call sites that matter** — the collector
+(silent blind spot) and the CLI's verify. The loader stays reusable; the
+policy lives where the consequence is.
+
+**Verification:** `agentids-rules verify /tmp/emptyrules` → exit 1, "no rules
+found"; a missing dir → exit 1; `rules/` → `ok: 1 pack(s), 19 rule(s)`, exit 0;
+the demo now prints `Layer 3 loaded 19 rule(s) from 1 pack(s)`; `go test ./...`
+green (10 packages); `make lint` green (67 links); `gofmt`/`vet` clean;
+`demo/run.sh` exit 0. Committed.
+
+- **Next step (heartbeat 55):** open fronts unchanged — P2.0 (eBPF, blocked on
+  Dad's toolchain call) and P2.1c-4 (Postgres, on demand). Nice follow-on in the
+  same vein: the other additive adapters (eBPF, docker) *degrade* by design when
+  unavailable — that is correct, but it is worth making sure a *configured but
+  unavailable* required source is loud once (not silent), and that the
+  scope shim's `detail.source=heuristic` is visible in the fleet view. Then the
+  Phase 3 rule-pack publishing format. Re-read `PHASE1-PLAN.md` first.

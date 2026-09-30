@@ -2,6 +2,7 @@ package collector
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -44,6 +45,20 @@ func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submi
 	if err != nil {
 		return nil, err
 	}
+
+	// An empty rules dir is the quiet twin of a malformed pack: the collector
+	// would start with Layer 3 "on" and evaluate zero rules, so the host looks
+	// protected while nothing can ever fire (a mis-pointed dir, a deleted pack).
+	// Refuse to start instead of going silently blind — the same principle the
+	// comment above states for a malformed pack.
+	total := 0
+	for _, p := range packs {
+		total += len(p.Rules)
+	}
+	if total == 0 {
+		return nil, fmt.Errorf("behavior.rules_dir %q contains no rules — Layer 3 would be enabled but detect nothing", cfg.Behavior.RulesDir)
+	}
+	log.Printf("collector: behavior: Layer 3 loaded %d rule(s) from %d pack(s)", total, len(packs))
 	eng := rules.NewEngine(packs...)
 	tl := rules.NewTimeline()
 	// Compose telemetry sources through a MultiSource so a second backend (the

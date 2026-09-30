@@ -84,6 +84,17 @@ func TestBehaviorEngine_PollShipsMatches(t *testing.T) {
 	}
 }
 
+// TestBehaviorEngineRejectsEmptyRulesDir pins the silent-blind-spot guard: a
+// rules_dir that exists but holds no rules must fail startup, not start Layer 3
+// with nothing it can ever fire.
+func TestBehaviorEngineRejectsEmptyRulesDir(t *testing.T) {
+	dir := t.TempDir() // exists, but empty
+	cfg := &Config{Behavior: Behavior{RulesDir: dir}}
+	if _, err := NewBehaviorEngine(cfg, schema.Host{ID: "h1"}, nil, &fakeSubmitter{}); err == nil {
+		t.Fatal("expected an error for an empty rules dir")
+	}
+}
+
 func TestBehaviorEngine_SubmitErrorDoesNotPanic(t *testing.T) {
 	tmp := t.TempDir()
 	audit := filepath.Join(tmp, "audit.log")

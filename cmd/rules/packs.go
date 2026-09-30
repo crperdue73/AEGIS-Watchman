@@ -44,6 +44,16 @@ func loadSet(paths []string) ([]*rules.Pack, error) {
 	if err := rules.CheckUniqueIDs(packs); err != nil {
 		return nil, err
 	}
+	// A path with no rules is almost always a mistake (a wrong dir, a deleted
+	// pack), and "verified: 0 rules" is a green light for nothing. Treat it as
+	// an error rather than an empty success.
+	total := 0
+	for _, p := range packs {
+		total += len(p.Rules)
+	}
+	if total == 0 {
+		return nil, fmt.Errorf("no rules found in %s", strings.Join(paths, ", "))
+	}
 	return packs, nil
 }
 

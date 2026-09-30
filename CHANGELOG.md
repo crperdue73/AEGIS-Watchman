@@ -118,6 +118,11 @@ opt-in design.
   parsing also keeps a pack forward-safe, since an older binary refuses a pack
   it does not fully understand rather than running a weakened version of it. No
   shipped pack or test fixture changed.
+- **An empty `behavior.rules_dir` is now a startup error.** A directory that
+  exists but holds no rules used to start Layer 3 with zero rules — the host
+  looked protected while nothing could fire. The collector now refuses to start
+  and says so, and logs the rule/pack count it loaded. `agentids-rules verify`
+  likewise refuses a path with no rules instead of reporting a vacuous `ok`.
 
 ### Known gaps (not changed: these are the open work)
 

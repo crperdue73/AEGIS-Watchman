@@ -227,5 +227,6 @@ agentids-rules list rules/                  # every rule, sorted by id
 `verify` prints a summary (packs, rule count, severity breakdown, distinct
 techniques) and exits non-zero on the first parse or validation error — the same
 strict rules above, including unique ids across everything given on the command
-line. `list` is the quick index of what a set defines. Wire `verify` into CI for
+line. A path that exists but holds no rules is an error, not a vacuous "ok".
+`list` is the quick index of what a set defines. Wire `verify` into CI for
 a community rules repo the way `go test` guards code.
