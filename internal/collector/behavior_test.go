@@ -1,9 +1,12 @@
 package collector
 
 import (
+	"bytes"
 	"context"
+	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/CRPerdue/agentids/internal/schema"
@@ -147,4 +150,100 @@ func TestBehaviorEngine_ObserveDriftFeedsTimeline(t *testing.T) {
 	// Nil engine (Layer 3 off) must no-op rather than panic.
 	var nilBE *BehaviorEngine
 	nilBE.ObserveDrift([]schema.Event{{Event: schema.EventIdentityDrift, Host: schema.Host{ID: "h1"}}})
+}
+
+// TestSourceWatchReportsEachTransitionOnce pins the runtime counterpart to the
+// startup audit_log check: a primary source that goes away mid-run is reported
+// on the transition (and on its return), never once per poll.
+func TestSourceWatchReportsEachTransitionOnce(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "audit.log")
+	if err := os.WriteFile(path, []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	w := &sourceWatch{name: "audit_log", path: path}
+
+	// Present and steady: silent.
+	if msg, changed := w.observe(); changed {
+		t.Fatalf("steady source reported a change: %q", msg)
+	}
+	if _, changed := w.observe(); changed {
+		t.Fatal("steady source kept reporting")
+	}
+
+	// Vanishes: reported exactly once.
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	msg, changed := w.observe()
+	if !changed || !strings.Contains(msg, "disappeared") {
+		t.Fatalf("expected a disappearance report, got changed=%v msg=%q", changed, msg)
+	}
+	if _, changed := w.observe(); changed {
+		t.Fatal("disappearance reported more than once")
+	}
+
+	// Returns: reported exactly once, then silent again.
+	if err := os.WriteFile(path, []byte("y\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	msg, changed = w.observe()
+	if !changed || !strings.Contains(msg, "back") {
+		t.Fatalf("expected a recovery report, got changed=%v msg=%q", changed, msg)
+	}
+	if _, changed := w.observe(); changed {
+		t.Fatal("recovery reported more than once")
+	}
+}
+
+// A source already absent on the very first check is reported once (a caller who
+// built the engine without LoadConfig's existence check), then stays quiet.
+func TestSourceWatchReportsAbsentOnFirstCheck(t *testing.T) {
+	w := &sourceWatch{name: "audit_log", path: filepath.Join(t.TempDir(), "gone.log")}
+	msg, changed := w.observe()
+	if !changed || !strings.Contains(msg, "not readable") {
+		t.Fatalf("expected a first-check absence report, got changed=%v msg=%q", changed, msg)
+	}
+	if _, changed := w.observe(); changed {
+		t.Fatal("absent-first check repeated itself")
+	}
+}
+
+// The engine must actually surface the watch: losing the audit log mid-run has
+// to emit one loud line, not vanish silently.
+func TestBehaviorEngineWarnsWhenAuditLogVanishes(t *testing.T) {
+	tmp := t.TempDir()
+	audit := filepath.Join(tmp, "audit.log")
+	if err := os.WriteFile(audit, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &Config{Behavior: Behavior{RulesDir: "../../rules", AuditLog: audit}}
+	be, err := NewBehaviorEngine(cfg, schema.Host{ID: "h1"}, &schema.Agent{ID: "a1"}, &fakeSubmitter{})
+	if err != nil {
+		t.Fatalf("NewBehaviorEngine: %v", err)
+	}
+
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	defer log.SetOutput(os.Stderr)
+
+	be.Poll() // source present: nothing to say
+	if strings.Contains(buf.String(), "primary source") {
+		t.Fatalf("spoke up about a present source: %q", buf.String())
+	}
+
+	buf.Reset()
+	if err := os.Remove(audit); err != nil {
+		t.Fatal(err)
+	}
+	be.Poll()
+	if !strings.Contains(buf.String(), "disappeared") {
+		t.Fatalf("missing source went unreported: %q", buf.String())
+	}
+
+	buf.Reset()
+	be.Poll() // still gone: no repeat
+	if strings.Contains(buf.String(), "disappeared") {
+		t.Fatalf("missing source reported every poll: %q", buf.String())
+	}
 }

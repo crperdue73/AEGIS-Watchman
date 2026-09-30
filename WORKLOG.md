@@ -2142,3 +2142,53 @@ pack(s)`; the three new tests pass; `go test ./...` green (10 packages);
   `FileSource`, which must stay lenient for the no-auditd case). Then the
   scope-shim `detail.source=heuristic` visibility in the fleet view, and the
   Phase 3 rule-pack publishing format. Re-read `PHASE1-PLAN.md` first.
+
+---
+
+## Heartbeat 56 — the primary source can now vanish loudly, once
+
+Heartbeat 55 fixed the startup half: a configured `audit_log` must exist or the
+collector refuses to start. This is the runtime half. The file is guaranteed
+*present at load*, but nothing stops it vanishing *after* — a delete, a rename,
+a dropped NFS mount, auditd stopped and its log rotated away. In that state
+`FileSource.Actions` returns an empty batch (correct for "no auditd here"), so
+the collector kept polling, matched nothing, and said nothing, forever. Green
+process, zero coverage — the exact failure mode this tool exists to refuse.
+
+**Shipped:**
+- `internal/collector/behavior.go` — a small `sourceWatch{name,path}` that
+  `os.Stat`s the primary source once per `Poll` and reports **each presence
+  change exactly once**: a `... disappeared — Layer 3 loses its auditd feed until
+  it returns: <err>` line on loss, a `... is back — Layer 3 reading again` line on
+  return, and silence while steady (a present-at-startup source says nothing the
+  first time; startup validation already promised it). `BehaviorEngine` holds a
+  `*sourceWatch`, set only when `behavior.audit_log` is non-empty — so the
+  documented idle mode (rules_dir set, audit_log empty) never arms it.
+- Scope held deliberately: this tracks the **primary** source only. eBPF and
+  Docker stay degrade-by-design additive eyes; a second source blinking is not a
+  loss of the auditd feed and must not cry wolf.
+- Tests: `TestSourceWatchReportsEachTransitionOnce` (present→gone→back, one line
+  each, silent while steady), `TestSourceWatchReportsAbsentOnFirstCheck` (a caller
+  who built a `Config` directly, skipping `LoadConfig`), and
+  `TestBehaviorEngineWarnsWhenAuditLogVanishes` (end-to-end through `Poll`, with
+  the log captured: quiet when present, one `disappeared` line when removed, no
+  repeat on the next poll).
+- Docs: `docs/collector-config.md` (`audit_log` row gains the runtime sentence),
+  `CHANGELOG.md` (`### Changed`).
+
+**Design note:** the watch's *message* is the point — it names the consequence
+("loses its auditd feed … until it returns"), not just the event, so an operator
+reading one line in a log knows whether their coverage is currently intact. A
+stat per 30s poll is free; the cost of the check is nothing next to the cost of
+not noticing.
+
+**Verification:** the three new tests pass; `go test ./...` green (10 packages);
+`make lint` green (67 links); `gofmt`/`vet` clean; `demo/run.sh` exit 0
+(the source is present for the whole demo, so it stays silent — as it should).
+Committed.
+
+- **Next step (heartbeat 57):** the WORKLOG-55 note's other two items are still
+  open — the scope shim's `detail.source=heuristic` being visible in the fleet
+  view (so an operator can tell a derived signal from a real one), then the
+  Phase 3 rule-pack publishing format (pin/audit which packs a fleet runs).
+  Re-read `PHASE1-PLAN.md` §open decisions first.

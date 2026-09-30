@@ -131,6 +131,14 @@ opt-in design.
   still legal: that is the documented "rules loaded but idle" mode for validating
   a pack with no live feed, and `audit_log` is not checked at all when `rules_dir`
   is empty (Layers 1/2 only).
+- **A primary source that disappears mid-run is now loud once.** The startup
+  `audit_log` check guarantees the file was there to begin with; if it is deleted
+  or renamed while the collector runs, Layer 3 keeps polling, reads nothing, and
+  used to go quiet about it. The collector now logs the loss of the auditd feed
+  on the transition and logs again when the source returns — once each, never
+  once per poll, so log rotation and a steady source stay silent. (The additive
+  eBPF/Docker adapters keep their degrade-by-design behavior; this tracks only
+  the primary source.)
 
 ### Known gaps (not changed: these are the open work)
 

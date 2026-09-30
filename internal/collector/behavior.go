@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/CRPerdue/agentids/internal/rules"
@@ -29,6 +30,47 @@ type BehaviorEngine struct {
 	agent     schema.Agent
 	timeline  *rules.Timeline
 	spool     *Spool
+	// watch, when set, tracks the primary telemetry source's presence so its
+	// mid-run disappearance is loud once instead of a silent drop in coverage.
+	// Nil when no primary source is configured (e.g. idle pack-validation mode).
+	watch *sourceWatch
+}
+
+// sourceWatch tracks whether the primary telemetry source is still where it is
+// supposed to be and reports each presence change exactly once. The startup
+// config check guarantees a configured source exists at load; if it later
+// vanishes (a delete or rename, a dropped mount, auditd stopped and its log
+// rotated away), the collector keeps running while Layer 3 loses its auditd
+// feed — a quiet loss of coverage is the failure this tool exists to refuse, so
+// it is logged on the transition and on the recovery, never every poll.
+type sourceWatch struct {
+	name    string
+	path    string
+	present bool
+	known   bool
+}
+
+// observe re-checks the source. It returns a message (and true) only on the
+// first check or a change of state, so a steady source stays silent.
+func (w *sourceWatch) observe() (string, bool) {
+	_, err := os.Stat(w.path)
+	present := err == nil
+	switch {
+	case !w.known:
+		w.known, w.present = true, present
+		if present {
+			return "", false // startup validation already guaranteed this; stay quiet
+		}
+		return fmt.Sprintf("primary source %s %q is not readable — Layer 3 loses its auditd feed until it returns: %v", w.name, w.path, err), true
+	case present == w.present:
+		return "", false
+	default:
+		w.present = present
+		if present {
+			return fmt.Sprintf("primary source %s %q is back — Layer 3 reading again", w.name, w.path), true
+		}
+		return fmt.Sprintf("primary source %s %q disappeared — Layer 3 loses its auditd feed until it returns: %v", w.name, w.path, err), true
+	}
 }
 
 // NewBehaviorEngine loads rule packs from cfg.Behavior.RulesDir and returns an
@@ -123,6 +165,10 @@ func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submi
 		composed = shim
 		log.Printf("collector: behavior: scope.change heuristic shim attached (derived, detail.source=heuristic)")
 	}
+	var watch *sourceWatch
+	if cfg.Behavior.AuditLog != "" {
+		watch = &sourceWatch{name: "audit_log", path: cfg.Behavior.AuditLog}
+	}
 	return &BehaviorEngine{
 		eng:       telemetry.NewEngine(composed, eng, host, agent).WithTimeline(tl),
 		submitter: submitter,
@@ -130,6 +176,7 @@ func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submi
 		agent:     a,
 		timeline:  tl,
 		spool:     NewSpool(cfg.Behavior.Spool, cfg.Behavior.SpoolMaxBytes),
+		watch:     watch,
 	}, nil
 }
 
@@ -174,6 +221,13 @@ func (b *BehaviorEngine) ObserveDrift(events []schema.Event) {
 func (b *BehaviorEngine) Poll() []schema.Event {
 	if b == nil {
 		return nil
+	}
+	// A configured primary source is guaranteed present at startup; if it goes
+	// away mid-run, say so once so the loss of coverage is not silent.
+	if b.watch != nil {
+		if msg, changed := b.watch.observe(); changed {
+			log.Printf("collector: behavior: %s", msg)
+		}
 	}
 	if b.timeline != nil {
 		b.timeline.Prune(time.Now())
