@@ -3419,3 +3419,44 @@ working tree, and only the clone is what ships.**
   systemd walkthrough's copy-paste block against an actual install, since it was
   re-read but never diffed. If Dad answers the P2.0 toolchain decision first, take
   that instead — `make ebpf-preflight` decides the branch in one command.
+
+---
+
+## Heartbeat 77 — guard the class: run the quickstart's own commands in CI
+
+Heartbeat 76's finding was not "a file was missing" but "**nothing tested the
+quickstart path, so an untracked file could sit unnoticed.**" The demo job in CI
+guards the demo; the quickstart a stranger follows first had no guard at all. So
+this heartbeat fixes the class, not the instance.
+
+**Shipped:** `scripts/quickstart-check.sh`, wired as `make quickstart-check` and
+as a new `quickstart` CI job. It runs exactly what `docs/quickstart.md` §1 and §3
+tell the reader to run — `make build` (four binaries), the dry-run
+(`-config examples/collector.local.yaml -once -dry-run`, asserting the `rules ok`
+line), then the two-terminal flow (start `examples/central.local.yaml` on :8080,
+run the collector once against it) and asserts each exit code **and** that central
+wrote its baseline store, i.e. the flow actually connected. Any missing or
+untracked file the quickstart names makes it fail on the pull request, not a day
+after release. No root, no auditd, no Docker daemon — same constraints as the
+demo, so it runs on the stock CI runner and on this host.
+
+**Verified — including the part that matters.** In the working tree it PASSes.
+Then the real test: committed, re-cloned, and ran it *from the clone*, since the
+working tree is not what ships and the clone is what the bug was about. It also
+confirmed the one thing I was unsure of — that a fresh clone has no `demo/out/`
+directory yet, so central must create its own store path rather than requiring it
+to pre-exist. It does, and the clone PASSes clean.
+
+**What this now covers end to end:** a stranger clones → `make` → `make
+quickstart-check` reproduces the quickstart, and `demo/run.sh` reproduces the
+detection — both guarded in CI. The remaining unguarded doc block is the
+`deploy/README.md` systemd install walkthrough (needs root; cannot run on the
+runner), which is why it stays a manual, on-host check.
+
+- **Next step (heartbeat 78):** two honest options, pick by what Dad answers
+  first — (a) if the P2.0 toolchain decision lands, act on it (`make
+  ebpf-preflight` names the branch); (b) if not, diff the `deploy/README.md`
+  systemd walkthrough's copy-paste block against a real install on this host the
+  way heartbeat 72 ran it, since the *docs* were only re-read then. Do not add a
+  third guard script for its own sake; the class that mattered — "is what ships
+  runnable?" — now has a guard for both kernel-free paths.

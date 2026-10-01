@@ -155,6 +155,13 @@ opt-in design.
   and keeps running on auditd, rather than refusing to start; and that a disabled
   config is silent. The other half of the acceptance (the object loads and emits
   `file.access`) stays gated on the toolchain; this half runs on every host.
+- **`scripts/quickstart-check.sh`** (`make quickstart-check`, and a CI job) —
+  runs exactly the commands `docs/quickstart.md` tells a stranger to run: build,
+  the dry-run, then the two-terminal local flow, asserting each exit code and
+  that central accepts the collector's submission. The demo job guarded the demo
+  path; nothing guarded the quickstart path, which is how three referenced files
+  went untracked without CI noticing. A doc's copy-paste block is only true if
+  it is run.
 - **Deployment artifacts for a real host** (`deploy/`): systemd unit templates
   for the collector and central — unprivileged, hardened, with a private state
   directory for the spool and cursor — plus a `deploy/README.md` install

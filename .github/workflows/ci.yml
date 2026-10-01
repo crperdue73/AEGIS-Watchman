@@ -73,3 +73,20 @@ jobs:
       # clean runner, a stranger can reproduce it.
       - name: demo/run.sh
         run: ./demo/run.sh
+
+  quickstart:
+    name: quickstart (the doc's commands, run)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      # Runs exactly the commands docs/quickstart.md tells a stranger to run.
+      # The demo job above guards the demo path; this guards the *other* path,
+      # and it is what would have caught the untracked-file defect (three files
+      # present in the tree but not committed): a checkout missing a file the
+      # doc references fails here, on the pull request, not a day after release.
+      - name: make quickstart-check
+        run: make quickstart-check

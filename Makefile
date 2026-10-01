@@ -15,7 +15,7 @@ DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)
 PKG     := github.com/CRPerdue/agentids/internal/buildinfo
 LDFLAGS := -X $(PKG).Version=$(VERSION) -X $(PKG).Commit=$(COMMIT) -X $(PKG).Date=$(DATE)
 
-.PHONY: all build build-collector build-central build-manifest build-rules test lint check-links clean fmt vet version pin ebpf-preflight
+.PHONY: all build build-collector build-central build-manifest build-rules test lint check-links clean fmt vet version pin ebpf-preflight quickstart-check
 
 all: build
 
@@ -49,6 +49,12 @@ lint: vet check-links
 # Read-only; needs no toolchain to run. See docs/deploy-collector.md §2.
 ebpf-preflight:
 	./scripts/ebpf-preflight.sh
+
+# Run the commands docs/quickstart.md tells a stranger to run, on this checkout.
+# Catches a doc that stopped being true — incl. a referenced file that is present
+# but untracked, which is invisible until someone clones. See scripts/quickstart-check.sh.
+quickstart-check:
+	./scripts/quickstart-check.sh
 
 # Re-pin the shipped rule packs. Run after editing rules/ and commit the result;
 # CI fails if rules/packs.pins drifts from the packs.
