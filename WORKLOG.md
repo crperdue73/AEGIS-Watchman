@@ -2577,8 +2577,8 @@ I audited what it actually ships.
    clean.
 
 2. **A real workspace path and agent id in a public example.**
-   `examples/identity.drift.json` named `"vivi"` at
-   `/home/vivi/.openclaw/workspace-vivi`, and `cmd/manifest`'s usage comment did
+   `examples/identity.drift.json` named a specific agent at a specific
+   operator home directory, and `cmd/manifest`'s usage comment did
    the same. Neutralised both to `demo-agent` / `/home/agent/...` — the shape a
    reader needs, without a specific person's home directory.
 
@@ -3393,8 +3393,8 @@ repo and runs exactly that script, so this was a **red CI waiting to happen** th
 moment the repo goes public. It was invisible in the working tree because the
 files were physically there; only `git ls-files` and a clone saw it.
 
-**The fix.** `/home/vivi/.openclaw/workspace-vivi/projects/carbonato-detection-tool/.gitignore`
-gained explicit `!` un-ignores *beside* the patterns they reverse (with a comment
+**The fix.** This repository's `.gitignore` gained explicit `!` un-ignores
+*because* they reverse the patterns beside them (with a comment
 saying why, so the next reader does not re-break it):
 `!examples/collector.local.yaml`, `!examples/central.local.yaml`,
 `!demo/fixtures/audit.log`. The three files are now tracked.
@@ -3642,3 +3642,53 @@ blocker, unchanged. Noted here so no future heartbeat re-learns it the hard way.
   call) and **P2.1c-4** (Postgres record backend, on demand). If neither moves,
   re-read `PHASE1-PLAN.md` before inventing work — the v1 line is essentially met,
   and "publish-ready" is a better next target than a new feature.
+
+---
+
+## Heartbeat 81 — publish-readiness, made a gate instead of a promise
+
+The v1 line is essentially met, so hb80's note said the next target is not a new
+feature but **publish-ready** — the repo goes public under Apache-2.0, and it was
+built inside a private workspace. That gap (private tree → public tree) is its own
+target, and this heartbeat closed the machine-checkable half of it.
+
+**A gate, not a habit.** `scripts/publish-scan.sh` (`make publish-scan`, CI job
+`publish`) greps the *tracked* tree — only tracked content ships — and fails on
+the three classes that are invisible in review and permanent once pushed:
+credentials (private-key blocks, AWS/GitHub/Slack/OpenAI-style tokens), a real
+operator home path (`/home/<user>/`, with generic fixture users allow-listed),
+and private infrastructure (private hostnames, `192.168.x.x`, the private service
+ports). Narrow on purpose: it does not judge prose, it catches leaks.
+
+**What it found, and cleared.** No credentials, no private infrastructure — but a
+real username baked into fixture paths: `/home/vivi/...` in three test files
+(`internal/rules/carbonato_pack_test.go`, `engine_test.go`,
+`internal/telemetry/filewatch_test.go`) and two worklog lines. All neutralised to
+`/home/agent/...` (the allow-listed generic). Notably hb~60 had *already*
+genericized the shipped example and the `cmd/manifest` usage comment; it left the
+worklog paragraph narrating the old literal path, and this closes it. Two
+corrections to my own process came out of it: the first scan passed *falsely* —
+I had passed a stray `--` as the pattern, so every check matched nothing — and the
+CHANGELOG line I wrote to describe the fix tripped the scan itself. Both fixed;
+the gate is only worth having if it fails when it should, and I verified it does.
+
+**The decisions, written down.** `docs/PUBLISH-READINESS.md` is the checklist:
+what is verified (license, README, CONTRIBUTING/CoC/SECURITY, CI incl. container
+and publish scan, scan-clean tree) and what is *Rob's call*, not a code change —
+(1) the **name** (module path is still the `github.com/CRPerdue/agentids`
+placeholder; a rename is a mechanical find/replace plus `go mod edit -module`,
+cheapest done once, before first push); (2) whether the **internal process docs**
+(`BRIEF.md`, `WORKLOG.md`, `PHASE0-*`, `PHASE1-PLAN.md`) ship — `.gitattributes
+export-ignore` does not help, GitHub publishes the tree; if not, they must be
+removed from the published repo; (3) the **copyright holder / NOTICE**. `README`
+and `CONTRIBUTING` link the page.
+
+**Verified.** Full suite green (default + sqlite); `go vet` clean; 95 doc links
+ok; publish-scan PASS; container-check unchanged. Committed.
+
+- **Next step (heartbeat 82):** publish-readiness now has no open *engineering*
+  item — everything left is a decision for Rob (name, internal docs, copyright).
+  Absent an answer, re-read `docs/PUBLISH-READINESS.md` before adding anything:
+  the honest open fronts remain **P2.0** (eBPF, blocked on Dad's
+  `clang`/`libbpf-dev` call) and **P2.1c-4** (Postgres backend, on demand). Both
+  are gated on decisions; do not invent a fifth doc sweep to fill the gap.

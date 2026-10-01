@@ -105,3 +105,17 @@ jobs:
       # Docker daemon; a red job here means a container doc stopped being true.
       - name: make container-check
         run: make container-check
+
+  publish:
+    name: publish scan (nothing private ships)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # This repo is public under Apache-2.0 and was developed in a private
+      # workspace. A credential pasted into a test, a real operator home path, or
+      # private infrastructure in a fixture is invisible in review and permanent
+      # once pushed. This job greps the tracked tree for those classes and fails
+      # the PR, so the leak is caught before it is history. See
+      # scripts/publish-scan.sh and docs/PUBLISH-READINESS.md.
+      - name: make publish-scan
+        run: make publish-scan

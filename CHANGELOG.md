@@ -176,6 +176,14 @@ opt-in design.
   distroless, no-libc runtime). The demo and quickstart jobs need no Docker and
   so could not catch that class; this one does. A container doc that is only
   read, never built, is how the image went out broken.
+- **`scripts/publish-scan.sh`** (`make publish-scan`, and a CI job) — the repo is
+  public under Apache-2.0 and was built in a private workspace, so a credential,
+  a real operator home path, or private infrastructure left in a tracked file
+  would ship. The scan greps the tracked tree for those three classes and fails
+  the build. It found and cleared the last real-username fixture paths
+  (a specific operator home directory in three test files and two worklog lines,
+  neutralised to `/home/agent/...`). See [`docs/PUBLISH-READINESS.md`](docs/PUBLISH-READINESS.md)
+  for the checklist and the decisions that are Rob's, not code.
 - **Deployment artifacts for a real host** (`deploy/`): systemd unit templates
   for the collector and central — unprivileged, hardened, with a private state
   directory for the spool and cursor — plus a `deploy/README.md` install

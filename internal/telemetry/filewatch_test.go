@@ -13,7 +13,7 @@ const watchKey = "agentids"
 func TestParseFileWriteCreate(t *testing.T) {
 	log := strings.Join([]string{
 		`type=SYSCALL msg=audit(1790593100.100:900): arch=x86_64 syscall=openat success=yes pid=4242 ppid=1 uid=1000 auid=1000 exe="/usr/bin/python3" key="agentids"`,
-		`type=CWD msg=audit(1790593100.100:900): cwd="/home/vivi"`,
+		`type=CWD msg=audit(1790593100.100:900): cwd="/home/agent"`,
 		`type=PATH msg=audit(1790593100.100:900): item=0 name="/etc/cron.d" inode=100 nametype=PARENT`,
 		`type=PATH msg=audit(1790593100.100:900): item=1 name="/etc/cron.d/payload" inode=101 nametype=CREATE`,
 	}, "\n")
@@ -52,7 +52,7 @@ func TestParseFileWriteCreate(t *testing.T) {
 func TestParseFileWriteAppendToWatchedExistingFile(t *testing.T) {
 	log := strings.Join([]string{
 		`type=SYSCALL msg=audit(1790593100.200:901): arch=x86_64 syscall=openat success=yes pid=4242 ppid=1 uid=1000 auid=1000 exe="/usr/bin/bash" key="agentids"`,
-		`type=PATH msg=audit(1790593100.200:901): item=0 name="/home/vivi/.bashrc" inode=200 nametype=NORMAL`,
+		`type=PATH msg=audit(1790593100.200:901): item=0 name="/home/agent/.bashrc" inode=200 nametype=NORMAL`,
 	}, "\n")
 
 	recs, err := ParseAuditStream(strings.NewReader(log))
@@ -66,7 +66,7 @@ func TestParseFileWriteAppendToWatchedExistingFile(t *testing.T) {
 	if !ok || act.Type != FileWrite {
 		t.Fatalf("got (%v, ok=%v), want a file.write", act.Type, ok)
 	}
-	if got := act.Detail["path"]; got != "/home/vivi/.bashrc" {
+	if got := act.Detail["path"]; got != "/home/agent/.bashrc" {
 		t.Errorf("path = %v", got)
 	}
 	if got := act.Detail["nametype"]; got != "NORMAL" {
@@ -79,7 +79,7 @@ func TestParseFileWriteAppendToWatchedExistingFile(t *testing.T) {
 func TestParseUnlinkIsFileWrite(t *testing.T) {
 	log := strings.Join([]string{
 		`type=SYSCALL msg=audit(1790593100.300:902): arch=x86_64 syscall=unlink success=yes pid=4242 ppid=1 uid=1000 auid=1000 exe="/usr/bin/rm"`,
-		`type=PATH msg=audit(1790593100.300:902): item=0 name="/home/vivi/.ssh/authorized_keys" inode=300 nametype=DELETE`,
+		`type=PATH msg=audit(1790593100.300:902): item=0 name="/home/agent/.ssh/authorized_keys" inode=300 nametype=DELETE`,
 	}, "\n")
 
 	recs, err := ParseAuditStream(strings.NewReader(log))
@@ -93,7 +93,7 @@ func TestParseUnlinkIsFileWrite(t *testing.T) {
 	if !ok || act.Type != FileWrite {
 		t.Fatalf("got (%v, ok=%v), want a file.write", act.Type, ok)
 	}
-	if got := act.Detail["path"]; got != "/home/vivi/.ssh/authorized_keys" {
+	if got := act.Detail["path"]; got != "/home/agent/.ssh/authorized_keys" {
 		t.Errorf("path = %v", got)
 	}
 }
@@ -158,7 +158,7 @@ func TestWriteActionNoTarget(t *testing.T) {
 func TestFileWriteDoesNotFireWithoutWatchOnOpen(t *testing.T) {
 	log := strings.Join([]string{
 		`type=SYSCALL msg=audit(1790593100.600:905): arch=x86_64 syscall=openat success=yes pid=4242 ppid=1 uid=1000 auid=1000 exe="/usr/bin/bash"`,
-		`type=PATH msg=audit(1790593100.600:905): item=0 name="/home/vivi/.bashrc" inode=200 nametype=NORMAL`,
+		`type=PATH msg=audit(1790593100.600:905): item=0 name="/home/agent/.bashrc" inode=200 nametype=NORMAL`,
 	}, "\n")
 
 	recs, err := ParseAuditStream(strings.NewReader(log))
@@ -175,13 +175,13 @@ func TestFileWriteDoesNotFireWithoutWatchOnOpen(t *testing.T) {
 func TestStrictWriteSyscallWithoutWatchStillFires(t *testing.T) {
 	r := &AuditRecord{
 		Syscall:  "creat",
-		PathRecs: []PathRec{{Name: "/home/vivi/.ssh/authorized_keys", Nametype: "NORMAL"}},
+		PathRecs: []PathRec{{Name: "/home/agent/.ssh/authorized_keys", Nametype: "NORMAL"}},
 	}
 	act, _, ok := r.WriteAction()
 	if !ok || act.Type != FileWrite {
 		t.Fatalf("got (%v, ok=%v), want file.write", act.Type, ok)
 	}
-	if got := act.Detail["path"]; got != "/home/vivi/.ssh/authorized_keys" {
+	if got := act.Detail["path"]; got != "/home/agent/.ssh/authorized_keys" {
 		t.Errorf("path = %v", got)
 	}
 }

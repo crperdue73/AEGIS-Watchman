@@ -26,9 +26,13 @@ like it's going public, because it is.
 - CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs, on every push
   and PR: build, `vet` and `test` in **both** build modes (default and
   `-tags sqlite`), `make lint`, the end-to-end `demo/run.sh`, the doc's own
-  commands via `make quickstart-check`, and the container image via
-  `make container-check`. Run the same before you push — it is the same thing,
-  just slower.
+  commands via `make quickstart-check`, the container image via
+  `make container-check`, and the publish scan via `make publish-scan`. Run the
+  same before you push — it is the same thing, just slower.
+- Publish scan: `make publish-scan` (`scripts/publish-scan.sh`) fails if any
+  tracked file carries a credential, a real operator home path, or private
+  infrastructure. The repo is public and was built in private; this is the
+  guard. See [`docs/PUBLISH-READINESS.md`](docs/PUBLISH-READINESS.md).
 - Container: `make container-check` builds `deploy/docker/Dockerfile` and
   asserts the claims the container docs make about the resulting image (nonroot
   uid 65532, the baked rule pack loads, the `/etc/agentids` shadow caveat,

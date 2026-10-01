@@ -15,7 +15,7 @@ DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)
 PKG     := github.com/CRPerdue/agentids/internal/buildinfo
 LDFLAGS := -X $(PKG).Version=$(VERSION) -X $(PKG).Commit=$(COMMIT) -X $(PKG).Date=$(DATE)
 
-.PHONY: all build build-collector build-central build-manifest build-rules test lint check-links clean fmt vet version pin ebpf-preflight quickstart-check container-check
+.PHONY: all build build-collector build-central build-manifest build-rules test lint check-links clean fmt vet version pin ebpf-preflight quickstart-check container-check publish-scan
 
 all: build
 
@@ -61,6 +61,12 @@ quickstart-check:
 # binaries). Needs a Docker daemon. See scripts/container-check.sh.
 container-check:
 	./scripts/container-check.sh
+
+# Fail if any tracked file carries a credential, an operator home path, or
+# private infrastructure — the repo is public, the work was done in private.
+# See scripts/publish-scan.sh.
+publish-scan:
+	./scripts/publish-scan.sh
 
 # Re-pin the shipped rule packs. Run after editing rules/ and commit the result;
 # CI fails if rules/packs.pins drifts from the packs.

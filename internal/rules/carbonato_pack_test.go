@@ -57,11 +57,11 @@ func TestShippedCarbonatoFiresOnExfilChain(t *testing.T) {
 	}
 
 	// 1. The agent reads an SSH private key (the CARBONATO read leg).
-	if got := fired(schema.Action{Type: "file.access", Detail: map[string]any{"path": "/home/vivi/.ssh/id_rsa"}}); !has(got, "carbonato.secret.read_order_follows_constraint") {
+	if got := fired(schema.Action{Type: "file.access", Detail: map[string]any{"path": "/home/agent/.ssh/id_rsa"}}); !has(got, "carbonato.secret.read_order_follows_constraint") {
 		t.Errorf("secret read did not fire: %v", got)
 	}
 	// 2. A shell command names the key.
-	if got := fired(schema.Action{Type: "process.exec", Detail: map[string]any{"exe": "/bin/cat", "argv": []any{"cat", "/home/vivi/.ssh/id_rsa"}}}); !has(got, "carbonato.exec.ssh_key_heredoc") {
+	if got := fired(schema.Action{Type: "process.exec", Detail: map[string]any{"exe": "/bin/cat", "argv": []any{"cat", "/home/agent/.ssh/id_rsa"}}}); !has(got, "carbonato.exec.ssh_key_heredoc") {
 		t.Errorf("ssh-key argv did not fire: %v", got)
 	}
 	// 3. Egress to a chat endpoint (the exfil leg).
@@ -255,8 +255,8 @@ func TestShippedCarbonatoFiresOnFileWrite(t *testing.T) {
 	// persistence write the kernel named.
 	for _, path := range []string{
 		"/etc/cron.d/payload",
-		"/home/vivi/.bashrc",
-		"/home/vivi/.ssh/authorized_keys",
+		"/home/agent/.bashrc",
+		"/home/agent/.ssh/authorized_keys",
 		"/etc/systemd/system/beacon.service",
 	} {
 		if got := fired(path); !has(got, "carbonato.persist.file_write") {

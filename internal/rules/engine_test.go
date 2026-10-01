@@ -176,7 +176,7 @@ rules:
 
 func TestEngineSecretReadByPath(t *testing.T) {
 	e := NewEngine(mustPack(t, samplePack))
-	for _, p := range []string{"/home/vivi/.ssh/id_rsa", "/root/.ssh/id_ed25519", "/home/x/id_rsa"} {
+	for _, p := range []string{"/home/agent/.ssh/id_rsa", "/root/.ssh/id_ed25519", "/home/x/id_rsa"} {
 		evs := e.Match(schema.Host{ID: "h1"}, nil, schema.Action{
 			Type:   "file.access",
 			Detail: map[string]any{"path": p},
@@ -233,7 +233,7 @@ rules:
 		Type: "process.exec",
 		Detail: map[string]any{
 			"exe":  "/bin/cat",
-			"argv": []any{"/bin/cat", "/home/vivi/.ssh/id_rsa"},
+			"argv": []any{"/bin/cat", "/home/agent/.ssh/id_rsa"},
 		},
 	}, nil, timeNow())
 	if len(evs) != 1 {
