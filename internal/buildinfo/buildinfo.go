@@ -5,7 +5,7 @@
 // ldflags) still produces a binary that answers the question honestly rather
 // than lying. `make build` stamps real values via -ldflags, e.g.:
 //
-//	go build -ldflags "-X github.com/CRPerdue/watchman/internal/buildinfo.Version=0.1.0 ..."
+//	go build -ldflags "-X github.com/crperdue73/AEGIS-Watchman/internal/buildinfo.Version=0.1.0 ..."
 //
 // Note: this is the *product* version. The event wire format has its own,
 // independent version — watchman.event/v1 (see docs/event-schema.md). They are

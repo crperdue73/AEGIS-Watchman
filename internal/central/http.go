@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/CRPerdue/watchman/internal/collector"
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/collector"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // maxBodyBytes caps a single inventory submission (1 MiB). A fleet-scale

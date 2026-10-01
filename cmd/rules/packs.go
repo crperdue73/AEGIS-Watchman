@@ -8,7 +8,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/CRPerdue/watchman/internal/rules"
+	"github.com/crperdue73/AEGIS-Watchman/internal/rules"
 )
 
 // defaultPackPath is used when no path is given: the in-repo pack directory.

@@ -8,9 +8,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/CRPerdue/watchman/internal/collector"
-	"github.com/CRPerdue/watchman/internal/provenance"
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/collector"
+	"github.com/crperdue73/AEGIS-Watchman/internal/provenance"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // ManifestRegistry holds the approved Layer 2 manifests, keyed by agent root

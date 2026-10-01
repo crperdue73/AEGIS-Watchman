@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/CRPerdue/watchman/internal/collector"
+	"github.com/crperdue73/AEGIS-Watchman/internal/collector"
 )
 
 // FileStore is a durable Store backed by a single JSON file. It survives a

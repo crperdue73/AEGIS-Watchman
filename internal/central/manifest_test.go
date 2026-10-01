@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/CRPerdue/watchman/internal/collector"
-	"github.com/CRPerdue/watchman/internal/provenance"
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/collector"
+	"github.com/crperdue73/AEGIS-Watchman/internal/provenance"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // writeManifest signs an approval manifest for root and drops it in dir.

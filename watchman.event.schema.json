@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/CRPerdue/watchman/schemas/watchman.event.v1.json",
+  "$id": "https://github.com/crperdue73/AEGIS-Watchman/schemas/watchman.event.v1.json",
   "title": "watchman.event/v1",
   "description": "Wire format for agent-layer detection events. This is the public contract; treat changes as breaking.",
   "type": "object",

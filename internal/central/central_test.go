@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/CRPerdue/watchman/internal/collector"
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/collector"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 func inv(files ...collector.FileState) *collector.Inventory {

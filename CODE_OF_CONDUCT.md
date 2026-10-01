@@ -71,8 +71,8 @@ reported to the maintainers responsible for enforcement.
 
 **How to reach us:** the reporting channel that exists today is GitHub — a
 private report through the repository's
-[Security tab](https://github.com/CRPerdue/watchman/security/advisories/new)
-(replace `CRPerdue/watchman` with the canonical repo URL if it has moved), or,
+[Security tab](https://github.com/crperdue73/AEGIS-Watchman/security/advisories/new)
+(replace `crperdue73/AEGIS-Watchman` with the canonical repo URL if it has moved), or,
 if the matter is not sensitive, a direct message to a maintainer on GitHub. If
 you need a channel that does not go through GitHub, say so in a minimal public
 issue ("I need to reach a maintainer privately about a conduct matter") and a

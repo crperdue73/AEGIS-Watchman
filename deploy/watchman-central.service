@@ -13,7 +13,7 @@
 
 [Unit]
 Description=watchman central (ingest, alerting, fleet view)
-Documentation=https://github.com/CRPerdue/watchman
+Documentation=https://github.com/crperdue73/AEGIS-Watchman
 After=network-online.target
 Wants=network-online.target
 

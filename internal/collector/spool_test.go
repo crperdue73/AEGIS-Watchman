@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 func testEvents(ids ...string) []schema.Event {

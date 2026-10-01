@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // recordingAlerter captures alerts for assertion.

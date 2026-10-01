@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // ScopeSource derives synthetic `scope.change` actions from telemetry we

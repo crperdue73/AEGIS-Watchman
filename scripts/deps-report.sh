@@ -35,7 +35,7 @@ compiled() {
   go list -deps -tags sqlite -f '{{with .Module}}{{.Path}}{{"\t"}}{{.Version}}{{"\t"}}{{.Dir}}{{end}}' ./cmd/... 2>/dev/null
 }
 while IFS=$'\t' read -r mod ver dir; do
-  [[ -z "$mod" || "$mod" == github.com/CRPerdue/* ]] && continue
+  [[ -z "$mod" || "$mod" == github.com/crperdue73/AEGIS-Watchman* ]] && continue
   lic=""
   for f in "$dir"/LICENSE "$dir"/LICENSE.txt "$dir"/LICENSE.md "$dir"/COPYING "$dir"/COPYING.txt "$dir"/LICENSE-APACHE "$dir"/LICENSE-MIT; do
     [[ -f "$f" ]] || continue

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CRPerdue/watchman/internal/rules"
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/rules"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // Source is a telemetry input that yields actions for the rules engine.

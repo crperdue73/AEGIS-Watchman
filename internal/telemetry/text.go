@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // ParseTextStream reads a line-oriented execution stream, one process per line:

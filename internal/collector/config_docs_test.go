@@ -68,7 +68,7 @@ func walkYAML(t reflect.Type, out map[string]bool, seen map[reflect.Type]bool) {
 		for ft.Kind() == reflect.Pointer || ft.Kind() == reflect.Slice || ft.Kind() == reflect.Array {
 			ft = ft.Elem()
 		}
-		if ft.Kind() == reflect.Struct && strings.HasPrefix(ft.PkgPath(), "github.com/CRPerdue/watchman/internal/") {
+		if ft.Kind() == reflect.Struct && strings.HasPrefix(ft.PkgPath(), "github.com/crperdue73/AEGIS-Watchman/internal/") {
 			walkYAML(ft, out, seen)
 		}
 	}

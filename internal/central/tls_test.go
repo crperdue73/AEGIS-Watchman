@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/CRPerdue/watchman/internal/collector"
-	"github.com/CRPerdue/watchman/internal/mtls"
+	"github.com/crperdue73/AEGIS-Watchman/internal/collector"
+	"github.com/crperdue73/AEGIS-Watchman/internal/mtls"
 )
 
 // TestHTTPSIngestOverMutualTLS exercises the real HTTP handler behind a real

@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/CRPerdue/watchman/internal/rules"
+	"github.com/crperdue73/AEGIS-Watchman/internal/rules"
 )
 
 // runPin writes a pin file for a pack set to stdout: the byte-exact record of

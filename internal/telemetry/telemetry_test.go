@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/CRPerdue/watchman/internal/rules"
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/rules"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // auditLine is a helper to build realistic auditd lines with a serial.

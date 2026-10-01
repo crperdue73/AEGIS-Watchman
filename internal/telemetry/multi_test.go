@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // stubSource yields a fixed batch, or an error, for composition tests.

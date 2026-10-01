@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // Fuzz targets for the rule-pack and pin parsers, and for the matcher fed an

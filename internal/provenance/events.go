@@ -1,7 +1,7 @@
 package provenance
 
 import (
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // Events converts provenance verdicts into Layer 2 events. Only non-OK verdicts

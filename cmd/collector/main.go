@@ -19,9 +19,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/CRPerdue/watchman/internal/buildinfo"
-	"github.com/CRPerdue/watchman/internal/collector"
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/buildinfo"
+	"github.com/crperdue73/AEGIS-Watchman/internal/collector"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 func main() {

@@ -1,6 +1,6 @@
 # watchman — Agent-layer Intrusion Detection
 
-[![CI](https://github.com/CRPerdue/watchman/actions/workflows/ci.yml/badge.svg)](https://github.com/CRPerdue/watchman/actions/workflows/ci.yml)
+[![CI](https://github.com/crperdue73/AEGIS-Watchman/actions/workflows/ci.yml/badge.svg)](https://github.com/crperdue73/AEGIS-Watchman/actions/workflows/ci.yml)
 
 **Snort for AI agents.** A fleet-wide detection tool for agent-layer intrusions —
 identity drift, supply-chain tampering, and behavioral rules that name *intent*,

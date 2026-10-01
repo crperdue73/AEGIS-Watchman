@@ -12,7 +12,7 @@ PYTHON          ?= python3
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)
-PKG     := github.com/CRPerdue/watchman/internal/buildinfo
+PKG     := github.com/crperdue73/AEGIS-Watchman/internal/buildinfo
 LDFLAGS := -X $(PKG).Version=$(VERSION) -X $(PKG).Commit=$(COMMIT) -X $(PKG).Date=$(DATE)
 
 .PHONY: all build build-collector build-central build-manifest build-rules test lint check-links clean fmt vet version pin ebpf-preflight quickstart-check container-check publish-scan fuzz deps-report

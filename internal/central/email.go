@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // EmailAlerter delivers an Alert as an email via SMTP. It is the second

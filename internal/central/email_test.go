@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // fakeSMTP is a minimal SMTP server good enough to exercise the client path:

@@ -11,9 +11,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/CRPerdue/watchman/internal/central"
-	"github.com/CRPerdue/watchman/internal/collector"
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/central"
+	"github.com/crperdue73/AEGIS-Watchman/internal/collector"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // TestLayer3EndToEnd wires the whole Layer 3 path with no mocks in the middle:

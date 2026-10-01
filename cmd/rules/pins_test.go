@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/CRPerdue/watchman/internal/provenance"
-	"github.com/CRPerdue/watchman/internal/rules"
+	"github.com/crperdue73/AEGIS-Watchman/internal/provenance"
+	"github.com/crperdue73/AEGIS-Watchman/internal/rules"
 )
 
 func TestParseVerifyArgs(t *testing.T) {

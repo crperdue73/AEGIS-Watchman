@@ -39,16 +39,16 @@ that are invisible in review and permanent once pushed.
 | No operator home path in the tracked tree | ✅ scan clean |
 | No private infrastructure in the tracked tree | ✅ scan clean |
 | Dependency licenses permissive (no copyleft/unknown) | ✅ `make deps-report` |
-| Module path / project name | ✅ **Watchman** — decided 2026-10-01; module path `github.com/CRPerdue/watchman` |
-| Internal process docs in the public tree | ⏳ **decision** — see below |
-| Copyright holder / `NOTICE` | ⏳ **decision** — see below |
+| Module path / project name | ✅ **Watchman** — decided 2026-10-01; module path `github.com/crperdue73/AEGIS-Watchman` |
+| Internal process docs in the public tree | ✅ **held out** — `BRIEF.md` + `WORKLOG.md` excluded; Phase 0/1 docs ship (README-linked) |
+| Copyright holder / `NOTICE` | ✅ `LICENSE` reads "Copyright 2026 CRPerdue Technologies, LLC"; no `NOTICE` needed |
 
 ## Open decisions for Rob
 
 ### 1. The name — ✅ DECIDED (2026-10-01)
 
 **Watchman.** Rob chose it on 2026-10-01 and the rename is done in the tracked
-tree: module path `github.com/CRPerdue/watchman` (`go.mod` + every import),
+tree: module path `github.com/crperdue73/AEGIS-Watchman` (`go.mod` + every import),
 `Makefile` `PKG`, the four `cmd/*` binaries (`watchman-collector`,
 `watchman-central`, `watchman-manifest`, `watchman-rules`), the Dockerfile image
 labels, the deploy unit files (`deploy/watchman-{collector,central}.service`),
@@ -59,31 +59,40 @@ the event schema file (`watchman.event.schema.json`, wire version
 had been pushed, so no consumer ever saw the old name — there is no
 compatibility surface to carry.
 
-The name is still baked into the files listed below, so a *future* rename is
-again a repo-wide token replace plus `go mod edit -module`; but the first push
-now goes out under the final name.
+The GitHub owner is **`crperdue73`** (Rob's account; **not** the separate
+`crperdue` user, which owns nothing here) and the repo is **`AEGIS-Watchman`**,
+so the module path is `github.com/crperdue73/AEGIS-Watchman`. The product name
+is *Watchman*; the repo carries the AEGIS prefix. Changing either later is
+again a repo-wide token replace plus `go mod edit -module` — but the first push
+goes out under the final name.
 
-### 2. Do the internal process docs ship?
+### 2. Do the internal process docs ship? — ✅ RESOLVED (held out)
 
 Three families of file exist only because of *how* the project was built, not
 *what* it is:
 
 - `BRIEF.md` — the internal handoff brief (authored for Rob; names the
   originating newsletter and personnel).
-- `WORKLOG.md` — the working log (~3,500 lines of per-cycle narration).
+- `WORKLOG.md` — the working log (~4,100 lines of per-cycle narration).
 - `PHASE0-DISCOVERY.md` / `PHASE0-COVERAGE.md` / `PHASE1-PLAN.md` — Phase 0/1
-  working documents (owner line names the individual).
+  working documents.
 
-Some open-source projects publish exactly this as design rationale; many do not.
-It is a positioning call, not a correctness one. If they are **not** to ship,
-they must be removed from the published repo (a `.gitattributes export-ignore`
-does **not** help — GitHub publishes the tree, not `git archive`). The code and
-operator docs do not depend on any of them.
+Resolution for the first public cut: **`BRIEF.md` and `WORKLOG.md` are held
+out** — untracked and kept in the private workspace. They are process
+narration, not product, and the brief names internal personnel. The Phase 0/1
+documents **do ship**: the public `README.md`, `SECURITY.md`, CI, and code
+comments reference them as the coverage matrix and build plan, so they are
+part of the product's public rationale, not private pads. Nothing in the code
+or operator docs depends on `BRIEF.md` / `WORKLOG.md`, so adding them back
+later is a plain `git add` + push. (A `.gitattributes export-ignore` would not
+have helped — GitHub publishes the tree, not `git archive`.)
 
-### 3. Copyright holder
+### 3. Copyright holder — ✅ RESOLVED
 
-`LICENSE` carries the standard Apache-2.0 text. Confirm the copyright line /
-holder name that should appear, and whether a `NOTICE` file is wanted.
+`LICENSE` carries the standard Apache-2.0 text with the copyright line
+**"Copyright 2026 CRPerdue Technologies, LLC"** (the company; the GitHub owner
+is the personal account `crperdue73`). No separate `NOTICE` file is present;
+none is required for a first-party project with no bundled third-party work.
 
 ## What this page is not
 

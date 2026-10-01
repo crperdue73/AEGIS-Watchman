@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/CRPerdue/watchman/internal/collector"
+	"github.com/crperdue73/AEGIS-Watchman/internal/collector"
 )
 
 func TestFileStorePersistsAcrossReopen(t *testing.T) {

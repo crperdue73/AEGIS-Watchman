@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // TestFleetEndpoint proves the P2.1 read side end to end: an ingested action

@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/CRPerdue/watchman/internal/provenance"
+	"github.com/crperdue73/AEGIS-Watchman/internal/provenance"
 )
 
 // verifyOpts are the flags `verify` accepts beyond its positional paths.

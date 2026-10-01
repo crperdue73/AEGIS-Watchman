@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // ContainerStart is the action type emitted by the Docker events adapter.

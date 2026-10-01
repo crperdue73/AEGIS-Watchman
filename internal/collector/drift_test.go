@@ -3,7 +3,7 @@ package collector
 import (
 	"testing"
 
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 func inv(root string, files ...FileState) *Inventory {

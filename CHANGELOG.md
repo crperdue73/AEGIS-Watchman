@@ -20,7 +20,7 @@ opt-in design.
 
 ### Changed
 - **Renamed to Watchman** (2026-10-01). The project, module path
-  (`github.com/CRPerdue/watchman`), the four binaries (`watchman-collector`,
+  (`github.com/crperdue73/AEGIS-Watchman`), the four binaries (`watchman-collector`,
   `watchman-central`, `watchman-manifest`, `watchman-rules`), the deploy unit
   files, and the event schema file (`watchman.event.schema.json`, wire version
   `watchman.event/v1`) all carry the new name. No behavior change, and nothing

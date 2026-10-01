@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 func rec(host, sev, rule string, when time.Time) Record {

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // Alert is the payload handed to an Alerter after drift is detected. One Alert

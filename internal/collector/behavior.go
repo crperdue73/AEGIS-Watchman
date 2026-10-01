@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CRPerdue/watchman/internal/provenance"
-	"github.com/CRPerdue/watchman/internal/rules"
-	"github.com/CRPerdue/watchman/internal/schema"
-	"github.com/CRPerdue/watchman/internal/telemetry"
+	"github.com/crperdue73/AEGIS-Watchman/internal/provenance"
+	"github.com/crperdue73/AEGIS-Watchman/internal/rules"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/telemetry"
 )
 
 // ActionSubmitter ships Layer 3 behavior events to the central service.

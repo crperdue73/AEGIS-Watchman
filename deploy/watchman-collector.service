@@ -19,7 +19,7 @@
 
 [Unit]
 Description=watchman collector (Layer 1/2/3 host agent)
-Documentation=https://github.com/CRPerdue/watchman
+Documentation=https://github.com/crperdue73/AEGIS-Watchman
 After=network-online.target
 Wants=network-online.target
 # Start after auditd so /var/log/audit/audit.log exists before Layer 3 reads it.

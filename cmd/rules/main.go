@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/CRPerdue/watchman/internal/buildinfo"
+	"github.com/crperdue73/AEGIS-Watchman/internal/buildinfo"
 )
 
 func main() {

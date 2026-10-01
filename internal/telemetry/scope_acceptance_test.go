@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/CRPerdue/watchman/internal/rules"
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/rules"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // TestScopeChangeFiresPackRule closes the P1.3 acceptance criterion end to end

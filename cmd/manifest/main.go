@@ -25,8 +25,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/CRPerdue/watchman/internal/buildinfo"
-	"github.com/CRPerdue/watchman/internal/provenance"
+	"github.com/crperdue73/AEGIS-Watchman/internal/buildinfo"
+	"github.com/crperdue73/AEGIS-Watchman/internal/provenance"
 )
 
 func main() {

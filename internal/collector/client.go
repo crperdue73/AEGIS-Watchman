@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CRPerdue/watchman/internal/mtls"
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/mtls"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // InventoryRequest is the collector -> central submission body. It matches the

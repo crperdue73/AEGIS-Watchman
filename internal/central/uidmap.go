@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // UidResolver maps numeric uids to human usernames so an alert names a person

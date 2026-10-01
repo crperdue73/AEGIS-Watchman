@@ -12,8 +12,8 @@ what watchman does and does not defend against.
 by everyone, including whoever would exploit the bug before a fix ships.
 
 Report privately through **GitHub private vulnerability reporting**:
-[Security tab → Report a vulnerability](https://github.com/CRPerdue/watchman/security/advisories/new)
-(replace `CRPerdue/watchman` with the canonical repo URL if it has moved). This
+[Security tab → Report a vulnerability](https://github.com/crperdue73/AEGIS-Watchman/security/advisories/new)
+(replace `crperdue73/AEGIS-Watchman` with the canonical repo URL if it has moved). This
 opens a private advisory visible only to you and the maintainers, and gives us a
 place to coordinate a fix and a disclosure timeline with you. If you cannot use
 GitHub advisories, open a minimal public issue that says only *"I have a security

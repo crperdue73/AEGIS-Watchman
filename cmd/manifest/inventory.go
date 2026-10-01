@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/CRPerdue/watchman/internal/provenance"
+	"github.com/crperdue73/AEGIS-Watchman/internal/provenance"
 )
 
 // InventoryRoot hashes the workspace-relative files under root that match the

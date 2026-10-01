@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/CRPerdue/watchman/internal/schema"
-	"github.com/CRPerdue/watchman/internal/telemetry"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/telemetry"
 )
 
 type fakeSubmitter struct {

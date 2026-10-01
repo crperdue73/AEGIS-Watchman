@@ -1,4 +1,4 @@
-module github.com/CRPerdue/watchman
+module github.com/crperdue73/AEGIS-Watchman
 
 go 1.22
 

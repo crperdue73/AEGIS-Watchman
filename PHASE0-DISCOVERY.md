@@ -175,7 +175,7 @@ attribution:
 
 ## 0.5 — Decisions needed from Rob (Part 5, restated)
 
-1. **Name.** ✅ **Watchman** (chosen 2026-10-01). Module path `github.com/CRPerdue/watchman`; tracked tree renamed.
+1. **Name.** ✅ **Watchman** (chosen 2026-10-01). Module path `github.com/crperdue73/AEGIS-Watchman`; tracked tree renamed.
 2. **Build vs. integrate telemetry.** Discovery lean: integrate (eBPF/auditd),
    own the rules engine. Confirm.
 3. **v1 target:** our own fleet first (recommended) vs. a client pilot.
@@ -193,4 +193,7 @@ access. Q2–Q5 can be answered in parallel.
   GitHub repo access + name decision.
 - **2026-10-01** — Name decided: **Watchman**. Renamed across the tracked tree
   (module path, binaries, deploy units, schema file, docs); all gates green.
-  Still awaiting GitHub repo access (token) to make the first push.
+- **2026-10-01** — Repo created by Rob: `github.com/crperdue73/AEGIS-Watchman`
+  (public). Module path repointed to the real owner (`crperdue73`); the four
+  binaries rebuilt; all gates green. `BRIEF.md` / `WORKLOG.md` held out of the
+  public cut. First push + tag `0.1.0` next.

@@ -11,7 +11,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/CRPerdue/watchman/internal/collector"
+	"github.com/crperdue73/AEGIS-Watchman/internal/collector"
 )
 
 // AgentKey uniquely identifies an agent's baseline. Host + agent root, so two

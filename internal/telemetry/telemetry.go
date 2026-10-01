@@ -30,7 +30,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // ProcessExec is the action type emitted by the execve adapters.

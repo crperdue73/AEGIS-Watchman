@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/CRPerdue/watchman/internal/provenance"
-	"github.com/CRPerdue/watchman/internal/rules"
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/provenance"
+	"github.com/crperdue73/AEGIS-Watchman/internal/rules"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // pinnedRulesDir builds a temp rules dir (a copy of the shipped pack) and a pin

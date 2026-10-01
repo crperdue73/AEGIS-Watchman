@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/CRPerdue/watchman/internal/mtls"
+	"github.com/crperdue73/AEGIS-Watchman/internal/mtls"
 	"gopkg.in/yaml.v3"
 )
 

@@ -1,6 +1,6 @@
 package telemetry
 
-import "github.com/CRPerdue/watchman/internal/schema"
+import "github.com/crperdue73/AEGIS-Watchman/internal/schema"
 
 // filewatch.go — the auditd file-watch adapter, emitting file.write.
 //

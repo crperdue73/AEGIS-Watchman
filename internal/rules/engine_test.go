@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 const samplePack = `

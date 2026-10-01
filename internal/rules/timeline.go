@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // Timeline is a small, bounded per-host record of recently observed events.

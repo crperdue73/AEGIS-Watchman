@@ -13,8 +13,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/CRPerdue/watchman/internal/buildinfo"
-	"github.com/CRPerdue/watchman/internal/central"
+	"github.com/crperdue73/AEGIS-Watchman/internal/buildinfo"
+	"github.com/crperdue73/AEGIS-Watchman/internal/central"
 )
 
 func main() {

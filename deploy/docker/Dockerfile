@@ -66,7 +66,7 @@ RUN mkdir -p /state && chown 65532:65532 /state && touch /state/.keep
 FROM gcr.io/distroless/static-debian12:nonroot
 LABEL org.opencontainers.image.title="watchman" \
       org.opencontainers.image.description="Carbonato-class agent intrusion detection — collector + central" \
-      org.opencontainers.image.source="https://github.com/CRPerdue/watchman" \
+      org.opencontainers.image.source="https://github.com/crperdue73/AEGIS-Watchman" \
       org.opencontainers.image.licenses="Apache-2.0"
 
 COPY --from=build /src/bin/watchman-collector /watchman-collector

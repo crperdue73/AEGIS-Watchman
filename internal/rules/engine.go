@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // Engine evaluates a set of rules against observed actions.

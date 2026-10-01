@@ -6,8 +6,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/CRPerdue/watchman/internal/collector"
-	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/crperdue73/AEGIS-Watchman/internal/collector"
+	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
 // Service is the Phase-1 central engine: it takes an incoming inventory from a
