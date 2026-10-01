@@ -3661,8 +3661,8 @@ and private infrastructure (private hostnames, `192.168.x.x`, the private servic
 ports). Narrow on purpose: it does not judge prose, it catches leaks.
 
 **What it found, and cleared.** No credentials, no private infrastructure — but a
-real username baked into fixture paths: `/home/vivi/...` in three test files
-(`internal/rules/carbonato_pack_test.go`, `engine_test.go`,
+real username baked into fixture paths: a specific operator home directory in
+three test files (`internal/rules/carbonato_pack_test.go`, `engine_test.go`,
 `internal/telemetry/filewatch_test.go`) and two worklog lines. All neutralised to
 `/home/agent/...` (the allow-listed generic). Notably hb~60 had *already*
 genericized the shipped example and the `cmd/manifest` usage comment; it left the
@@ -3692,3 +3692,51 @@ ok; publish-scan PASS; container-check unchanged. Committed.
   the honest open fronts remain **P2.0** (eBPF, blocked on Dad's
   `clang`/`libbpf-dev` call) and **P2.1c-4** (Postgres backend, on demand). Both
   are gated on decisions; do not invent a fifth doc sweep to fill the gap.
+
+---
+
+## Heartbeat 82 — ran the whole CI matrix locally; it caught the scan lying to itself
+
+No open *engineering* item existed after hb81, so the honest step was not a new
+feature but a check that the pipeline I'd been editing — two new CI jobs added in
+as many heartbeats — is actually green as a whole. Ran every `ci.yml` command
+locally, in order, as one pass (build, the pin check, vet + test in both build
+modes, lint, demo, quickstart, container, publish). **10 of 11 passed. The
+publish job failed — and it was right.**
+
+**The find.** `scripts/publish-scan.sh` fails on "family/private hostname" — in
+itself. The scan's own denylist contained the literal private hostnames it was
+meant to detect, so the moment the script became a *tracked* file, the scan
+matched it. Two bugs, one line: a real leak (those hostnames would have been
+published in the script) and a self-match. Neither showed up when I tested the
+script by hand, because when I first ran it the file was still **untracked** and
+`git grep` only reads tracked files — the check passed for the wrong reason. That
+is precisely the class of thing a whole-matrix run exists to catch, and it is why
+running the matrix was the right step even with "nothing to do."
+
+**The fix.** The tracked script no longer names any private host. Private
+hostnames moved to an **untracked** `.publish-denylist` (gitignored), one ERE per
+line, that the scan reads when present. So the local run gates on the real names,
+and public CI gates the generic classes (credentials, real home paths, RFC1918,
+private ports) only — the public gate cannot *name* what is private, which is the
+correct shape. Wrote the denylist locally.
+
+**Scrubbed history.** Commit 78f1360 (hb81) had the hostnames baked in. The repo
+is unpushed, so I amended that commit to carry the fixed script — `git log -S`
+across all refs now returns nothing for any of the names. Verified, not assumed.
+
+**Also fixed in passing:** my hb81 worklog paragraph narrating the old literal
+`/home/vivi` path, which the scan (correctly) flagged; and the hb81 changelog
+line that did the same. The gate has now caught three of my *own* shortfalls — the
+false-pass, the self-match, and the narration — which is the strongest evidence
+it works.
+
+**Verified.** Full `ci.yml` matrix re-run after the fix: **11/11 green**,
+including container-check (Docker build) and publish-scan. Committed.
+
+- **Next step (heartbeat 83):** still no open engineering item. `docs/PUBLISH-READINESS.md`
+  lists exactly what remains and it is all Rob's: the **name**, whether the
+  **internal process docs** ship, and the **copyright holder**. Open code fronts
+  stay **P2.0** (eBPF, blocked on the `clang`/`libbpf-dev` call) and **P2.1c-4**
+  (Postgres, on demand). Do not open a sixth sweep; if there is genuinely nothing
+  to advance, the correct move is to say so, not to manufacture a step.

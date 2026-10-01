@@ -11,6 +11,10 @@ bin/
 .env
 secrets/
 
+# Local-only denylist of private hostnames for scripts/publish-scan.sh. Kept out
+# of the tree on purpose: the scan must never name in public what it guards.
+.publish-denylist
+
 # ...except the SHIPPED examples. The patterns above are for an operator's own
 # local config; examples/*.local.yaml is part of the product and the quickstart
 # runs it on a fresh clone. (A `!` rule works because the parent dir is not

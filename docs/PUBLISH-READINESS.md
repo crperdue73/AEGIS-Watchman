@@ -14,8 +14,13 @@ fails on three classes:
 - **credentials** — private-key blocks, AWS/GitHub/Slack/OpenAI-style tokens;
 - **operator home paths** — `/home/<user>/` for a real user (generic fixture
   users such as `/home/agent/`, `/home/dev/` are allowed);
-- **private infrastructure** — family/private hostnames, RFC1918 `192.168.x.x`
-  addresses, and the private service ports.
+- **private infrastructure** — RFC1918 `192.168.x.x` addresses and the private
+  service ports. Private **hostnames** are not listed in the tracked script: it
+  caught its own first draft naming them once the script became a tracked file,
+  which is the whole failure mode. A maintainer keeps the real names in an
+  untracked `.publish-denylist` (gitignored), one ERE per line, and the scan uses
+  it when present — so the local run gates on the real names while the public CI
+  gates the generic classes only. The public gate cannot name what is private.
 
 It is deliberately narrow. It does not try to judge prose; it catches the classes
 that are invisible in review and permanent once pushed.
