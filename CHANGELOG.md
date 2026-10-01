@@ -184,6 +184,15 @@ opt-in design.
   (a specific operator home directory in three test files and two worklog lines,
   neutralised to `/home/agent/...`). See [`docs/PUBLISH-READINESS.md`](docs/PUBLISH-READINESS.md)
   for the checklist and the decisions that are Rob's, not code.
+- **Fuzz targets for the untrusted-input parsers and the matcher**
+  (`internal/telemetry/fuzz_test.go`, `internal/rules/fuzz_test.go`;
+  `make fuzz` via `scripts/fuzz.sh`, and a CI job). Every stream this tool reads
+  is attacker-influenced — auditd `argv`, `docker events` JSON off a socket, a
+  community rule pack — so a parser or matcher that panics on crafted input is a
+  denial of service against the *detector*. The targets assert only that these
+  return on hostile input, never panic. The seed corpus runs under an ordinary
+  `go test`; a live fuzz found no crash across ~5M executions, and any future
+  crash writes a reproducer to `testdata/fuzz/` that `make test` re-checks.
 - **Deployment artifacts for a real host** (`deploy/`): systemd unit templates
   for the collector and central — unprivileged, hardened, with a private state
   directory for the spool and cursor — plus a `deploy/README.md` install

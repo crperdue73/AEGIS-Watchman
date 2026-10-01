@@ -15,7 +15,7 @@ DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)
 PKG     := github.com/CRPerdue/agentids/internal/buildinfo
 LDFLAGS := -X $(PKG).Version=$(VERSION) -X $(PKG).Commit=$(COMMIT) -X $(PKG).Date=$(DATE)
 
-.PHONY: all build build-collector build-central build-manifest build-rules test lint check-links clean fmt vet version pin ebpf-preflight quickstart-check container-check publish-scan
+.PHONY: all build build-collector build-central build-manifest build-rules test lint check-links clean fmt vet version pin ebpf-preflight quickstart-check container-check publish-scan fuzz
 
 all: build
 
@@ -67,6 +67,12 @@ container-check:
 # See scripts/publish-scan.sh.
 publish-scan:
 	./scripts/publish-scan.sh
+
+# Run every Go fuzz target for a bounded time each (FUZZTIME, default 10s).
+# Untrusted input — auditd lines, docker events, community rule packs — must
+# never panic the detector. See scripts/fuzz.sh.
+fuzz:
+	./scripts/fuzz.sh
 
 # Re-pin the shipped rule packs. Run after editing rules/ and commit the result;
 # CI fails if rules/packs.pins drifts from the packs.

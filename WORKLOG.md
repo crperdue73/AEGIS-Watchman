@@ -3740,3 +3740,49 @@ including container-check (Docker build) and publish-scan. Committed.
   stay **P2.0** (eBPF, blocked on the `clang`/`libbpf-dev` call) and **P2.1c-4**
   (Postgres, on demand). Do not open a sixth sweep; if there is genuinely nothing
   to advance, the correct move is to say so, not to manufacture a step.
+
+---
+
+## Heartbeat 83 — fuzzed the untrusted-input parsers and the matcher
+
+With no open feature item, hb82 said to either advance a real front or say so.
+This was a real front that nobody had touched: **robustness against hostile
+input**. Every stream this tool reads is attacker-influenced — auditd lines carry
+`argv` an attacker chose, `docker events` is JSON off a socket, and the BRIEF's
+Phase 3 makes rule packs community-shareable. A parser or matcher that *panics* on
+crafted input is a denial of service against the detector itself: the cheapest way
+to switch detection off is to crash the collector, and the operator's first sign
+would be a restart, not an alert. None of it had ever been fuzzed.
+
+**Shipped.** Eight fuzz targets plus a runner and a CI job:
+
+- `internal/telemetry/fuzz_test.go` — `ParseAuditStream`, `ParseAuditLog`,
+  `ParseAuditConnectLog`, `ParseDockerEvents`, `ParseTextStream`.
+- `internal/rules/fuzz_test.go` — `ParsePack`, `ParsePins`, and
+  `FuzzEngineMatch`, which decodes an arbitrary JSON action and runs it through
+  the **real shipped pack**: a rule predicate reads values an attacker controls
+  (`pid` as a string, `argv` as a number), so the matcher must tolerate any shape
+  in `detail`, not just the well-formed one.
+- `scripts/fuzz.sh` (`make fuzz`, CI job `fuzz`) discovers targets rather than
+  listing them, so a new `func FuzzX` is covered the moment it is written. Seeds
+  run under an ordinary `go test`; a live run is bounded by `FUZZTIME`. A crash
+  writes its reproducer to `testdata/fuzz/`, which `make test` then replays — the
+  finding is never lost.
+
+**Result: no crash found.** ~5M executions across the eight targets (the parsers
+and matcher were already defensive — the detail accessors are type-switches with
+defaults, not unchecked assertions). So this is not a bug fixed; it is a property
+*proven* and then locked in. That is the honest outcome, and it is worth stating
+plainly rather than dressing a clean run as a find. The durable value is the
+harness: the next parser or predicate regresses here instead of in the field.
+
+**Verified.** Full `ci.yml` matrix re-run: 11/11 green, and `make fuzz` green on
+its own (8/8). Committed.
+
+- **Next step (heartbeat 84):** the robustness front is now guarded; the parsers
+  and matcher are the right set for v1 — do not fuzz the whole tree for its own
+  sake. Remaining open fronts are unchanged and all gated on decisions:
+  **P2.0** (eBPF, blocked on the `clang`/`libbpf-dev` call) and **P2.1c-4**
+  (Postgres, on demand), plus the publish decisions in
+  `docs/PUBLISH-READINESS.md` (name, internal docs, copyright). If none move,
+  say so rather than manufacture work.

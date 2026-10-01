@@ -119,3 +119,24 @@ jobs:
       # scripts/publish-scan.sh and docs/PUBLISH-READINESS.md.
       - name: make publish-scan
         run: make publish-scan
+
+  fuzz:
+    name: fuzz (untrusted input never panics)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      # Every stream this tool reads is attacker-influenced (auditd argv, docker
+      # events off a socket, a community rule pack), so a parser or matcher that
+      # panics on crafted input is a denial of service against the detector. This
+      # job fuzzes each target for a bounded time. A crash writes its reproducer
+      # to testdata/fuzz/ (which then runs under `make test`), so the finding is
+      # never lost. `go test ./...` already replays the seed corpus; this adds a
+      # live search on top. See scripts/fuzz.sh.
+      - name: make fuzz
+        run: make fuzz
+        env:
+          FUZZTIME: 15s

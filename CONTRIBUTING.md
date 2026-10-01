@@ -27,12 +27,20 @@ like it's going public, because it is.
   and PR: build, `vet` and `test` in **both** build modes (default and
   `-tags sqlite`), `make lint`, the end-to-end `demo/run.sh`, the doc's own
   commands via `make quickstart-check`, the container image via
-  `make container-check`, and the publish scan via `make publish-scan`. Run the
-  same before you push — it is the same thing, just slower.
+  `make container-check`, the publish scan via `make publish-scan`, and a
+  bounded `make fuzz`. Run the same before you push — it is the same thing, just
+  slower.
 - Publish scan: `make publish-scan` (`scripts/publish-scan.sh`) fails if any
   tracked file carries a credential, a real operator home path, or private
   infrastructure. The repo is public and was built in private; this is the
   guard. See [`docs/PUBLISH-READINESS.md`](docs/PUBLISH-READINESS.md).
+- Fuzz: `make fuzz` (`scripts/fuzz.sh`, `FUZZTIME` per target, default 10s) runs
+  every `func FuzzX` in the tree. Every stream this tool reads is
+  attacker-influenced (auditd argv, `docker events` off a socket, a community
+  rule pack), so a parser or matcher that panics on hostile input is a denial of
+  service against the detector. A crash writes its reproducer to `testdata/fuzz/`,
+  which `make test` then re-checks. Add a fuzz target for any new parser or
+  matcher for untrusted input.
 - Container: `make container-check` builds `deploy/docker/Dockerfile` and
   asserts the claims the container docs make about the resulting image (nonroot
   uid 65532, the baked rule pack loads, the `/etc/agentids` shadow caveat,
