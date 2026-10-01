@@ -153,9 +153,9 @@ the action it keys on:
 | Rule | Sev | Technique | Action | Catches |
 |---|---|---|---|---|
 | `carbonato.tool.scope_new` | high | `phase3/scope-expansion` | `scope.change` | a tool/capability not previously seen |
-| `carbonato.secret.read_order_follows_constraint` | critical | `phase3/secret-access` | `file.access` | credential read after a constraint-ignoring prompt |
-| `carbonato.secret.read_after_shell` | critical | `phase3/correlated-secret-access` | `file.access` | credential read within 2m of a shell spawn |
-| `carbonato.secret.read_model_key` | high | `phase3/secret-access` | `file.access` | a model-endpoint / API-key file read |
+| `carbonato.secret.read_order_follows_constraint` † | critical | `phase3/secret-access` | `file.access` | credential read after a constraint-ignoring prompt |
+| `carbonato.secret.read_after_shell` † | critical | `phase3/correlated-secret-access` | `file.access` | credential read within 2m of a shell spawn |
+| `carbonato.secret.read_model_key` † | high | `phase3/secret-access` | `file.access` | a model-endpoint / API-key file read |
 | `carbonato.exec.shell_spawn` | medium | `phase3/execution` | `process.exec` | a shell/interpreter under an agent |
 | `carbonato.exec.ssh_key_heredoc` | high | `phase3/secret-access` | `process.exec` | shell touches an SSH key / known_hosts |
 | `carbonato.exec.obfuscation` | medium | `phase3/defense-evasion` | `process.exec` | an encode/decode pipeline |
@@ -172,6 +172,18 @@ the action it keys on:
 | `carbonato.container.privileged_start` | critical | `phase3/container-escape` | `container.start` | a privileged, host-access container started |
 | `carbonato.container.host_root_mount` | critical | `phase3/container-escape` | `container.start` | a container with a host-root / host-socket mount |
 | `carbonato.container.after_identity_change` | critical | `phase3/correlated-container-escape` | `container.start` | a container started within 10m of an identity change |
+
+**† inert on a stock build — the eBPF source is not built (P2.0).** Three rules
+key on the `file.access` action, and the *only* source that emits `file.access`
+is the eBPF adapter. On a stock build the collector runs **auditd-only** and
+produces no `file.access` at all, so these three load, validate, and are carried
+by the pack but **cannot fire** — they fire the day the eBPF read half ships, and
+not before. Every other rule in the table keys on an action auditd already emits
+(`process.exec`, `net.egress`, `net.listen`, `file.write`, `scope.change`, and the
+opt-in `container.start`), and is live on a stock build. A pack that counts them
+as coverage on a host without eBPF is exactly the "look protected, detect
+nothing" failure; that is why the count is stated here and the blind spot is
+named in the README ([*Known blind spots*](../README.md#known-blind-spots), G3).
 
 ## Testing a rule
 

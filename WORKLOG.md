@@ -3875,3 +3875,54 @@ established; it keeps paying because the code moved after the prose did.
   `clang`/`libbpf-dev` call), **P2.1c-4** (Postgres, on demand), and the three
   publish decisions (name, internal docs, copyright). If none move, say so — do
   not manufacture a front.
+
+---
+
+## Heartbeat 86 — three rules the pack counts but can never fire
+
+Heartbeat 85's note said: if no front moves, say so, don't manufacture one. No
+front moved. But the *method* (read what the tree claims, run it, correct what is
+false) found a third instance on its own, and this one is about **coverage**, not
+wording — so it is worth more than the last two.
+
+**The claim.** `docs/rules.md` presents the shipped pack as **20 rules** with a
+severity rollup — **6 critical**, 7 high, 7 medium — and the demo prints the same.
+A reader takes that as coverage. Three of those rules key on the `file.access`
+action: `secret.read_order_follows_constraint` (critical),
+`secret.read_after_shell` (critical), `secret.read_model_key` (high). But the
+**only** source that emits `file.access` is the eBPF adapter
+(`internal/telemetry/ebpf_linux.go`), and the eBPF source is **not built** — a
+`-tags ebpf` build returns `"not yet implemented"` and a stock build logs
+`"eBPF file.access adapter unavailable, running auditd-only"`. So on the build
+anyone can actually run today, the collector emits no `file.access` at all: those
+three rules load, validate, and ride in the pack, **and cannot fire.**
+
+**Why it matters more than a typo.** This is the tool's own thesis turned on the
+tool. The brief's line — *"a public security tool that hides its blind spots is a
+liability"* — and the operator failure mode named throughout `docs/rules.md`
+(*"look protected, detect nothing"*) apply exactly here: a 6-critical pack that is
+really 4-critical-and-2-inert is a false census. The README's *Known blind spots*
+does name the `file.access` gap (G3), but the **rule table** — the one place a
+rule reader looks — said nothing.
+
+**Shipped.** Marked the three rows `†` in `docs/rules.md` and added a footnote: the
+action, the single source that emits it, the stock-build behaviour, that they fire
+the day the eBPF read half ships and not before, and that every other rule keys on
+an action auditd already emits (`process.exec`, `net.egress`, `net.listen`,
+`file.write`, `scope.change`, opt-in `container.start`) and *is* live. Cross-linked
+to the README section.
+
+**Verified.** `file.access` has exactly one non-test emitter (grep over
+`internal/`); the three rules' `match.type` is `file.access` (read from the pack);
+the demo run shows none of them firing while the auditd-fed rules do; `check-links`
+passes (96 links, incl. the new README anchor); `publish-scan` PASS. Committed —
+docs only, no code or pinned artifact touched (so the pack hash and
+`rules/packs.pins` are unchanged).
+
+- **Next step (heartbeat 87):** the doc/code agreement pass has now caught a claim
+  in the pin docstring, the coverage matrix, and the rule table. If it keeps
+  paying, the honest next place to look is the *reverse*: claims the docs make
+  about **coverage numbers** that a test could assert (e.g. "N rules live on a
+  stock build"), rather than one more prose diff. But the open fronts are still
+  gated — **P2.0** (eBPF), **P2.1c-4** (Postgres), and the three publish
+  decisions — and none moved.
