@@ -62,7 +62,9 @@ accident.
 | `tls` | — | Mutual TLS to central (see below). Absent → plain HTTP, fine for loopback dev, **never** for a real fleet. |
 
 `tls` takes `cert`, `key`, `ca`, and `server_name` (must match the certificate
-SAN). Generate material with `deploy/gen-certs.sh`. With `tls` set, the
+SAN), and `insecure_skip_verify` — which disables peer verification and exists
+**only for tests**; it is named to be uncomfortable and must never be set on a
+real fleet. Generate material with `deploy/gen-certs.sh`. With `tls` set, the
 collector requires and verifies central's certificate; central requires and
 verifies the collector's.
 

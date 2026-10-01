@@ -4033,3 +4033,50 @@ Committed.
   default", which is exactly the kind of complete-set claim that rots. That is
   the next class worth holding, if this line of work keeps paying. Gated fronts
   unchanged: **P2.0**, **P2.1c-4**, and the three publish decisions.
+
+---
+
+## Heartbeat 89 — the "exhaustive key reference" now has to be exhaustive
+
+Heartbeat 88's note named the next seam: `docs/collector-config.md` calls itself
+*"the exhaustive key reference"* and names `internal/collector/config.go` as its
+source of truth. A completeness claim about a hand-maintained page is the kind
+that rots — and this one is load-bearing, because the collector is configured
+by exactly these keys and nowhere else.
+
+**The gap, and it was real.** Reflected every yaml key out of the config types
+(and the telemetry/mtls blocks they embed) and checked each against the page:
+**`insecure_skip_verify` was missing.** It is a real key on the embedded mTLS
+block (`report.tls.*`), documented in `deploy-central.md` but absent from the
+page that claims to be the collector-config key reference. One key, but exactly
+the failure the claim forbids: an operator reading the only reference for the
+knob and not finding it.
+
+**Shipped.**
+
+- `internal/collector/config_docs_test.go` — reflects the yaml tags out of
+  `Config` and every reachable repo-local struct it embeds (collector, telemetry,
+  mtls), then asserts each appears in `docs/collector-config.md` as a bare key
+  (`` `docker` ``) or a qualified one (`` `behavior.docker` ``). Reflection means
+  it can never drift from the struct — add a field and forget the page and the
+  build says so. A sanity floor (≥20 keys found) makes a broken walk fail loudly
+  rather than pass vacuously.
+- `docs/collector-config.md` — documented `insecure_skip_verify` in the `report`
+  TLS paragraph, framed the same as `deploy-central.md`: test-only, named to be
+  uncomfortable, never on a real fleet.
+
+**Verified.** The guard reproduced the gap before I touched the page (named
+`insecure_skip_verify`, and only it — the `behavior.ebpf` / `behavior.scope`
+headings correctly counted as documented, so no false positives). Negative-tested
+it by renaming a documented key and watching it fail with the right name, then
+restored. Full `go test ./...` green (+`-tags sqlite`); `gofmt`/`vet` clean;
+`check-links`, `quickstart-check`, `publish-scan` PASS. Committed.
+
+- **Next step (heartbeat 90):** three doc/code seams now hold tests (`rules.md`
+  coverage + table + summary, `collector-config.md` keys). The operator docs
+  `deploy-collector.md` / `deploy-central.md` are walkthroughs — the classes they
+  claim (that the described commands and every referenced file/rule-id exist) are
+  partly held by `quickstart-check`, but not whole. That is the next seam worth
+  judging, if this thread keeps paying — or the honest call may be that the
+  public-cut doc surface is now held and this line is done. Gated fronts
+  unchanged: **P2.0**, **P2.1c-4**, and the three publish decisions.
