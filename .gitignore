@@ -11,11 +11,24 @@ bin/
 .env
 secrets/
 
+# ...except the SHIPPED examples. The patterns above are for an operator's own
+# local config; examples/*.local.yaml is part of the product and the quickstart
+# runs it on a fresh clone. (A `!` rule works because the parent dir is not
+# itself excluded.) Keep this next to the patterns it un-ignores, or the next
+# person to read the file will re-break it.
+!examples/collector.local.yaml
+!examples/central.local.yaml
+
 # Local runtime state
 *.db
 *.sqlite
 *.db-journal
 *.log
+
+# ...except the demo's captured fixture, which is a checked-in test input, not a
+# runtime log. Without this the demo — and CI's demo job — lose the auditd stream
+# that carries the whole CARBONATO chain.
+!demo/fixtures/audit.log
 
 # Editor / OS
 .DS_Store

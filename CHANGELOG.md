@@ -166,6 +166,17 @@ opt-in design.
 
 ### Fixed
 
+- **A fresh clone was missing the quickstart's configs and the demo's fixture.**
+  `.gitignore`'s operator patterns (`*.local.yaml`, `*.log`) matched three files
+  that are part of the product, not secrets or runtime logs:
+  `examples/collector.local.yaml` and `examples/central.local.yaml` (the file the
+  quickstart tells a stranger to run) and `demo/fixtures/audit.log` (the auditd
+  stream carrying the whole CARBONATO chain). None were tracked, so on a fresh
+  clone `./bin/agentids-collector -config examples/collector.local.yaml` fails
+  with `no such file`, and the demo loses pass 1 — the CI `demo` job would be red.
+  Added explicit `!` un-ignores beside the patterns and committed the three
+  files. Verified by cloning, building, and running the quickstart and the demo
+  from the clone (12 matches, 1 drift, 5 critical, as promised).
 - **The demo promised a "by severity" breakdown its console never printed.**
   `demo/README.md` said `run.sh` prints the fleet rollup "with a breakdown by
   severity, by ATT&CK-style technique, by signal source, and by rule pack

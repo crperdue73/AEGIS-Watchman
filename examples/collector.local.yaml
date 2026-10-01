@@ -1,0 +1,31 @@
+# agentids collector — LOCAL config (no privileges, works on a fresh clone)
+#
+# This is the config the quickstart's "run it yourself" step uses, and the
+# smallest one that actually works with nothing installed. Run it from the
+# repository root:
+#
+#   ./bin/agentids-collector -config examples/collector.local.yaml -once -dry-run
+#
+# It points at the shipped rule pack and a directory that exists in the repo,
+# ships nothing, and leaves behavior.audit_log UNSET — so Layer 3 loads the pack
+# and stays idle. That is the documented "validate a pack with no live feed"
+# mode: the rules are checked, nothing matches because there is no host activity
+# to match yet.
+#
+# The operator template with real system paths is examples/collector.yaml; the
+# auditd rules that make Layer 3 actually fire are in docs/quickstart.md §4.
+
+agent_roots:
+  - path: ./demo/agent-root   # a real directory in the repo (the demo persona)
+
+report:
+  # Unused by -dry-run; set so that dropping -dry-run submits to the local
+  # central from examples/central.local.yaml.
+  endpoint: http://127.0.0.1:8080/api/v1/events
+  interval: 30s
+
+behavior:
+  rules_dir: ./rules          # the shipped carbonato pack
+  # audit_log is intentionally unset. Once the auditd rules from
+  # docs/quickstart.md §4 are in place, set it to /var/log/audit/audit.log and
+  # Layer 3 will match real host activity instead of idling.

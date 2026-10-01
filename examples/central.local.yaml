@@ -1,0 +1,27 @@
+# agentids central — LOCAL config (no privileges, works on a fresh clone)
+#
+# The counterpart to examples/collector.local.yaml: no system paths, no TLS, no
+# alerting, no uid map. It writes its stores under ./demo/out (gitignored) and
+# listens on loopback, so it runs from a clone with nothing installed:
+#
+#   ./bin/agentids-central -config examples/central.local.yaml
+#
+# The operator template with real system paths, TLS, provenance, and alerting is
+# examples/central.yaml.
+
+addr: ":8080"
+
+# Durable stores, kept out of the source tree's tracked files.
+store: ./demo/out/local-baselines.json
+records: ./demo/out/local-records.json
+
+record_backend: file       # "sqlite" needs a -tags sqlite build
+record_retention_days: 7
+record_max: 10000
+
+# 0 = hash-only alerts (no file bodies). Raise to attach a unified diff.
+max_diff_bytes: 4096
+
+# Alerting off except the service log: a local run should be quiet.
+alerts:
+  log: true

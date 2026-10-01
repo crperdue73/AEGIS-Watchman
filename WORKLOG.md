@@ -3365,3 +3365,57 @@ critical**. `bash -n demo/run.sh` clean; `make lint` green (check-links 93, ok);
   that instead: install here → `make ebpf-preflight` flips BUILD to YES, write
   R2.2; CI/host → the gated CI job. Either way, keep running things against their
   claims; it is the only method that keeps finding real bugs here.
+
+---
+
+## Heartbeat 76 — a fresh clone was missing the quickstart's configs and the demo's fixture
+
+Heartbeat 75 proved a new method: run the docs against their claims. This
+heartbeat applied it to the path a *stranger* takes first — the quickstart — and
+then to the strongest version of that claim: **a fresh `git clone`**, which the
+repo's own definition of done turns on ("meant to be run by a stranger on a fresh
+host"). The quickstart's commands all worked *in my working tree*. The clone is
+where the truth was.
+
+**The find.** Three files the docs and demo depend on were **never tracked**,
+because `.gitignore`'s operator patterns caught them:
+
+| File | Whose promise it carries | Ignore rule that ate it |
+|---|---|---|
+| `examples/collector.local.yaml` | quickstart §3 "run it yourself" | `*.local.yaml` |
+| `examples/central.local.yaml` | quickstart §3 two-terminal flow | `*.local.yaml` |
+| `demo/fixtures/audit.log` | the demo's whole CARBONATO chain (pass 1) | `*.log` |
+
+On a fresh clone the quickstart's first real command —
+`./bin/agentids-collector -config examples/collector.local.yaml` — dies with
+`no such file`, and `demo/run.sh` loses pass 1. The CI `demo` job checks out the
+repo and runs exactly that script, so this was a **red CI waiting to happen** the
+moment the repo goes public. It was invisible in the working tree because the
+files were physically there; only `git ls-files` and a clone saw it.
+
+**The fix.** `/home/vivi/.openclaw/workspace-vivi/projects/carbonato-detection-tool/.gitignore`
+gained explicit `!` un-ignores *beside* the patterns they reverse (with a comment
+saying why, so the next reader does not re-break it):
+`!examples/collector.local.yaml`, `!examples/central.local.yaml`,
+`!demo/fixtures/audit.log`. The three files are now tracked.
+
+**Verified the way the bug was found — by cloning.** Fresh clone → `make` (four
+binaries) → quickstart §3 dry-run (rules ok, exit 0) → `demo/run.sh` (exit 0) with
+the promised tally intact: **12 rule matches, 1 drift, 5 critical**, and the fleet
+rollup now showing `by severity`. The only things still ignored are `bin/` and
+`demo/out/`, which is correct.
+
+**Why this one matters more than its size.** Every prior heartbeat tested the
+tree it was standing in. This is the first that tested what a stranger *receives*,
+and it found a defect that would have broken the public repo's headline promise on
+day one. The method generalizes: **a fresh clone is a different artifact from the
+working tree, and only the clone is what ships.**
+
+- **Next step (heartbeat 77):** keep the clone as the unit under test. Two
+  follow-ups, in order: (1) add a CI step that fails when a *tracked* file the
+  docs reference is missing from the checkout — the class, not just this
+  instance (a `git ls-files`-vs-doc-links check, or simply run the quickstart's
+  dry-run from a clean `git archive`); and (2) diff the `deploy/README.md`
+  systemd walkthrough's copy-paste block against an actual install, since it was
+  re-read but never diffed. If Dad answers the P2.0 toolchain decision first, take
+  that instead — `make ebpf-preflight` decides the branch in one command.
