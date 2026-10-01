@@ -169,21 +169,31 @@ the action it keys on:
 | `carbonato.exfil.egress_after_change` | high | `phase3/exfiltration` | `net.egress` | egress to a chat/C2 endpoint |
 | `carbonato.exfil.egress_after_identity_change` | critical | `phase3/correlated-exfil` | `net.egress` | egress (chat **or chain RPC**) within 5m of an identity-file change |
 | `carbonato.c2.blockchain_rpc` | medium | `phase3/command-and-control` | `net.egress` | egress to a public blockchain RPC provider (the Graphalgo C2 leg) |
-| `carbonato.container.privileged_start` | critical | `phase3/container-escape` | `container.start` | a privileged, host-access container started |
-| `carbonato.container.host_root_mount` | critical | `phase3/container-escape` | `container.start` | a container with a host-root / host-socket mount |
-| `carbonato.container.after_identity_change` | critical | `phase3/correlated-container-escape` | `container.start` | a container started within 10m of an identity change |
+| `carbonato.container.privileged_start` ‡ | critical | `phase3/container-escape` | `container.start` | a privileged, host-access container started |
+| `carbonato.container.host_root_mount` ‡ | critical | `phase3/container-escape` | `container.start` | a container with a host-root / host-socket mount |
+| `carbonato.container.after_identity_change` ‡ | critical | `phase3/correlated-container-escape` | `container.start` | a container started within 10m of an identity change |
 
-**† inert on a stock build — the eBPF source is not built (P2.0).** Three rules
-key on the `file.access` action, and the *only* source that emits `file.access`
-is the eBPF adapter. On a stock build the collector runs **auditd-only** and
-produces no `file.access` at all, so these three load, validate, and are carried
-by the pack but **cannot fire** — they fire the day the eBPF read half ships, and
-not before. Every other rule in the table keys on an action auditd already emits
-(`process.exec`, `net.egress`, `net.listen`, `file.write`, `scope.change`, and the
-opt-in `container.start`), and is live on a stock build. A pack that counts them
-as coverage on a host without eBPF is exactly the "look protected, detect
-nothing" failure; that is why the count is stated here and the blind spot is
-named in the README ([*Known blind spots*](../README.md#known-blind-spots), G3).
+**† / ‡ — rules a stock build cannot fire.** A rule fires only if a source emits
+the action class it keys on, and two classes come from sources that are off in a
+stock build:
+
+- **† needs the eBPF source (`file.access`) — not built (P2.0).** The eBPF
+  adapter is the only emitter of `file.access`; a stock build logs
+  `eBPF file.access adapter unavailable, running auditd-only` and produces none.
+  These fire the day the eBPF read half ships, and not before.
+- **‡ needs the docker adapter (`container.start`) — opt-in, off by default.**
+  The docker-events adapter is the only emitter of `container.start`; it is off
+  unless `behavior.docker.enabled` is set. These fire once it is.
+
+So on a stock build — auditd plus the default-on `scope.change` shim — **14 of
+the 20 rules can fire, and only 1 of the 6 critical rules.** The five inert
+criticals are the two `file.access` secret-reads plus the three `container.start`
+rules. The collector does not leave that to arithmetic: at startup it prints how
+many loaded rules cannot fire and names them (`N of M loaded rule(s) cannot fire
+with the attached sources: ...`), so the host, not this table, is the source of
+truth. The underlying blind spots are in the README
+([*Known blind spots*](../README.md#known-blind-spots): G3's read half, and G4
+when the adapter is off).
 
 ## Testing a rule
 

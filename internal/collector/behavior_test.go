@@ -325,3 +325,46 @@ func TestScopeSeenPathDerivation(t *testing.T) {
 		}
 	}
 }
+
+// TestBehaviorEngine_ReportsInertRulesOnStockBuild pins the operator-visible
+// half of the coverage accounting: on a stock build (auditd + the default-on
+// scope shim; eBPF and docker both off) the collector must name the rules that
+// cannot fire, so its pack count is never mistaken for coverage. See
+// internal/rules/coverage.go and docs/rules.md.
+func TestBehaviorEngine_ReportsInertRulesOnStockBuild(t *testing.T) {
+	tmp := t.TempDir()
+	audit := filepath.Join(tmp, "audit.log")
+	if err := os.WriteFile(audit, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &Config{Behavior: Behavior{
+		RulesDir: "../../rules",
+		AuditLog: audit,
+		// EBPF and Docker left disabled: the stock build.
+	}}
+
+	var buf bytes.Buffer
+	prev := log.Writer()
+	log.SetOutput(&buf)
+	defer log.SetOutput(prev)
+
+	if _, err := NewBehaviorEngine(cfg, schema.Host{ID: "h1"}, &schema.Agent{ID: "a1"}, &fakeSubmitter{}); err != nil {
+		t.Fatalf("NewBehaviorEngine: %v", err)
+	}
+	logged := buf.String()
+
+	// The shipped pack: 20 rules, 6 of them keyed on an action class a stock
+	// build does not emit (three file.access, three container.start).
+	if !strings.Contains(logged, "6 of 20 loaded rule(s) cannot fire with the attached sources") {
+		t.Errorf("expected the stock-build inert count in startup logs, got:\n%s", logged)
+	}
+	for _, id := range []string{"carbonato.secret.read_model_key", "carbonato.container.privileged_start"} {
+		if !strings.Contains(logged, id) {
+			t.Errorf("inert rule %q not named in startup logs:\n%s", id, logged)
+		}
+	}
+	// A rule that does fire on a stock build must not be listed as inert.
+	if strings.Contains(logged, "carbonato.exfil.egress_after_identity_change") {
+		t.Errorf("a live rule was wrongly reported inert:\n%s", logged)
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -173,6 +174,7 @@ func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submi
 	// than refusing to start (D6). A verdict tool that goes blind because its
 	// *second* source is unavailable is worse than one that runs with one eye
 	// and says so.
+	ebpfAttached := false
 	if cfg.Behavior.EBPF.Enabled {
 		ebpfSrc, err := telemetry.NewEBPFSource(cfg.Behavior.EBPF, log.Default())
 		switch {
@@ -182,6 +184,7 @@ func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submi
 			// Disabled at the source level; nothing to attach.
 		default:
 			src.Add(ebpfSrc)
+			ebpfAttached = true
 			log.Printf("collector: behavior: eBPF file.access adapter attached")
 		}
 	}
@@ -191,6 +194,7 @@ func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submi
 	// container.start actions are matched alongside the auditd stream. A host
 	// with no Docker daemon or no docker binary simply has nothing to report —
 	// the collector keeps running on its other sources.
+	dockerAttached := false
 	if cfg.Behavior.Docker.Enabled {
 		dockerSrc, err := telemetry.NewDockerSource(cfg.Behavior.Docker)
 		switch {
@@ -200,6 +204,7 @@ func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submi
 			// Disabled at the source level; nothing to attach.
 		default:
 			src.Add(dockerSrc)
+			dockerAttached = true
 			log.Printf("collector: behavior: docker events adapter attached")
 		}
 	}
@@ -215,6 +220,7 @@ func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submi
 	// action the other adapters produced this poll. Default-on whenever Layer 3
 	// rules are configured (cfg.Behavior.Scope.IsEnabled).
 	var composed telemetry.Source = src
+	scopeAttached := false
 	if shim := telemetry.NewScopeSourceFromConfig(cfg.Behavior.Scope, cfg.Behavior.RulesDir != "", src, agent); shim != nil {
 		// Persist the seen-capability set beside the spool (or at the configured
 		// path) so a restart does not re-report the host's established
@@ -226,7 +232,44 @@ func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submi
 			}
 		}
 		composed = shim
+		scopeAttached = true
 		log.Printf("collector: behavior: scope.change heuristic shim attached (derived, detail.source=heuristic)")
+	}
+
+	// Report how many loaded rules can actually fire with the attached sources.
+	// A rule keyed on an action class no attached source emits loads, validates,
+	// and rides in the pack but never fires — the "look protected, detect
+	// nothing" failure. Say the number and name the dead rules, so an operator
+	// never reads the pack's rule count as coverage it does not have.
+	available := map[string]bool{}
+	if cfg.Behavior.AuditLog != "" {
+		// auditd carries these classes when the documented audit rules are
+		// installed (docs/deploy-collector.md); the same prerequisite the rules
+		// have always assumed.
+		available["process.exec"] = true
+		available["net.egress"] = true
+		available["net.listen"] = true
+		available["file.write"] = true
+	}
+	if ebpfAttached {
+		available["file.access"] = true
+	}
+	if dockerAttached {
+		available["container.start"] = true
+	}
+	if scopeAttached {
+		available["scope.change"] = true
+	}
+	if inert := rules.InertRules(packs, available); len(inert) == 0 {
+		log.Printf("collector: behavior: all %d loaded rule(s) can fire with the attached sources", total)
+	} else {
+		ids := make([]string, 0, len(inert))
+		for _, r := range inert {
+			ids = append(ids, r.ID)
+		}
+		sort.Strings(ids)
+		log.Printf("collector: behavior: %d of %d loaded rule(s) cannot fire with the attached sources — no source emits their action class: %s",
+			len(inert), total, strings.Join(ids, ", "))
 	}
 	var watch *sourceWatch
 	if cfg.Behavior.AuditLog != "" {

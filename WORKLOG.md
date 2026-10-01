@@ -3926,3 +3926,58 @@ docs only, no code or pinned artifact touched (so the pack hash and
   stock build"), rather than one more prose diff. But the open fronts are still
   gated — **P2.0** (eBPF), **P2.1c-4** (Postgres), and the three publish
   decisions — and none moved.
+
+---
+
+## Heartbeat 87 — coverage accounting, and a correction to heartbeat 86
+
+Heartbeat 86 marked three rules inert on a stock build and wrote: *"every other
+rule in the table keys on an action auditd already emits ... and is live on a
+stock build."* That sentence was **wrong**, and I found it while building the
+thing that makes it impossible to be wrong again.
+
+**The error.** I checked one gated source and not the other. `docs/rules.md` and
+`examples/collector.yaml` both default the **docker** adapter to `enabled: false`
+— the same as eBPF. So the three `container.start` rules are *also* inert on a
+stock build. The true stock-build picture is **6 of 20 rules inert, and 5 of the 6
+criticals** (the two `file.access` reads and the three `container.start` rules);
+only `egress_after_identity_change` — a net.egress rule — is a live critical. My
+hb86 footnote understated the gap by exactly the class I hadn't looked at. The
+lesson repeats the project's own: a claim checked against one source of truth is
+a guess about the others.
+
+**What shipped — the count, not the prose.** Instead of hand-annotating a table
+(which is what got hb86 wrong), the coverage question is now code:
+
+- `internal/rules/coverage.go` — `ActionTypes(packs)` (the action classes a pack
+  requires) and `InertRules(packs, available)` (the loaded rules whose
+  `Match.Type` no available source emits; a type-less rule is never inert). Pure,
+  deterministic, no engine state.
+- The collector computes `available` from the sources it **actually attached**
+  (auditd when `audit_log` is set; `scope.change` when the shim is on;
+  `file.access`/`container.start` only if the eBPF/docker adapters came up) and
+  logs one line at startup: `N of M loaded rule(s) cannot fire with the attached
+  sources — no source emits their action class: <ids>`. The host is now the
+  source of truth, not a doc that can drift from it.
+- `internal/rules/coverage_test.go` pins all four source combinations against the
+  shipped pack (stock → 6 inert; +docker → the 3 `file.access`; +eBPF → the 3
+  `container.start`; both → 0), plus the headline (6 inert, 5 critical).
+  `internal/collector/behavior_test.go` pins the operator-visible log line and
+  asserts a *live* rule is never named inert.
+- `docs/rules.md` — marked the three `container.start` rows ‡ alongside the three
+  `file.access` rows †, and replaced the hb86 footnote with the correct one: two
+  gated classes, the honest numbers, and a pointer to the runtime report.
+
+**Verified.** Full `go test ./...` green (default + `-tags sqlite`); `gofmt`/`vet`
+clean; `check-links` (96 links) and `quickstart-check` PASS; `publish-scan` PASS.
+Ran the real binary through the demo and read the line it prints: with docker on
+it reports **3 of 20** inert (the file.access rules — docker's own class is now
+covered), which is the same number from the other side. Committed.
+
+- **Next step (heartbeat 88):** the doc/code agreement thread has now produced a
+  *guard* rather than another diff, which is the better end state — the class
+  ("a rule that cannot fire counted as coverage") is caught by a test now, not by
+  me reading. The gated fronts are unchanged: **P2.0** (eBPF — which would zero
+  the `file.access` half of this), **P2.1c-4** (Postgres), and the three publish
+  decisions. If none move, I should look for the next *class* of false claim a
+  test could hold, not the next instance.
