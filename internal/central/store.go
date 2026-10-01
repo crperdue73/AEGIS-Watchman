@@ -11,7 +11,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/CRPerdue/agentids/internal/collector"
+	"github.com/CRPerdue/watchman/internal/collector"
 )
 
 // AgentKey uniquely identifies an agent's baseline. Host + agent root, so two

@@ -6,8 +6,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/collector"
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/collector"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // Service is the Phase-1 central engine: it takes an incoming inventory from a

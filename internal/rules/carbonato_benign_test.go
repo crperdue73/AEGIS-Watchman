@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // TestShippedPackQuietOnBenignCorpus is the P1.4 rule-pack quality gate: a

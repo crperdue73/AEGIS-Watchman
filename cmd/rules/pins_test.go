@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/CRPerdue/agentids/internal/provenance"
-	"github.com/CRPerdue/agentids/internal/rules"
+	"github.com/CRPerdue/watchman/internal/provenance"
+	"github.com/CRPerdue/watchman/internal/rules"
 )
 
 func TestParseVerifyArgs(t *testing.T) {
@@ -96,7 +96,7 @@ func TestCheckPinsOKAndDrift(t *testing.T) {
 	}
 }
 
-// writeKeyPair writes a base64 Ed25519 key pair the way `agentids-manifest
+// writeKeyPair writes a base64 Ed25519 key pair the way `watchman-manifest
 // keygen` does, returning the private-key path.
 func writeKeyPair(t *testing.T, dir string) string {
 	t.Helper()

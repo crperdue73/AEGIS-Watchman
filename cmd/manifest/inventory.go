@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/CRPerdue/agentids/internal/provenance"
+	"github.com/CRPerdue/watchman/internal/provenance"
 )
 
 // InventoryRoot hashes the workspace-relative files under root that match the

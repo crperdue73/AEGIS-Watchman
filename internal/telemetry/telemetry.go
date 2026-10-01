@@ -30,7 +30,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // ProcessExec is the action type emitted by the execve adapters.

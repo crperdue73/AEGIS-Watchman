@@ -1,17 +1,17 @@
-# agentids central — example config
+# watchman central — example config
 # Copy to central.yaml next to the binary. A missing file uses these defaults,
 # so the service runs out of the box.
 
 addr: ":8080"
 
 # Durable baseline store. Survives restarts; file is created 0600.
-store: /var/lib/agentids/baselines.json
+store: /var/lib/watchman/baselines.json
 
 # Durable event-record store — the data behind the fleet view
 # (GET /api/v1/fleet). Every detected event is retained here so an operator can
 # see which hosts are alerting, and with what, without grepping a log. Omit to
 # keep the view in memory only (it works, but resets on restart).
-records: /var/lib/agentids/records.json
+records: /var/lib/watchman/records.json
 record_backend: file       # "file" (default, zero-dep atomic JSON) or "sqlite"
                            #   (needs a -tags sqlite build; for scale / concurrent readers)
 record_retention_days: 7   # drop records older than this
@@ -25,20 +25,20 @@ max_diff_bytes: 4096
 # cert signed by this CA; unauthenticated clients are rejected at the
 # handshake. Generate material with deploy/gen-certs.sh.
 tls:
-  cert: /etc/agentids/leaf.crt
-  key: /etc/agentids/leaf.key
-  ca: /etc/agentids/ca.crt
+  cert: /etc/watchman/leaf.crt
+  key: /etc/watchman/leaf.key
+  ca: /etc/watchman/ca.crt
 
 # Layer 2 — provenance/attestation. Points at the signed approval manifests
-# (one *.json per agent root, built with `agentids-manifest sign`). When set,
+# (one *.json per agent root, built with `watchman-manifest sign`). When set,
 # each ingest is checked against the approved manifest and any unapproved or
 # modified file raises provenance.untrusted. Delete this block to disable.
 manifests:
-  dir: /etc/agentids/manifests
+  dir: /etc/watchman/manifests
   # JSON file of {"name": "base64-ed25519-pubkey"} that may have signed the
   # manifests. A manifest signed by anything else is refused at load. Omit to
   # skip signature checking (manifests trusted as shipped).
-  trust_keys: /etc/agentids/trust-keys.json
+  trust_keys: /etc/watchman/trust-keys.json
   # true -> an agent with NO manifest on record is treated as fully untrusted
   # (every file raises provenance.untrusted). Off by default so an un-migrated
   # fleet is not drowned in alerts during rollout.
@@ -49,20 +49,20 @@ manifests:
 # it. Resolution is best-effort: an unknown uid stays numeric, because a wrong
 # name is worse than no name. Point this at a copy of /etc/passwd from the
 # fleet's base image. Omit to leave uids numeric.
-uid_map: /etc/agentids/passwd
+uid_map: /etc/watchman/passwd
 
 alerts:
   # Any HTTP endpoint that accepts a JSON POST. Slack incoming webhooks,
   # PagerDuty Events API v2, a ticket bot, or a tiny shell receiver.
-  # The body is an agentids Alert: {when, host, agent, events[]}.
-  webhook: https://hooks.example/agentids
+  # The body is an watchman Alert: {when, host, agent, events[]}.
+  webhook: https://hooks.example/watchman
   # Also write a one-line summary per alert to the service log. Default: true.
   log: true
   # Email each alert as a plain-text SMTP message. Delete this block to disable.
   email:
     host: smtp.example.com:587   # port 465 = implicit TLS; others use STARTTLS
-    username: agentids
+    username: watchman
     password: change-me
-    from: agentids@example.com
+    from: watchman@example.com
     to: [oncall@example.com]
     # allow_plaintext: true     # needed only for a trusted local relay without TLS

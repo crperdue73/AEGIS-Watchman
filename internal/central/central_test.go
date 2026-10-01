@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/CRPerdue/agentids/internal/collector"
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/collector"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 func inv(files ...collector.FileState) *collector.Inventory {

@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/CRPerdue/agentids/internal/provenance"
-	"github.com/CRPerdue/agentids/internal/rules"
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/provenance"
+	"github.com/CRPerdue/watchman/internal/rules"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // pinnedRulesDir builds a temp rules dir (a copy of the shipped pack) and a pin

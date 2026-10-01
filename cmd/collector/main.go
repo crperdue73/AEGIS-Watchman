@@ -1,4 +1,4 @@
-// Command agentids-collector is the per-host collector.
+// Command watchman-collector is the per-host collector.
 //
 // Phase 1: inventory + hash agent identity/persona/skill/config files and
 // submit them to the central service. `-dry-run` validates the config and the
@@ -19,9 +19,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/buildinfo"
-	"github.com/CRPerdue/agentids/internal/collector"
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/buildinfo"
+	"github.com/CRPerdue/watchman/internal/collector"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 func main() {
@@ -34,18 +34,18 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Println(buildinfo.String("agentids-collector"))
+		fmt.Println(buildinfo.String("watchman-collector"))
 		return
 	}
 
 	cfg, err := collector.LoadConfig(*configPath)
 	if err != nil {
-		log.Fatalf("agentids-collector: %v", err)
+		log.Fatalf("watchman-collector: %v", err)
 	}
 
 	collected, err := collector.CollectAll(cfg)
 	if err != nil {
-		log.Fatalf("agentids-collector: %v", err)
+		log.Fatalf("watchman-collector: %v", err)
 	}
 
 	host := resolveHost(*hostID, *hostName)
@@ -58,9 +58,9 @@ func main() {
 		if cfg.Behavior.RulesDir != "" {
 			packs, nRules, err := collector.CheckBehaviorRules(cfg)
 			if err != nil {
-				log.Fatalf("agentids-collector: %v", err)
+				log.Fatalf("watchman-collector: %v", err)
 			}
-			log.Printf("agentids-collector: -dry-run: rules ok — %d rule(s) from %d pack(s)", nRules, packs)
+			log.Printf("watchman-collector: -dry-run: rules ok — %d rule(s) from %d pack(s)", nRules, packs)
 		}
 		out := struct {
 			Host   schema.Host           `json:"host"`
@@ -69,22 +69,22 @@ func main() {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(out); err != nil {
-			log.Fatalf("agentids-collector: %v", err)
+			log.Fatalf("watchman-collector: %v", err)
 		}
 		return
 	}
 
 	if cfg.Report.Endpoint == "" {
-		log.Fatalf("agentids-collector: report.endpoint is required (or use -dry-run)")
+		log.Fatalf("watchman-collector: report.endpoint is required (or use -dry-run)")
 	}
 	var client *collector.Client
 	if cfg.Report.TLS.Enabled() {
 		c, err := collector.NewTLSClient(cfg.Report.Endpoint, cfg.Report.TLS)
 		if err != nil {
-			log.Fatalf("agentids-collector: tls: %v", err)
+			log.Fatalf("watchman-collector: tls: %v", err)
 		}
 		client = c
-		log.Printf("agentids-collector: mutual TLS enabled -> %s", cfg.Report.Endpoint)
+		log.Printf("watchman-collector: mutual TLS enabled -> %s", cfg.Report.Endpoint)
 	} else {
 		client = collector.NewClient(cfg.Report.Endpoint)
 		// The warning names what is actually missing. Without report.tls an https
@@ -93,9 +93,9 @@ func main() {
 		// "plaintext" is only true for an http:// endpoint and sends the operator
 		// looking for the wrong problem.
 		if strings.HasPrefix(strings.ToLower(cfg.Report.Endpoint), "https://") {
-			log.Printf("agentids-collector: WARNING report TLS has no client identity -> %s (set report.tls; a central with mutual TLS will reject this)", cfg.Report.Endpoint)
+			log.Printf("watchman-collector: WARNING report TLS has no client identity -> %s (set report.tls; a central with mutual TLS will reject this)", cfg.Report.Endpoint)
 		} else {
-			log.Printf("agentids-collector: WARNING plaintext report -> %s", cfg.Report.Endpoint)
+			log.Printf("watchman-collector: WARNING plaintext report -> %s", cfg.Report.Endpoint)
 		}
 	}
 
@@ -111,9 +111,9 @@ func main() {
 		}
 		behavior, err = collector.NewBehaviorEngine(cfg, host, l3agent, client)
 		if err != nil {
-			log.Fatalf("agentids-collector: behavior: %v", err)
+			log.Fatalf("watchman-collector: behavior: %v", err)
 		}
-		log.Printf("agentids-collector: Layer 3 enabled (rules=%s, audit_log=%q)",
+		log.Printf("watchman-collector: Layer 3 enabled (rules=%s, audit_log=%q)",
 			cfg.Behavior.RulesDir, cfg.Behavior.AuditLog)
 	}
 
@@ -154,13 +154,13 @@ func main() {
 		return
 	}
 
-	log.Printf("agentids-collector: polling every %s", cfg.Report.Interval)
+	log.Printf("watchman-collector: polling every %s", cfg.Report.Interval)
 	ticker := time.NewTicker(cfg.Report.Interval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("agentids-collector: shutting down")
+			log.Printf("watchman-collector: shutting down")
 			return
 		case <-ticker.C:
 			collected, err = collector.CollectAll(cfg)

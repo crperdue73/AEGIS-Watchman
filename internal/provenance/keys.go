@@ -7,7 +7,7 @@ package provenance
 // rules/packs.pins — so it needs a detached Ed25519 signature over that file's
 // exact bytes: the same key material and the same offline-verifiable story,
 // applied to a different payload shape. These helpers are what
-// `agentids-rules sign-pins` / `verify --pubkey` use, so a fleet can trust a
+// `watchman-rules sign-pins` / `verify --pubkey` use, so a fleet can trust a
 // *third-party* pack set and not only one it built itself.
 import (
 	"crypto/ed25519"
@@ -19,7 +19,7 @@ import (
 )
 
 // LoadPrivateKey reads a base64 Ed25519 private key — the exact format
-// `agentids-manifest keygen` writes.
+// `watchman-manifest keygen` writes.
 func LoadPrivateKey(path string) (ed25519.PrivateKey, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {

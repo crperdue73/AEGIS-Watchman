@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // Engine evaluates a set of rules against observed actions.

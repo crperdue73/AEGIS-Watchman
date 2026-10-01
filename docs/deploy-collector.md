@@ -1,6 +1,6 @@
 # DEPLOY — COLLECTOR (LAYER 3 TELEMETRY)
 
-**Audience:** the operator standing up an `agentids` collector on a host.
+**Audience:** the operator standing up an `watchman` collector on a host.
 **Scope:** enabling the Layer 3 telemetry sources — auditd (every host), the
 optional eBPF `file.access` adapter (modern kernels), and the Docker events
 adapter (hosts running a daemon). Layers 1/2 need none of this; see the README.
@@ -25,30 +25,30 @@ Layer 3 rules match *actions*: process execution, outbound connections,
 listeners. Those come from auditd. Enable the rules the collector can use:
 
 ```
-# /etc/audit/rules.d/agentids.rules
--a always,exit -F arch=b64 -S execve   -k agentids
--a always,exit -F arch=b64 -S connect  -k agentids
--a always,exit -F arch=b64 -S bind     -k agentids
--a always,exit -F arch=b64 -S listen   -k agentids
+# /etc/audit/rules.d/watchman.rules
+-a always,exit -F arch=b64 -S execve   -k watchman
+-a always,exit -F arch=b64 -S connect  -k watchman
+-a always,exit -F arch=b64 -S bind     -k watchman
+-a always,exit -F arch=b64 -S listen   -k watchman
 # 32-bit variants too on a mixed-arch host:
--a always,exit -F arch=b32 -S execve   -k agentids
--a always,exit -F arch=b32 -S connect  -k agentids
--a always,exit -F arch=b32 -S bind     -k agentids
--a always,exit -F arch=b32 -S listen   -k agentids
+-a always,exit -F arch=b32 -S execve   -k watchman
+-a always,exit -F arch=b32 -S connect  -k watchman
+-a always,exit -F arch=b32 -S bind     -k watchman
+-a always,exit -F arch=b32 -S listen   -k watchman
 
 # File watches (optional) — the WRITE half of file telemetry. A write to a
 # persistence path is caught even when the command line never names the file
 # (a script, a wrapped interpreter). Watch with -p wa (write + attribute
 # change); do NOT add -p r to the same watch — an open is read/write-ambiguous
 # and a read-watch would report reads as writes.
--w /etc/cron.d             -p wa -k agentids
--w /etc/cron.daily         -p wa -k agentids
--w /etc/cron.hourly        -p wa -k agentids
--w /etc/crontab            -p wa -k agentids
--w /etc/systemd/system     -p wa -k agentids
--w /root/.bashrc           -p wa -k agentids
--w /root/.profile          -p wa -k agentids
--w /root/.ssh/authorized_keys -p wa -k agentids
+-w /etc/cron.d             -p wa -k watchman
+-w /etc/cron.daily         -p wa -k watchman
+-w /etc/cron.hourly        -p wa -k watchman
+-w /etc/crontab            -p wa -k watchman
+-w /etc/systemd/system     -p wa -k watchman
+-w /root/.bashrc           -p wa -k watchman
+-w /root/.profile          -p wa -k watchman
+-w /root/.ssh/authorized_keys -p wa -k watchman
 ```
 
 Apply with `augenrules --load` (or `service auditd restart`).
@@ -57,7 +57,7 @@ Then point the collector at the log:
 
 ```yaml
 behavior:
-  rules_dir: /etc/agentids/rules
+  rules_dir: /etc/watchman/rules
   audit_log: /var/log/audit/audit.log
 ```
 
@@ -136,7 +136,7 @@ The default `go build ./...` needs **no** clang and no libbpf — the eBPF sourc
 is behind the `ebpf` build tag. To include it:
 
 ```
-go build -tags ebpf -o bin/agentids-collector ./cmd/collector
+go build -tags ebpf -o bin/watchman-collector ./cmd/collector
 ```
 
 (Until R2.2 lands the object + loader, an `-tags ebpf` build compiles and
@@ -259,7 +259,7 @@ on central. Point central at a passwd-style file:
 
 ```yaml
 # central.yaml
-uid_map: /etc/agentids/passwd
+uid_map: /etc/watchman/passwd
 ```
 
 Copy `/etc/passwd` from the fleet's base image. An alert then reads
@@ -277,24 +277,24 @@ collector and central — unprivileged, hardened, with a private state directory
 for the spool, cursor, and scope-seen cache. The short version:
 
 ```sh
-sudo useradd --system --no-create-home --shell /usr/sbin/nologin agentids
-sudo usermod -aG adm agentids          # read /var/log/audit/audit.log (systemd-journal on RHEL)
-sudo install -m 0755 bin/agentids-collector /usr/local/bin/
-sudo install -d -m 0750 -o agentids -g agentids /etc/agentids
-sudo install -m 0640 -o agentids -g agentids examples/collector.yaml /etc/agentids/collector.yaml
-sudo install -m 0644 deploy/agentids-collector.service /etc/systemd/system/
-sudo systemctl daemon-reload && sudo systemctl enable --now agentids-collector
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin watchman
+sudo usermod -aG adm watchman          # read /var/log/audit/audit.log (systemd-journal on RHEL)
+sudo install -m 0755 bin/watchman-collector /usr/local/bin/
+sudo install -d -m 0750 -o watchman -g watchman /etc/watchman
+sudo install -m 0640 -o watchman -g watchman examples/collector.yaml /etc/watchman/collector.yaml
+sudo install -m 0644 deploy/watchman-collector.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now watchman-collector
 ```
 
-**Edit `/etc/agentids/collector.yaml` before enabling the unit** — set your
+**Edit `/etc/watchman/collector.yaml` before enabling the unit** — set your
 `agent_roots`, and the `behavior` block if you turned on Layer 3. The collector
 **fails to start** if the config file is missing (`read config: open
-/etc/agentids/collector.yaml: no such file or directory`) — unlike central, whose
-missing config falls back to defaults. `/var/lib/agentids` (the spool, cursor,
+/etc/watchman/collector.yaml: no such file or directory`) — unlike central, whose
+missing config falls back to defaults. `/var/lib/watchman` (the spool, cursor,
 and scope-seen cache) is created by the unit's `StateDirectory=`, so you do not
 make it by hand.
 
-The `agentids` user needs read access to the audit log and to each `agent_roots`
+The `watchman` user needs read access to the audit log and to each `agent_roots`
 path — and nothing else. The full walkthrough, the capability deltas for the
 eBPF and Docker adapters, and the mutual-TLS step are in
 [`deploy/README.md`](../deploy/README.md).
@@ -305,7 +305,7 @@ eBPF and Docker adapters, and the mutual-TLS step are in
 
 After deploying a collector:
 
-- [ ] `agentids-collector -once -dry-run` exits clean (config parses, roots
+- [ ] `watchman-collector -once -dry-run` exits clean (config parses, roots
       exist, rules load).
 - [ ] Editing an agent's `SOUL.md` produces an `identity.drift` event (Layer 1).
 - [ ] A `bash -c "cat ~/.ssh/id_ed25519"` in the audit log fires
@@ -324,7 +324,7 @@ After deploying a collector:
   "short version" installed the binary and the unit but **not** the config, so a
   reader copying it got a collector that fails to start (`read config: ... no such
   file or directory` — fatal, exit 1, unlike central, whose missing config falls
-  back to defaults). The snippet now creates `/etc/agentids`, installs
+  back to defaults). The snippet now creates `/etc/watchman`, installs
   `collector.yaml`, and says to edit it before enabling the unit. (2) The Scope
   line named auditd and eBPF but not the Docker events adapter, which has its own
   §3. Every other claim was checked against the tree and held: the action-name
@@ -334,8 +334,8 @@ After deploying a collector:
   `rules/carbonato.yaml`.
 - **2026-09-30** — **§5 "Running as a service" added.** The quickstart runs the
   collector once; nothing showed an operator how to run it persistently. Added
-  systemd unit templates (`deploy/agentids-{collector,central}.service`) and a
-  `deploy/README.md` install walkthrough (unprivileged `agentids` user, the
+  systemd unit templates (`deploy/watchman-{collector,central}.service`) and a
+  `deploy/README.md` install walkthrough (unprivileged `watchman` user, the
   exact read access it needs, the capability deltas for eBPF/Docker, TLS). Both
   units verified with `systemd-analyze verify` (clean apart from the expected
   "binary not yet installed"). The collector unit needs no root and no

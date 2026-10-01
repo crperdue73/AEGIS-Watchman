@@ -11,9 +11,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/CRPerdue/agentids/internal/central"
-	"github.com/CRPerdue/agentids/internal/collector"
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/central"
+	"github.com/CRPerdue/watchman/internal/collector"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // TestLayer3EndToEnd wires the whole Layer 3 path with no mocks in the middle:

@@ -45,14 +45,14 @@ Initial rule-set target: ~20–30 rules. Seed ideas from the brief (Part 3):
 > (execve, sockets, file opens, container starts) into `action` events live in
 > `internal/telemetry/`, and the engine is wired into the collector. Pack
 > parsing is strict (unknown keys, malformed globs, and duplicate ids across the
-> loaded set are all load errors), and `agentids-rules verify` runs that same
+> loaded set are all load errors), and `watchman-rules verify` runs that same
 > parser over a pack or directory — see [`../docs/rules.md`](../docs/rules.md).
 >
 > **Pinning:** `packs.pins` in this directory is a byte-exact record of the
-> approved pack set (per-pack `name@version` + sha256). `agentids-rules pin`
-> writes it and `agentids-rules verify --pins packs.pins` fails on any drift
+> approved pack set (per-pack `name@version` + sha256). `watchman-rules pin`
+> writes it and `watchman-rules verify --pins packs.pins` fails on any drift
 > (a changed, missing, or unpinned pack) — and CI checks the committed pin is
-> current. `agentids-rules sign-pins` detaches an Ed25519 signature over the pin
+> current. `watchman-rules sign-pins` detaches an Ed25519 signature over the pin
 > (the Layer 2 key format), and `verify --pins ... --pubkey ...` checks it before
 > the drift, so a third-party pack set can be trusted. See
 > [`../docs/rules.md`](../docs/rules.md#publishing-and-pinning-a-pack-set).

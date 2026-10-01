@@ -1,14 +1,14 @@
-# agentids collector — systemd unit (template)
+# watchman collector — systemd unit (template)
 #
 # Install (paths assume the binary at /usr/local/bin and config at
-# /etc/agentids — adjust to taste; see deploy/README.md for the full walkthrough):
+# /etc/watchman — adjust to taste; see deploy/README.md for the full walkthrough):
 #
-#   sudo install -m 0755 bin/agentids-collector /usr/local/bin/
-#   sudo install -d -m 0750 -o agentids -g agentids /etc/agentids /var/lib/agentids
-#   sudo cp deploy/agentids-collector.service /etc/systemd/system/
-#   sudo systemctl daemon-reload && sudo systemctl enable --now agentids-collector
+#   sudo install -m 0755 bin/watchman-collector /usr/local/bin/
+#   sudo install -d -m 0750 -o watchman -g watchman /etc/watchman /var/lib/watchman
+#   sudo cp deploy/watchman-collector.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now watchman-collector
 #
-# The service runs unprivileged. It needs NO root: give the `agentids` user
+# The service runs unprivileged. It needs NO root: give the `watchman` user
 #   - read access to /var/log/audit/audit.log  (add it to the adm /
 #     systemd-journal group — varies by distro), and
 #   - read access to each agent workspace root the collector hashes.
@@ -18,8 +18,8 @@
 # docs/deploy-collector.md.
 
 [Unit]
-Description=agentids collector (Layer 1/2/3 host agent)
-Documentation=https://github.com/CRPerdue/agentids
+Description=watchman collector (Layer 1/2/3 host agent)
+Documentation=https://github.com/CRPerdue/watchman
 After=network-online.target
 Wants=network-online.target
 # Start after auditd so /var/log/audit/audit.log exists before Layer 3 reads it.
@@ -27,17 +27,17 @@ After=auditd.service
 
 [Service]
 Type=simple
-User=agentids
-Group=agentids
-ExecStart=/usr/local/bin/agentids-collector -config /etc/agentids/collector.yaml
+User=watchman
+Group=watchman
+ExecStart=/usr/local/bin/watchman-collector -config /etc/watchman/collector.yaml
 Restart=on-failure
 RestartSec=5s
 
-# A private, writable state dir (/var/lib/agentids) for the spool + cursor and
+# A private, writable state dir (/var/lib/watchman) for the spool + cursor and
 # the scope-seen cache, the only place this service writes. ProtectSystem=strict
 # makes the rest of the filesystem read-only; StateDirectory is implicitly
 # writable.
-StateDirectory=agentids
+StateDirectory=watchman
 ProtectSystem=strict
 # Read (not write) access to agent workspaces, which commonly live under /home.
 ProtectHome=read-only

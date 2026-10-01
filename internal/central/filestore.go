@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/CRPerdue/agentids/internal/collector"
+	"github.com/CRPerdue/watchman/internal/collector"
 )
 
 // FileStore is a durable Store backed by a single JSON file. It survives a

@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // Spool is a durable, append-only backlog for Layer 3 matches.

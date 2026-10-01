@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // Alert is the payload handed to an Alerter after drift is detected. One Alert
@@ -103,7 +103,7 @@ func severityRank(sev string) int {
 
 // WebhookAlerter POSTs a JSON Alert to URL. It is the Phase-1 default: any
 // system that speaks HTTP (Slack, PagerDuty, a ticket bot, a shell receiver)
-// can consume it with no agentids-specific client.
+// can consume it with no watchman-specific client.
 type WebhookAlerter struct {
 	URL  string
 	HTTP *http.Client

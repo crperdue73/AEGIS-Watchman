@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/mtls"
+	"github.com/CRPerdue/watchman/internal/mtls"
 	"gopkg.in/yaml.v3"
 )
 
@@ -51,8 +51,8 @@ type Config struct {
 // which Ed25519 keys may have signed them.
 //
 //	manifests:
-//	  dir: /etc/agentids/manifests
-//	  trust_keys: /etc/agentids/trust-keys.json   # {"ops-2026-q3": "<base64>"}
+//	  dir: /etc/watchman/manifests
+//	  trust_keys: /etc/watchman/trust-keys.json   # {"ops-2026-q3": "<base64>"}
 //	  require_approval: false                      # true -> unapproved agents are loud
 //	  on_change: reload                            # reload manifests when the dir changes
 //
@@ -93,14 +93,14 @@ type Email struct {
 func DefaultConfig() Config {
 	return Config{
 		Addr:         ":8080",
-		Store:        "agentids-baselines.json",
+		Store:        "watchman-baselines.json",
 		MaxDiffBytes: 4096,
 		Alerts:       Alerts{Log: true},
 	}
 }
 
 // LoadConfig reads central.yaml from path. A missing file returns the defaults
-// with no error, so `agentids-central` runs out of the box.
+// with no error, so `watchman-central` runs out of the box.
 func LoadConfig(path string) (Config, error) {
 	cfg := DefaultConfig()
 

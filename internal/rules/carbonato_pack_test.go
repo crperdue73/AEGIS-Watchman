@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // TestShippedCarbonatoPackLoaded checks the real rules/carbonato.yaml parses and

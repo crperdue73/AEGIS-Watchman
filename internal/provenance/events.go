@@ -1,7 +1,7 @@
 package provenance
 
 import (
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // Events converts provenance verdicts into Layer 2 events. Only non-OK verdicts

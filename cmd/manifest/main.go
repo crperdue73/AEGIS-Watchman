@@ -1,17 +1,17 @@
-// Command agentids-manifest is the operator tool for Layer 2 provenance: it
+// Command watchman-manifest is the operator tool for Layer 2 provenance: it
 // builds (signs) and verifies approval manifests for an agent workspace.
 //
 // Approval workflow:
 //
 //	# once: create a signing key
-//	agentids-manifest keygen -out ops.key
+//	watchman-manifest keygen -out ops.key
 //
 //	# approve the current state of a workspace
-//	agentids-manifest sign -root /home/agent/.openclaw/workspace-demo \
+//	watchman-manifest sign -root /home/agent/.openclaw/workspace-demo \
 //	    -key ops.key -agent demo-agent -out demo.manifest.json
 //
 //	# check a workspace against an approved manifest
-//	agentids-manifest verify -root /home/agent/.openclaw/workspace-demo \
+//	watchman-manifest verify -root /home/agent/.openclaw/workspace-demo \
 //	    -manifest demo.manifest.json -pub ops.pub
 package main
 
@@ -25,8 +25,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/CRPerdue/agentids/internal/buildinfo"
-	"github.com/CRPerdue/agentids/internal/provenance"
+	"github.com/CRPerdue/watchman/internal/buildinfo"
+	"github.com/CRPerdue/watchman/internal/provenance"
 )
 
 func main() {
@@ -42,7 +42,7 @@ func main() {
 	case "verify":
 		verifyCmd(os.Args[2:])
 	case "version", "-version", "--version":
-		fmt.Println(buildinfo.String("agentids-manifest"))
+		fmt.Println(buildinfo.String("watchman-manifest"))
 	case "-h", "--help", "help":
 		usage()
 	default:
@@ -53,7 +53,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprint(os.Stderr, `agentids-manifest — Layer 2 provenance approval tool
+	fmt.Fprint(os.Stderr, `watchman-manifest — Layer 2 provenance approval tool
 
 commands:
   keygen  generate an Ed25519 signing key pair
@@ -61,13 +61,13 @@ commands:
   verify  check a workspace against an approved manifest
   version print version and build info
 
-run "agentids-manifest <command> -h" for flags
+run "watchman-manifest <command> -h" for flags
 `)
 }
 
 func keygen(args []string) {
 	fs := flag.NewFlagSet("keygen", flag.ExitOnError)
-	out := fs.String("out", "agentids.key", "path to write the private key (public key gets .pub)")
+	out := fs.String("out", "watchman.key", "path to write the private key (public key gets .pub)")
 	_ = fs.Parse(args)
 
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -88,7 +88,7 @@ func keygen(args []string) {
 func signCmd(args []string) {
 	fs := flag.NewFlagSet("sign", flag.ExitOnError)
 	root := fs.String("root", "", "agent workspace root to inventory (required)")
-	keyPath := fs.String("key", "agentids.key", "private key file")
+	keyPath := fs.String("key", "watchman.key", "private key file")
 	agentID := fs.String("agent", "", "agent id (required)")
 	out := fs.String("out", "manifest.json", "manifest output path")
 	include := fs.String("include", "SOUL.md,IDENTITY.md,USER.md,TOOLS.md,MEMORY.md,HEARTBEAT.md,AGENTS.md,skills/**/*.md", "comma-separated globs")

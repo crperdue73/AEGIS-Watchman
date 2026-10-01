@@ -115,7 +115,7 @@ const fleetHTML = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>agentids — fleet</title>
+<title>watchman — fleet</title>
 <style>
   :root { color-scheme: dark; }
   body { margin: 0; background: #12141a; color: #d7dae0;
@@ -153,7 +153,7 @@ const fleetHTML = `<!doctype html>
 </head>
 <body>
 <header>
-  <h1>agentids · fleet view</h1>
+  <h1>watchman · fleet view</h1>
   <span class="muted">{{.TotalEvents}} event(s) retained
     · {{len .Hosts}} host(s)</span>
   <span class="muted" style="margin-left:auto">generated {{.GeneratedAt}}</span>

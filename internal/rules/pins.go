@@ -6,7 +6,7 @@ package rules
 // exactly why a fleet needs to say *which* packs it runs and record that they
 // are still byte-for-byte the ones it approved. A pin file is that record: one
 // line per pack — its file name, its name@version, and the sha256 of the raw
-// file bytes. `agentids-rules verify --pins` fails loud when the loaded set has
+// file bytes. `watchman-rules verify --pins` fails loud when the loaded set has
 // drifted from the pin (a pack changed, a pinned pack vanished, or a new pack
 // appeared unpinned).
 //
@@ -14,7 +14,7 @@ package rules
 // hashes an agent file: the pin names the *artifact*, so a reformat that changes
 // the bytes is a deliberate re-approval, not a silent pass. A bare pin is only a
 // lockfile — anyone can write or edit one — so the pin *file* can itself be
-// signed. `agentids-rules sign-pins` writes a detached Ed25519 signature over
+// signed. `watchman-rules sign-pins` writes a detached Ed25519 signature over
 // the pin's exact bytes, reusing the same keys Layer 2 uses for agent manifests;
 // `verify --pins <pins> --pubkey <key>` checks that signature *before* it checks
 // the set against the pin, so a tampered pin is rejected as tampered, not merely
@@ -109,9 +109,9 @@ func PinSet(paths []string) ([]Pin, error) {
 
 // pinHeader documents the on-disk pin format in the file itself, so a lockfile
 // copied into a repo explains how to regenerate and check it.
-const pinHeader = `# agentids rule-pack pins — a byte-exact record of an approved pack set.
-# regenerate: agentids-rules pin <dir-or-file>... > packs.pins
-# verify:     agentids-rules verify --pins packs.pins <dir-or-file>...
+const pinHeader = `# watchman rule-pack pins — a byte-exact record of an approved pack set.
+# regenerate: watchman-rules pin <dir-or-file>... > packs.pins
+# verify:     watchman-rules verify --pins packs.pins <dir-or-file>...
 # format: <sha256>  <name@version>  <filename>
 `
 

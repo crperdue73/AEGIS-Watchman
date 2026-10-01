@@ -155,7 +155,7 @@ attribution:
 **Event schema (v1 draft — this is the public contract):**
 ```json
 {
-  "schema": "agentids.event/v1",
+  "schema": "watchman.event/v1",
   "event": "identity.drift",
   "ts": "2026-09-28T00:00:00Z",
   "host": {"id": "...", "name": "..."},
@@ -175,15 +175,15 @@ attribution:
 
 ## 0.5 — Decisions needed from Rob (Part 5, restated)
 
-1. **Name.** Repo name depends on it. (WATCHMAN / WARDEN / other)
+1. **Name.** ✅ **Watchman** (chosen 2026-10-01). Module path `github.com/CRPerdue/watchman`; tracked tree renamed.
 2. **Build vs. integrate telemetry.** Discovery lean: integrate (eBPF/auditd),
    own the rules engine. Confirm.
 3. **v1 target:** our own fleet first (recommended) vs. a client pilot.
 4. **Open-source the rule packs?** (lean: yes; engine + fleet UI stay paid)
 5. **License:** public repo + Apache-2.0 is set. Confirm no CLA / DCO preference.
 
-**Blocking for repo creation tomorrow:** Q1 (name). Everything else can be
-answered in parallel.
+**Blocking for repo creation:** ✅ Q1 resolved (Watchman). Remaining: GitHub repo
+access. Q2–Q5 can be answered in parallel.
 
 ---
 
@@ -191,3 +191,6 @@ answered in parallel.
 - **2026-09-27** — Phase 0 started. Environments enumerated, telemetry inventory
   drafted, first architecture sketch + Layer-1 event schema written. Awaiting
   GitHub repo access + name decision.
+- **2026-10-01** — Name decided: **Watchman**. Renamed across the tracked tree
+  (module path, binaries, deploy units, schema file, docs); all gates green.
+  Still awaiting GitHub repo access (token) to make the first push.

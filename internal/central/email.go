@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // EmailAlerter delivers an Alert as an email via SMTP. It is the second
@@ -31,7 +31,7 @@ type EmailAlerter struct {
 	From string
 	To   []string
 	// SubjectPrefix is prepended to the generated subject. Defaults to
-	// "[agentids]".
+	// "[watchman]".
 	SubjectPrefix string
 	// AllowPlaintext permits sending without STARTTLS on a non-465 port. Off by
 	// default: persona content is sensitive and should not cross a network in
@@ -75,7 +75,7 @@ func (e *EmailAlerter) Alert(ctx context.Context, a Alert) error {
 func (e *EmailAlerter) subject(a Alert) string {
 	prefix := e.SubjectPrefix
 	if prefix == "" {
-		prefix = "[agentids]"
+		prefix = "[watchman]"
 	}
 	worst := ""
 	for _, ev := range a.Events {
@@ -108,7 +108,7 @@ func (e *EmailAlerter) buildMessage(a Alert) []byte {
 	for _, ev := range a.Events {
 		e.writeEvent(&b, ev)
 	}
-	b.WriteString("--\r\nagentids — agent-layer intrusion detection\r\n")
+	b.WriteString("--\r\nwatchman — agent-layer intrusion detection\r\n")
 	return []byte(b.String())
 }
 

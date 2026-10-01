@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/CRPerdue/agentids/internal/provenance"
+	"github.com/CRPerdue/watchman/internal/provenance"
 )
 
 // verifyOpts are the flags `verify` accepts beyond its positional paths.
@@ -100,19 +100,19 @@ func checkPinSignature(out io.Writer, pinsFile, pubFile, sigFile string) error {
 // runSignPins writes a detached signature over a pin file, so a published pack
 // set can carry proof of who approved it:
 //
-//	agentids-rules sign-pins --key ops.key rules/packs.pins   # -> rules/packs.pins.sig
-//	agentids-rules verify --pins rules/packs.pins --pubkey ops.key.pub rules/
+//	watchman-rules sign-pins --key ops.key rules/packs.pins   # -> rules/packs.pins.sig
+//	watchman-rules verify --pins rules/packs.pins --pubkey ops.key.pub rules/
 func runSignPins(args []string) {
 	if isHelp(args) {
-		fmt.Fprintln(os.Stderr, "usage: agentids-rules sign-pins --key <private-key> [--out <sig-file>] <pins-file>")
+		fmt.Fprintln(os.Stderr, "usage: watchman-rules sign-pins --key <private-key> [--out <sig-file>] <pins-file>")
 		return
 	}
 	fs := flag.NewFlagSet("sign-pins", flag.ExitOnError)
-	keyPath := fs.String("key", "agentids.key", "Ed25519 private key file")
+	keyPath := fs.String("key", "watchman.key", "Ed25519 private key file")
 	outPath := fs.String("out", "", "signature output path (default: <pins-file>.sig)")
 	_ = fs.Parse(args)
 	if fs.NArg() != 1 {
-		fmt.Fprintln(os.Stderr, "usage: agentids-rules sign-pins --key <private-key> [--out <sig-file>] <pins-file>")
+		fmt.Fprintln(os.Stderr, "usage: watchman-rules sign-pins --key <private-key> [--out <sig-file>] <pins-file>")
 		os.Exit(2)
 	}
 	pinsFile := fs.Arg(0)
@@ -123,21 +123,21 @@ func runSignPins(args []string) {
 
 	data, err := os.ReadFile(pinsFile)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "agentids-rules: read pin file: %v\n", err)
+		fmt.Fprintf(os.Stderr, "watchman-rules: read pin file: %v\n", err)
 		os.Exit(1)
 	}
 	priv, err := provenance.LoadPrivateKey(*keyPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "agentids-rules: %v\n", err)
+		fmt.Fprintf(os.Stderr, "watchman-rules: %v\n", err)
 		os.Exit(1)
 	}
 	sig, err := provenance.SignDetached(priv, data)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "agentids-rules: %v\n", err)
+		fmt.Fprintf(os.Stderr, "watchman-rules: %v\n", err)
 		os.Exit(1)
 	}
 	if err := os.WriteFile(sigOut, []byte(sig+"\n"), 0o644); err != nil {
-		fmt.Fprintf(os.Stderr, "agentids-rules: write signature: %v\n", err)
+		fmt.Fprintf(os.Stderr, "watchman-rules: write signature: %v\n", err)
 		os.Exit(1)
 	}
 	fmt.Printf("signed %s -> %s\n", pinsFile, sigOut)

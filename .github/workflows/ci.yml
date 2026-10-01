@@ -35,7 +35,7 @@ jobs:
         # changed without re-pinning, the fleet would run packs the pin does not
         # approve — fail the build and tell the author to run `make pin`.
         run: |
-          ./bin/agentids-rules pin rules/ > /tmp/packs.pins
+          ./bin/watchman-rules pin rules/ > /tmp/packs.pins
           diff -u rules/packs.pins /tmp/packs.pins
       - name: Vet (default and sqlite builds)
         run: |
@@ -101,7 +101,7 @@ jobs:
       # runtime and could not exec. demo/ and quickstart-check need no Docker,
       # so neither could catch it. This job builds the real image and asserts
       # the documented claims (nonroot uid 65532, baked rule pack loads, the
-      # /etc/agentids shadow caveat, static binaries). GitHub's runner has a
+      # /etc/watchman shadow caveat, static binaries). GitHub's runner has a
       # Docker daemon; a red job here means a container doc stopped being true.
       - name: make container-check
         run: make container-check

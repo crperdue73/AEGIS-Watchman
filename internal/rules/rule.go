@@ -219,7 +219,7 @@ func packFileNames(dir string) ([]string, error) {
 
 // CheckUniqueIDs reports the first rule id declared by more than one pack in the
 // given set. LoadPacks enforces this for a directory; a tool that assembles a
-// set from several paths (agentids-rules verify) calls it directly.
+// set from several paths (watchman-rules verify) calls it directly.
 //
 // IDs must be unique across the whole loaded set, not just within one pack: two
 // packs that both define "carbonato.exec.shell_spawn" would otherwise ship

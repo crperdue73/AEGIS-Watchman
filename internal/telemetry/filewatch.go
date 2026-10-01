@@ -1,6 +1,6 @@
 package telemetry
 
-import "github.com/CRPerdue/agentids/internal/schema"
+import "github.com/CRPerdue/watchman/internal/schema"
 
 // filewatch.go — the auditd file-watch adapter, emitting file.write.
 //
@@ -8,7 +8,7 @@ import "github.com/CRPerdue/agentids/internal/schema"
 // The readable half — a process that opens a secret without naming it on the
 // command line — needs eBPF and is still its own phase (docs/R2-EBPF-DESIGN.md).
 // This half needs no kernel object at all: an operator's auditd file watch
-// (`-w <path> -p wa -k agentids`) already reports every write, and auditd has
+// (`-w <path> -p wa -k watchman`) already reports every write, and auditd has
 // been able to do that since forever.
 //
 // Why it matters: persistence is a *write to a known location* — a cron drop, an

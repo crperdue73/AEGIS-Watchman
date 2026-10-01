@@ -3,7 +3,7 @@ package collector
 import (
 	"testing"
 
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 func inv(root string, files ...FileState) *Inventory {

@@ -1,8 +1,8 @@
-# agentids — the collector and central service in one small image.
+# watchman — the collector and central service in one small image.
 #
 # Build (from the repository root):
 #
-#   docker build -f deploy/docker/Dockerfile -t agentids .
+#   docker build -f deploy/docker/Dockerfile -t watchman .
 #
 # The image is distroless: no shell, no package manager, unprivileged — that is
 # the point. It carries all four binaries and the shipped rule pack, so Layer 3
@@ -10,23 +10,23 @@
 # host-specific); mount them.
 #
 # Run the collector — mount the config, the audit log it tails, and the agent
-# workspaces it hashes. Mount configs at a path OTHER than /etc/agentids: a bind
-# mount there would shadow the rule pack this image bakes at /etc/agentids/rules,
+# workspaces it hashes. Mount configs at a path OTHER than /etc/watchman: a bind
+# mount there would shadow the rule pack this image bakes at /etc/watchman/rules,
 # and Layer 3 would fail to load ("rules_dir ... no such file or directory").
 #
 #   docker run --rm \
-#     -v /etc/agentids:/config:ro \
+#     -v /etc/watchman:/config:ro \
 #     -v /var/log/audit/audit.log:/var/log/audit/audit.log:ro \
 #     -v /home:/home:ro \
-#     agentids -config /config/collector.yaml
+#     watchman -config /config/collector.yaml
 #
 # Run central instead (override the entrypoint) and persist its stores:
 #
 #   docker run --rm -p 8080:8080 \
-#     -v /etc/agentids:/config:ro \
-#     -v agentids-state:/var/lib/agentids \
-#     --entrypoint /agentids-central \
-#     agentids -config /config/central.yaml
+#     -v /etc/watchman:/config:ro \
+#     -v watchman-state:/var/lib/watchman \
+#     --entrypoint /watchman-central \
+#     watchman -config /config/central.yaml
 #
 # For mutual TLS (the default for any real fleet), also mount the cert directory
 # and put both containers on one network so the collector can reach central by
@@ -45,7 +45,7 @@ WORKDIR /src
 # The project is pure Go and targets a distroless (no-libc) runtime, so the
 # binaries MUST be static. Left to default, a Go build on a host with a C
 # compiler enables cgo and links glibc — the result fails at container start
-# with a bare "exec /agentids-collector: no such file or directory" (the
+# with a bare "exec /watchman-collector: no such file or directory" (the
 # kernel cannot find the interpreter). CGO_ENABLED=0 is therefore load-bearing,
 # not tidiness.
 ENV CGO_ENABLED=0
@@ -64,21 +64,21 @@ RUN make build VERSION="${VERSION}" COMMIT="${COMMIT}" DATE="${DATE}"
 RUN mkdir -p /state && chown 65532:65532 /state && touch /state/.keep
 
 FROM gcr.io/distroless/static-debian12:nonroot
-LABEL org.opencontainers.image.title="agentids" \
+LABEL org.opencontainers.image.title="watchman" \
       org.opencontainers.image.description="Carbonato-class agent intrusion detection — collector + central" \
-      org.opencontainers.image.source="https://github.com/CRPerdue/agentids" \
+      org.opencontainers.image.source="https://github.com/CRPerdue/watchman" \
       org.opencontainers.image.licenses="Apache-2.0"
 
-COPY --from=build /src/bin/agentids-collector /agentids-collector
-COPY --from=build /src/bin/agentids-central   /agentids-central
-COPY --from=build /src/bin/agentids-manifest  /agentids-manifest
-COPY --from=build /src/bin/agentids-rules     /agentids-rules
+COPY --from=build /src/bin/watchman-collector /watchman-collector
+COPY --from=build /src/bin/watchman-central   /watchman-central
+COPY --from=build /src/bin/watchman-manifest  /watchman-manifest
+COPY --from=build /src/bin/watchman-rules     /watchman-rules
 # The shipped rule pack, so a default Layer 3 config has rules to load.
-COPY --from=build /src/rules /etc/agentids/rules
+COPY --from=build /src/rules /etc/watchman/rules
 # Durable stores / spool. Mount a named volume here to survive a restart.
-COPY --from=build --chown=65532:65532 /state /var/lib/agentids
-VOLUME ["/var/lib/agentids"]
+COPY --from=build --chown=65532:65532 /state /var/lib/watchman
+VOLUME ["/var/lib/watchman"]
 
 EXPOSE 8080
-# Collector by default; `--entrypoint /agentids-central` runs the service.
-ENTRYPOINT ["/agentids-collector"]
+# Collector by default; `--entrypoint /watchman-central` runs the service.
+ENTRYPOINT ["/watchman-collector"]

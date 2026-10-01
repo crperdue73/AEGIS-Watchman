@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/CRPerdue/agentids/internal/schema"
-	"github.com/CRPerdue/agentids/internal/telemetry"
+	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/CRPerdue/watchman/internal/telemetry"
 )
 
 type fakeSubmitter struct {
@@ -315,7 +315,7 @@ func TestScopeSeenPathDerivation(t *testing.T) {
 		want string
 	}{
 		{"explicit", Config{Behavior: Behavior{Scope: telemetry.ScopeConfig{Seen: "/x/seen.json"}}}, "/x/seen.json"},
-		{"from spool", Config{Behavior: Behavior{Spool: "/var/lib/agentids/spool.jsonl"}}, "/var/lib/agentids/spool.jsonl.scope-seen"},
+		{"from spool", Config{Behavior: Behavior{Spool: "/var/lib/watchman/spool.jsonl"}}, "/var/lib/watchman/spool.jsonl.scope-seen"},
 		{"off", Config{}, ""},
 		{"explicit wins over spool", Config{Behavior: Behavior{Spool: "/s", Scope: telemetry.ScopeConfig{Seen: "/e"}}}, "/e"},
 	}

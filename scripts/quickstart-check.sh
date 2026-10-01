@@ -18,8 +18,8 @@ here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$here/.." && pwd)"
 cd "$repo"
 
-bin="bin/agentids-collector"
-central_bin="bin/agentids-central"
+bin="bin/watchman-collector"
+central_bin="bin/watchman-central"
 
 fail() { echo "quickstart-check: FAIL: $*" >&2; exit 1; }
 
@@ -35,7 +35,7 @@ trap cleanup EXIT
 
 echo "== quickstart §1: build =="
 make build >/dev/null
-for b in agentids-collector agentids-central agentids-manifest agentids-rules; do
+for b in watchman-collector watchman-central watchman-manifest watchman-rules; do
   [[ -x "bin/$b" ]] || fail "make did not produce bin/$b"
 done
 echo "   four binaries built"

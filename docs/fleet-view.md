@@ -24,7 +24,7 @@ Both read the same store, so they cannot disagree.
 Two lines in `central.yaml`:
 
 ```yaml
-records: /var/lib/agentids/records.json   # omit -> in-memory only (resets on restart)
+records: /var/lib/watchman/records.json   # omit -> in-memory only (resets on restart)
 record_backend: file                       # "file" (default) or "sqlite"
 record_retention_days: 7                   # drop records older than this
 record_max: 10000                          # hard cap; bounds a severity storm

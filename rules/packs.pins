@@ -1,5 +1,5 @@
-# agentids rule-pack pins — a byte-exact record of an approved pack set.
-# regenerate: agentids-rules pin <dir-or-file>... > packs.pins
-# verify:     agentids-rules verify --pins packs.pins <dir-or-file>...
+# watchman rule-pack pins — a byte-exact record of an approved pack set.
+# regenerate: watchman-rules pin <dir-or-file>... > packs.pins
+# verify:     watchman-rules verify --pins packs.pins <dir-or-file>...
 # format: <sha256>  <name@version>  <filename>
 3ca438b4829e351f05dd94ec496025eec3411918abb0de463d4f6147e0459d44  carbonato@7  carbonato.yaml

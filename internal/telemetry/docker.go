@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // ContainerStart is the action type emitted by the Docker events adapter.

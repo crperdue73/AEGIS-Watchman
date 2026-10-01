@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/rules"
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/rules"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // Source is a telemetry input that yields actions for the rules engine.

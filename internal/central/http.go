@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/collector"
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/collector"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // maxBodyBytes caps a single inventory submission (1 MiB). A fleet-scale

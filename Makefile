@@ -1,9 +1,9 @@
-# agentids — build targets
+# watchman — build targets
 
-BINARY_COLLECTOR := agentids-collector
-BINARY_CENTRAL   := agentids-central
-BINARY_MANIFEST  := agentids-manifest
-BINARY_RULES     := agentids-rules
+BINARY_COLLECTOR := watchman-collector
+BINARY_CENTRAL   := watchman-central
+BINARY_MANIFEST  := watchman-manifest
+BINARY_RULES     := watchman-rules
 GO              ?= go
 PYTHON          ?= python3
 
@@ -12,7 +12,7 @@ PYTHON          ?= python3
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)
-PKG     := github.com/CRPerdue/agentids/internal/buildinfo
+PKG     := github.com/CRPerdue/watchman/internal/buildinfo
 LDFLAGS := -X $(PKG).Version=$(VERSION) -X $(PKG).Commit=$(COMMIT) -X $(PKG).Date=$(DATE)
 
 .PHONY: all build build-collector build-central build-manifest build-rules test lint check-links clean fmt vet version pin ebpf-preflight quickstart-check container-check publish-scan fuzz deps-report

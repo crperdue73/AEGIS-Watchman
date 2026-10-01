@@ -8,9 +8,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/CRPerdue/agentids/internal/collector"
-	"github.com/CRPerdue/agentids/internal/provenance"
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/collector"
+	"github.com/CRPerdue/watchman/internal/provenance"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // ManifestRegistry holds the approved Layer 2 manifests, keyed by agent root
@@ -46,7 +46,7 @@ func NewManifestRegistry(dir string, keys []provenance.TrustKey) (*ManifestRegis
 	}
 	for _, path := range matches {
 		// The manifest dir may also hold other JSON (e.g. trust-keys.json). Only
-		// files that parse as an agentids manifest are treated as manifests; a
+		// files that parse as an watchman manifest are treated as manifests; a
 		// JSON file whose content fails the version check is skipped rather than
 		// aborting startup, so an unrelated .json does not take down the service.
 		if !looksLikeManifest(path) {

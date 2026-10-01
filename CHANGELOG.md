@@ -1,13 +1,13 @@
 # Changelog
 
-All notable changes to agentids are recorded here. The format follows
+All notable changes to watchman are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Versioning stance
 
-agentids is **pre-1.0**: there are no tagged releases yet, and changes land on
+watchman is **pre-1.0**: there are no tagged releases yet, and changes land on
 `main`. When the first public cut is tagged it will appear here as `0.1.0`. The
-**event wire format is versioned separately** — `agentids.event/v1` — and its
+**event wire format is versioned separately** — `watchman.event/v1` — and its
 change policy lives in [`docs/event-schema.md`](docs/event-schema.md): breaking
 changes bump the schema version; additive optional fields do not.
 
@@ -17,6 +17,14 @@ The build so far: three detection layers, an ingest/alert central, a durable
 fleet view, the tooling to run and verify it, and the docs to publish it. No
 part of it acts on what it observes — **alert-only, ever**, without a separate
 opt-in design.
+
+### Changed
+- **Renamed to Watchman** (2026-10-01). The project, module path
+  (`github.com/CRPerdue/watchman`), the four binaries (`watchman-collector`,
+  `watchman-central`, `watchman-manifest`, `watchman-rules`), the deploy unit
+  files, and the event schema file (`watchman.event.schema.json`, wire version
+  `watchman.event/v1`) all carry the new name. No behavior change, and nothing
+  had been published under the old name — no compatibility surface.
 
 ### Added
 
@@ -30,7 +38,7 @@ opt-in design.
 
 **Layer 2 — provenance (is this file ours?)**
 - Ed25519-signed approval manifests of `path -> sha256` per agent root, and the
-  `agentids-manifest` CLI (`keygen` / `sign` / `verify`) for the operator
+  `watchman-manifest` CLI (`keygen` / `sign` / `verify`) for the operator
   workflow (`internal/provenance`, `cmd/manifest`).
 - Central verification of every ingest against the signed manifest; catches a
   brand-new dropped skill (`provenance.untrusted`) that nothing has drifted from.
@@ -106,18 +114,18 @@ opt-in design.
 **Tooling, demo, and docs**
 - `make` build/test/vet/fmt/lint for all four binaries; one build dependency, no
   CGO.
-- `agentids-rules` — Layer 3 pack tooling: `verify` runs the collector's own
+- `watchman-rules` — Layer 3 pack tooling: `verify` runs the collector's own
   strict parser over a pack file or directory (summary + non-zero exit on any
   error), and `list` prints every rule in a set, sorted by id. It lets a rule
   author check a pack with no host, no auditd, and no daemon, and gives a
   community rules repo a `verify` to wire into CI.
-- **Rule-pack pinning** (`agentids-rules pin` / `verify --pins`): a pin file
+- **Rule-pack pinning** (`watchman-rules pin` / `verify --pins`): a pin file
   (`rules/packs.pins`) is a byte-exact record of the approved pack set — one
   line per pack with its `name@version` and sha256. `verify --pins` fails
   non-zero on any drift (a **changed**, **missing**, or **unpinned** pack) and
   names each one; `make pin` regenerates it; CI rejects a pack edited without
   re-pinning. The pin describes the same files a collector would load.
-- **Signed pins** (`agentids-rules sign-pins`, `verify --pins --pubkey`): a pin
+- **Signed pins** (`watchman-rules sign-pins`, `verify --pins --pubkey`): a pin
   can carry a detached Ed25519 signature over its exact bytes, reusing the same
   key format as Layer 2's agent manifests (`internal/provenance`). `verify
   --pubkey` checks the signature before the drift, so a fleet can trust a
@@ -169,8 +177,8 @@ opt-in design.
 - **`scripts/container-check.sh`** (`make container-check`, and a CI job) —
   builds `deploy/docker/Dockerfile` and asserts, on the real image, every claim
   the Dockerfile header and `deploy/README.md` make: the runtime uid is 65532
-  (nonroot), the baked rule pack at `/etc/agentids/rules` loads, a bind mount at
-  `/etc/agentids` really does shadow that pack (the reason the doc says to mount
+  (nonroot), the baked rule pack at `/etc/watchman/rules` loads, a bind mount at
+  `/etc/watchman` really does shadow that pack (the reason the doc says to mount
   at `/config`), and the copied binaries are statically linked — the exact
   property whose absence shipped the image broken once (a dynamic binary in a
   distroless, no-libc runtime). The demo and quickstart jobs need no Docker and
@@ -214,14 +222,14 @@ opt-in design.
 
 - **The systemd install walkthrough installed a config the service could not
   start.** `deploy/README.md`'s install block copied `examples/central.yaml` and
-  `examples/collector.yaml` to `/etc/agentids` and started both units — but never
+  `examples/collector.yaml` to `/etc/watchman` and started both units — but never
   created the paths those configs demand. Central exits 1 on a missing TLS cert
-  (`tls: mtls: load key pair: open /etc/agentids/leaf.crt: no such file`) and on
+  (`tls: mtls: load key pair: open /etc/watchman/leaf.crt: no such file`) and on
   a missing `uid_map` file; the collector exits 1 on a missing `behavior.rules_dir`
-  (`stat /etc/agentids/rules: no such file`). So a reader following the block got
+  (`stat /etc/watchman/rules: no such file`). So a reader following the block got
   two services that would not start, with the prerequisites only implied by the
   configs. The block now adds the four missing steps — install the rule pack, load
-  the auditd rules, generate the TLS material into `/etc/agentids` (with the
+  the auditd rules, generate the TLS material into `/etc/watchman` (with the
   service-account permissions), and provide the `uid_map` file — and says why each
   is fatal rather than optional. Verified at the real paths: with the four steps,
   central reaches `listening on :8080` + `mutual TLS required on the ingest
@@ -233,7 +241,7 @@ opt-in design.
   `examples/collector.local.yaml` and `examples/central.local.yaml` (the file the
   quickstart tells a stranger to run) and `demo/fixtures/audit.log` (the auditd
   stream carrying the whole CARBONATO chain). None were tracked, so on a fresh
-  clone `./bin/agentids-collector -config examples/collector.local.yaml` fails
+  clone `./bin/watchman-collector -config examples/collector.local.yaml` fails
   with `no such file`, and the demo loses pass 1 — the CI `demo` job would be red.
   Added explicit `!` un-ignores beside the patterns and committed the three
   files. Verified by cloning, building, and running the quickstart and the demo
@@ -252,16 +260,16 @@ opt-in design.
   promise (heartbeat 75), not by re-reading it.
 - **The collector deploy guide's "short version" could not start the service.**
   `docs/deploy-collector.md` §5 installed the binary and the unit but not
-  `/etc/agentids/collector.yaml`, so a reader copying the snippet got a collector
+  `/etc/watchman/collector.yaml`, so a reader copying the snippet got a collector
   that exits 1 on `read config: open ...: no such file or directory` (the
   collector, unlike central, treats a missing config as fatal). The snippet now
-  creates `/etc/agentids`, installs the config, and says to edit it first. Its
+  creates `/etc/watchman`, installs the config, and says to edit it first. Its
   Scope line also named auditd and eBPF but omitted the Docker events adapter,
   which has its own §3.
 - **The TLS guide omitted the one thing that stops central from starting.**
-  Both systemd units run as `User=agentids`, but `deploy/gen-certs.sh` writes the
+  Both systemd units run as `User=watchman`, but `deploy/gen-certs.sh` writes the
   private keys `0600` owned by whoever ran it — so an operator who generated them
-  as root (the normal case, writing under `/etc/agentids`) got a **fatal** startup
+  as root (the normal case, writing under `/etc/watchman`) got a **fatal** startup
   failure, `tls: mtls: load key pair: open .../leaf.key: permission denied`, with
   nothing in the docs to explain it. `deploy/README.md` §TLS and
   `docs/deploy-central.md` now carry the `chown`/`chmod` step, and `gen-certs.sh`
@@ -269,8 +277,8 @@ opt-in design.
   central as a non-root uid against root-owned keys (fails) and after handing
   them to the service user (starts).
 - **The systemd install left out two of the four binaries.** `deploy/README.md`
-  installed `agentids-collector` and `agentids-central` only; Layer 2 needs
-  `agentids-manifest` and rule pinning needs `agentids-rules`, both referenced by
+  installed `watchman-collector` and `watchman-central` only; Layer 2 needs
+  `watchman-manifest` and rule pinning needs `watchman-rules`, both referenced by
   the guides an operator reads next. The install step now covers all four, with a
   note on when they are needed.
 - **The startup log lied about record retention.** With a `records` path set and
@@ -287,8 +295,8 @@ opt-in design.
   reject it. The warning is now scheme-aware: an `http://` endpoint still says
   "plaintext", an `https://` one says `report TLS has no client identity`.
 - **The container examples shadowed the baked rule pack.** The Dockerfile and
-  `deploy/README.md` showed `-v /etc/agentids:/etc/agentids:ro`, a bind mount
-  that *hides* the rule pack the same image bakes at `/etc/agentids/rules` —
+  `deploy/README.md` showed `-v /etc/watchman:/etc/watchman:ro`, a bind mount
+  that *hides* the rule pack the same image bakes at `/etc/watchman/rules` —
   Layer 3 then fails to load (`rules_dir ... no such file or directory`). Both
   now mount configs at `/config`. Found by running the documented command.
 
@@ -296,7 +304,7 @@ opt-in design.
 
 - **The systemd path is now verified by running it, not just by `systemd-analyze
   verify`.** Both units were installed and started as the unprivileged
-  `agentids` user with mutual TLS on; the collector enrolled an agent root over
+  `watchman` user with mutual TLS on; the collector enrolled an agent root over
   the authenticated hop, and a one-line persona edit produced `identity.drift` on
   the collector and a matching alert on central on the next poll. The host was
   returned to its prior state afterward. `deploy/README.md` records this so the
@@ -326,18 +334,18 @@ opt-in design.
   stale ("Phase 1 work in progress"): it shipped only the collector and central,
   carried no rule pack, and — because a Go build in a host with a C compiler
   enables cgo by default — produced **dynamically linked** binaries that died on
-  the distroless runtime with `exec /agentids-collector: no such file or
+  the distroless runtime with `exec /watchman-collector: no such file or
   directory`. It now builds all four binaries **and** the shipped pack
-  (`/etc/agentids/rules`), compiles `CGO_ENABLED=0` (required by the no-libc
+  (`/etc/watchman/rules`), compiles `CGO_ENABLED=0` (required by the no-libc
   base, and true to the project's no-CGO promise), pre-creates
-  `/var/lib/agentids` owned by the unprivileged user so a mounted volume works,
+  `/var/lib/watchman` owned by the unprivileged user so a mounted volume works,
   and adds a `.dockerignore`. Verified: the image builds; `-version` reports
   `docker`; the baked pack verifies (20 rules); a containerized collector
   `-dry-run` loads the rules; and a collector + central pair over a Docker
   network enrolls an agent end to end.
 - **The "run it yourself" step now works on a fresh clone.** The example configs
   the quickstart and README named (`examples/{central,collector}.yaml`) reference
-  `/etc/agentids/...` and `/var/lib/agentids/...`, so the documented commands
+  `/etc/watchman/...` and `/var/lib/watchman/...`, so the documented commands
   failed immediately on a host without those paths. Added
   `examples/{central,collector}.local.yaml` — no system paths, no alerting, no
   TLS, stores under `demo/out` — and the docs now point at them. `-dry-run` also
@@ -374,7 +382,7 @@ opt-in design.
 - **An empty `behavior.rules_dir` is now a startup error.** A directory that
   exists but holds no rules used to start Layer 3 with zero rules — the host
   looked protected while nothing could fire. The collector now refuses to start
-  and says so, and logs the rule/pack count it loaded. `agentids-rules verify`
+  and says so, and logs the rule/pack count it loaded. `watchman-rules verify`
   likewise refuses a path with no rules instead of reporting a vacuous `ok`.
 - **A configured `behavior.audit_log` that does not exist is now a startup
   error.** With `rules_dir` set, the collector would load its rules, log

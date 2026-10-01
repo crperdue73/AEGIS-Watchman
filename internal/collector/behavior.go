@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/provenance"
-	"github.com/CRPerdue/agentids/internal/rules"
-	"github.com/CRPerdue/agentids/internal/schema"
-	"github.com/CRPerdue/agentids/internal/telemetry"
+	"github.com/CRPerdue/watchman/internal/provenance"
+	"github.com/CRPerdue/watchman/internal/rules"
+	"github.com/CRPerdue/watchman/internal/schema"
+	"github.com/CRPerdue/watchman/internal/telemetry"
 )
 
 // ActionSubmitter ships Layer 3 behavior events to the central service.

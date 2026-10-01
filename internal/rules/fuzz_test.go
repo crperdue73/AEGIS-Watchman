@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // Fuzz targets for the rule-pack and pin parsers, and for the matcher fed an

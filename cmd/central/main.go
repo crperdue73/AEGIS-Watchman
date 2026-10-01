@@ -1,4 +1,4 @@
-// Command agentids-central is the central rule/alert service.
+// Command watchman-central is the central rule/alert service.
 //
 // Phase 1 scope: accept agent inventories over HTTP, store per-agent baselines,
 // compute drift, return identity.drift events, and alert on drift via a
@@ -13,8 +13,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/buildinfo"
-	"github.com/CRPerdue/agentids/internal/central"
+	"github.com/CRPerdue/watchman/internal/buildinfo"
+	"github.com/CRPerdue/watchman/internal/central"
 )
 
 func main() {
@@ -26,13 +26,13 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Println(buildinfo.String("agentids-central"))
+		fmt.Println(buildinfo.String("watchman-central"))
 		return
 	}
 
 	cfg, err := central.LoadConfig(*configPath)
 	if err != nil {
-		log.Fatalf("agentids-central: %v", err)
+		log.Fatalf("watchman-central: %v", err)
 	}
 	// Flags win when explicitly set, so an operator can override without
 	// editing the file.
@@ -48,7 +48,7 @@ func main() {
 
 	store, err := central.NewFileStore(cfg.Store)
 	if err != nil {
-		log.Fatalf("agentids-central: %v", err)
+		log.Fatalf("watchman-central: %v", err)
 	}
 
 	svc := central.NewService(store)
@@ -58,40 +58,40 @@ func main() {
 	// when records.path is set; in-memory (resets on restart) otherwise. Never
 	// nil, so the fleet endpoint is always functional.
 	if rs, err := cfg.RecordStoreFn(); err != nil {
-		log.Fatalf("agentids-central: %v", err)
+		log.Fatalf("watchman-central: %v", err)
 	} else {
 		svc.SetRecordStore(rs)
 		if cfg.Records != "" {
 			retain := cfg.ResolvedRecordRetention()
-			log.Printf("agentids-central: fleet view records -> %s (backend=%s, retain=%dd, max=%d)", cfg.Records, cfg.RecordBackendOrDefault(), int(retain.Window.Hours()/24), retain.MaxRecords)
+			log.Printf("watchman-central: fleet view records -> %s (backend=%s, retain=%dd, max=%d)", cfg.Records, cfg.RecordBackendOrDefault(), int(retain.Window.Hours()/24), retain.MaxRecords)
 		} else {
-			log.Printf("agentids-central: fleet view records in-memory only (set records to persist)")
+			log.Printf("watchman-central: fleet view records in-memory only (set records to persist)")
 		}
 	}
 	if reg, err := cfg.ManifestRegistry(); err != nil {
-		log.Fatalf("agentids-central: %v", err)
+		log.Fatalf("watchman-central: %v", err)
 	} else if reg != nil {
 		svc.SetManifests(reg)
-		log.Printf("agentids-central: layer 2 provenance enabled (manifest dir=%s, require_approval=%v)",
+		log.Printf("watchman-central: layer 2 provenance enabled (manifest dir=%s, require_approval=%v)",
 			cfg.Manifests.Dir, cfg.Manifests.RequireApproval)
 	} else {
-		log.Printf("agentids-central: layer 2 provenance disabled (no manifests.dir)")
+		log.Printf("watchman-central: layer 2 provenance disabled (no manifests.dir)")
 	}
 	if uids, err := cfg.UidResolverFn(); err != nil {
-		log.Fatalf("agentids-central: %v", err)
+		log.Fatalf("watchman-central: %v", err)
 	} else {
 		svc.SetUidResolver(uids)
 		if uids.Enabled() {
-			log.Printf("agentids-central: uid->name resolution enabled (map=%s)", cfg.UidMap)
+			log.Printf("watchman-central: uid->name resolution enabled (map=%s)", cfg.UidMap)
 		}
 	}
 	if a := cfg.Alerter(log.Default()); a != nil {
 		svc.SetAlerter(a)
 		if cfg.Alerts.Webhook != "" {
-			log.Printf("agentids-central: webhook alerts -> %s", cfg.Alerts.Webhook)
+			log.Printf("watchman-central: webhook alerts -> %s", cfg.Alerts.Webhook)
 		}
 	} else {
-		log.Printf("agentids-central: alerting disabled (no webhook, log off)")
+		log.Printf("watchman-central: alerting disabled (no webhook, log off)")
 	}
 
 	srv := &http.Server{
@@ -100,24 +100,24 @@ func main() {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	log.Printf("agentids-central listening on %s (store=%s)", cfg.Addr, cfg.Store)
+	log.Printf("watchman-central listening on %s (store=%s)", cfg.Addr, cfg.Store)
 
 	if cfg.TLSEnabled() {
 		tlsCfg, err := cfg.TLS.ServerConfig()
 		if err != nil {
-			log.Fatalf("agentids-central: tls: %v", err)
+			log.Fatalf("watchman-central: tls: %v", err)
 		}
 		srv.TLSConfig = tlsCfg
-		log.Printf("agentids-central: mutual TLS required on the ingest listener")
+		log.Printf("watchman-central: mutual TLS required on the ingest listener")
 		if err := srv.ListenAndServeTLS("", ""); err != nil {
-			log.Fatalf("agentids-central: %v", err)
+			log.Fatalf("watchman-central: %v", err)
 		}
 		os.Exit(0)
 	}
 
-	log.Printf("agentids-central: WARNING plaintext ingest (configure tls for a real fleet)")
+	log.Printf("watchman-central: WARNING plaintext ingest (configure tls for a real fleet)")
 	if err := srv.ListenAndServe(); err != nil {
-		log.Fatalf("agentids-central: %v", err)
+		log.Fatalf("watchman-central: %v", err)
 	}
 	os.Exit(0)
 }

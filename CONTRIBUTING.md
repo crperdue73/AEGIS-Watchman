@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for looking at agentids. This is a public, Apache-2.0 project — build
+Thanks for looking at watchman. This is a public, Apache-2.0 project — build
 like it's going public, because it is.
 
 ## Ground rules
@@ -47,7 +47,7 @@ like it's going public, because it is.
   Apache-2.0 project, and one that only ever arrives via a transitive upgrade.
 - Container: `make container-check` builds `deploy/docker/Dockerfile` and
   asserts the claims the container docs make about the resulting image (nonroot
-  uid 65532, the baked rule pack loads, the `/etc/agentids` shadow caveat,
+  uid 65532, the baked rule pack loads, the `/etc/watchman` shadow caveat,
   static binaries). It needs a Docker daemon; `demo/` and `quickstart-check` do
   not. A container doc that is only read, never built, is how the image shipped
   broken once.
@@ -70,6 +70,6 @@ someone. Report concerns the way that file describes.
 
 ## Security
 
-Found a vulnerability in agentids itself? Do not open a public issue. Report it
+Found a vulnerability in watchman itself? Do not open a public issue. Report it
 the way [`SECURITY.md`](SECURITY.md) describes — through GitHub private
 vulnerability reporting — so it can be fixed before it is public.

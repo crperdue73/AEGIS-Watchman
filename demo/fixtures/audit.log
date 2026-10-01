@@ -33,7 +33,7 @@ type=SYSCALL msg=audit(1790593000.300:803): arch=x86_64 syscall=listen success=y
 #   The kernel can: this is an auditd file watch (-w /etc/cron.d -p wa), and its
 #   CREATE PATH names the file.
 #   -> file.write; fires carbonato.persist.file_write (G3's write half).
-type=SYSCALL msg=audit(1790593000.400:804): arch=x86_64 syscall=openat success=yes pid=4242 ppid=1 uid=1000 auid=1000 exe="/usr/bin/python3" key="agentids"
+type=SYSCALL msg=audit(1790593000.400:804): arch=x86_64 syscall=openat success=yes pid=4242 ppid=1 uid=1000 auid=1000 exe="/usr/bin/python3" key="watchman"
 type=CWD msg=audit(1790593000.400:804): cwd="/home/agent"
 type=PATH msg=audit(1790593000.400:804): item=0 name="/etc/cron.d" inode=900 nametype=PARENT
-type=PATH msg=audit(1790593000.400:804): item=1 name="/etc/cron.d/agentids-beacon" inode=901 nametype=CREATE
+type=PATH msg=audit(1790593000.400:804): item=1 name="/etc/cron.d/watchman-beacon" inode=901 nametype=CREATE

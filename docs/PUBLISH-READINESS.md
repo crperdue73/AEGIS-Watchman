@@ -39,26 +39,29 @@ that are invisible in review and permanent once pushed.
 | No operator home path in the tracked tree | ✅ scan clean |
 | No private infrastructure in the tracked tree | ✅ scan clean |
 | Dependency licenses permissive (no copyleft/unknown) | ✅ `make deps-report` |
-| Module path / project name | ⏳ **placeholder** — see below |
+| Module path / project name | ✅ **Watchman** — decided 2026-10-01; module path `github.com/CRPerdue/watchman` |
 | Internal process docs in the public tree | ⏳ **decision** — see below |
 | Copyright holder / `NOTICE` | ⏳ **decision** — see below |
 
 ## Open decisions for Rob
 
-### 1. The name
+### 1. The name — ✅ DECIDED (2026-10-01)
 
-The module path is the placeholder `github.com/CRPerdue/agentids` (from
-`go.mod`). The brief (`BRIEF.md`) leaves the product name to Rob — suggested
-"WATCHMAN" or "WARDEN". The name is baked into, at minimum:
+**Watchman.** Rob chose it on 2026-10-01 and the rename is done in the tracked
+tree: module path `github.com/CRPerdue/watchman` (`go.mod` + every import),
+`Makefile` `PKG`, the four `cmd/*` binaries (`watchman-collector`,
+`watchman-central`, `watchman-manifest`, `watchman-rules`), the Dockerfile image
+labels, the deploy unit files (`deploy/watchman-{collector,central}.service`),
+the event schema file (`watchman.event.schema.json`, wire version
+`watchman.event/v1`), and every doc / example / script. `build`, `vet`,
+`go test` (default + `sqlite`), `check-links`, `quickstart-check`,
+`container-check`, and `publish-scan` are all green on the renamed tree. Nothing
+had been pushed, so no consumer ever saw the old name — there is no
+compatibility surface to carry.
 
-- `go.mod` module path, and every import that begins `github.com/CRPerdue/agentids/`
-- `Makefile` (`PKG := github.com/CRPerdue/agentids/internal/buildinfo`)
-- `deploy/docker/Dockerfile` image labels (`.../agentids`)
-- `cmd/*` binary names and the docs that use them
-
-A rename is a mechanical find/replace **plus** a `go mod edit -module` (and any
-import rewrite). It is cheapest to do **once**, before first push. Decide the
-name first.
+The name is still baked into the files listed below, so a *future* rename is
+again a repo-wide token replace plus `go mod edit -module`; but the first push
+now goes out under the final name.
 
 ### 2. Do the internal process docs ship?
 

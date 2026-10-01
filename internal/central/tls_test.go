@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/collector"
-	"github.com/CRPerdue/agentids/internal/mtls"
+	"github.com/CRPerdue/watchman/internal/collector"
+	"github.com/CRPerdue/watchman/internal/mtls"
 )
 
 // TestHTTPSIngestOverMutualTLS exercises the real HTTP handler behind a real
@@ -98,7 +98,7 @@ func newTestPKI(t *testing.T) *testPKI {
 	caKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	caTmpl := &x509.Certificate{
 		SerialNumber:          big.NewInt(1),
-		Subject:               pkix.Name{CommonName: "agentids-test-ca"},
+		Subject:               pkix.Name{CommonName: "watchman-test-ca"},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().Add(time.Hour),
 		IsCA:                  true,

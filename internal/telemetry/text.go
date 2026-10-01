@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // ParseTextStream reads a line-oriented execution stream, one process per line:

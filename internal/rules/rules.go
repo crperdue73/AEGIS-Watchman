@@ -10,7 +10,7 @@
 //   - timeline.go — the per-host timeline that temporal predicates (prior_event)
 //     consult, so correlation rules like "egress within 5m of an identity
 //     change" can be decided
-//   - pins.go   — the pack pin/sign/verify tooling behind `agentids-rules`
+//   - pins.go   — the pack pin/sign/verify tooling behind `watchman-rules`
 //
 // Telemetry adapters that turn host activity into the actions these rules match
 // live in internal/telemetry; the shipped pack is ../../rules/carbonato.yaml.

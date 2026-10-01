@@ -309,7 +309,7 @@ rules:
       wrapped interpreter that drops a cron entry without ever naming the file
       in argv still fires. This is the writable half of coverage gap G3 and it
       needs no eBPF object — only the file-watch rules in the deploy guide
-      (`-w <path> -p wa -k agentids`). Without those rules file.write is simply
+      (`-w <path> -p wa -k watchman`). Without those rules file.write is simply
       not emitted and this rule stays idle, exactly like the eBPF rule without
       the kernel source.
     match:

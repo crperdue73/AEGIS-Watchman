@@ -21,7 +21,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$here/.." && pwd)"
 cd "$repo"
 
-image="agentids:container-check"
+image="watchman:container-check"
 fail() { echo "container-check: FAIL: $*" >&2; exit 1; }
 
 command -v docker >/dev/null 2>&1 \
@@ -44,33 +44,33 @@ uid="$(docker image inspect "$image" --format '{{.Config.User}}')"
 echo "   runs as nonroot (uid 65532)"
 
 # 2. The shipped rule pack is baked in and loads. This is the claim "Layer 3 has
-#    something to load out of the box"; a mount that shadows /etc/agentids (see
+#    something to load out of the box"; a mount that shadows /etc/watchman (see
 #    caveat 3) or a missing COPY would make it fail to load.
-out="$(docker run --rm --entrypoint /agentids-rules "$image" verify /etc/agentids/rules 2>&1)" \
-  || { echo "$out" >&2; fail "the baked rule pack did not validate at /etc/agentids/rules"; }
+out="$(docker run --rm --entrypoint /watchman-rules "$image" verify /etc/watchman/rules 2>&1)" \
+  || { echo "$out" >&2; fail "the baked rule pack did not validate at /etc/watchman/rules"; }
 echo "$out" | grep -q 'rule(s)' || fail "rules verify produced no rule count: $out"
 echo "   baked rule pack validates ($(echo "$out" | head -1))"
 
-# 3. The documented shadow caveat is real: a bind mount at /etc/agentids hides
+# 3. The documented shadow caveat is real: a bind mount at /etc/watchman hides
 #    the baked pack, which is *why* deploy/README.md tells you to mount configs
 #    at /config. If this ever stops failing, the warning is wrong.
 shadow="$(mktemp -d)"
 echo "config: {}" >"$shadow/collector.yaml"
-if docker run --rm -v "$shadow:/etc/agentids" --entrypoint /agentids-rules \
-     "$image" verify /etc/agentids/rules >/tmp/cc-shadow.out 2>&1; then
+if docker run --rm -v "$shadow:/etc/watchman" --entrypoint /watchman-rules \
+     "$image" verify /etc/watchman/rules >/tmp/cc-shadow.out 2>&1; then
   rm -rf "$shadow"
-  fail "mounting at /etc/agentids did NOT hide the baked pack — the README caveat is stale"
+  fail "mounting at /etc/watchman did NOT hide the baked pack — the README caveat is stale"
 fi
 rm -rf "$shadow"; rm -f /tmp/cc-shadow.out
-echo "   the '/etc/agentids shadows the baked pack' caveat still holds"
+echo "   the '/etc/watchman shadows the baked pack' caveat still holds"
 
 # 4. Static binaries, proven on the built artifact (the CGO_ENABLED=0 promise).
 #    The image has no shell, so export the filesystem and ldd the binaries out.
 tmp="$(mktemp -d)"
 cid="$(docker create "$image")"
-docker export "$cid" | tar -x -C "$tmp" agentids-collector agentids-central 2>/dev/null || true
+docker export "$cid" | tar -x -C "$tmp" watchman-collector watchman-central 2>/dev/null || true
 docker rm "$cid" >/dev/null 2>&1 || true
-for b in agentids-collector agentids-central; do
+for b in watchman-collector watchman-central; do
   [[ -f "$tmp/$b" ]] || { rm -rf "$tmp"; fail "image does not contain $b"; }
   # ldd exits non-zero for a static binary and prints to stderr; capture both
   # rather than pipe it, or `set -o pipefail` fails the pipeline on success.

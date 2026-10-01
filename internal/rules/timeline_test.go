@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 var t0 = time.Unix(1790600000, 0).UTC()

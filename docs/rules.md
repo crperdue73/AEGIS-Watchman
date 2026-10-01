@@ -237,14 +237,14 @@ ship duplicate alerts under an existing id.
 
 ## Verifying a pack without a collector
 
-`agentids-rules` runs the same parser the collector runs, so a rule author can
+`watchman-rules` runs the same parser the collector runs, so a rule author can
 check a pack the way they check code — no host, no auditd, no daemon:
 
 ```sh
-agentids-rules verify                       # default path: ./rules
-agentids-rules verify rules/carbonato.yaml  # one file
-agentids-rules verify rules/ community/     # several packs/dirs as ONE set
-agentids-rules list rules/                  # every rule, sorted by id
+watchman-rules verify                       # default path: ./rules
+watchman-rules verify rules/carbonato.yaml  # one file
+watchman-rules verify rules/ community/     # several packs/dirs as ONE set
+watchman-rules list rules/                  # every rule, sorted by id
 ```
 
 `verify` prints a summary (packs, rule count, severity breakdown, distinct
@@ -263,10 +263,10 @@ its file name, its `name@version`, and the sha256 of the pack file's raw bytes.
 
 ```sh
 # record the packs you approve (redirect next to them in the repo)
-agentids-rules pin rules/ > rules/packs.pins
+watchman-rules pin rules/ > rules/packs.pins
 
 # check a working set against the pin — in CI, or before a deploy
-agentids-rules verify --pins rules/packs.pins rules/
+watchman-rules verify --pins rules/packs.pins rules/
 ```
 
 The shipped pack has a committed pin: [`rules/packs.pins`](../rules/packs.pins).
@@ -292,14 +292,14 @@ signature over the pin file's exact bytes (kept out of the file, so signing neve
 changes the thing being signed):
 
 ```sh
-# once: a signing key (the agentids-manifest keygen format)
-agentids-manifest keygen -out ops.key
+# once: a signing key (the watchman-manifest keygen format)
+watchman-manifest keygen -out ops.key
 
 # sign the pin; writes packs.pins.sig next to it
-agentids-rules sign-pins --key ops.key rules/packs.pins
+watchman-rules sign-pins --key ops.key rules/packs.pins
 
 # verify the signature AND the set against the pin
-agentids-rules verify --pins rules/packs.pins --pubkey ops.key.pub rules/
+watchman-rules verify --pins rules/packs.pins --pubkey ops.key.pub rules/
 ```
 
 `verify --pubkey` checks the signature **first** — comparing a set against a pin

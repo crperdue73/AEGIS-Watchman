@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // ScopeSource derives synthetic `scope.change` actions from telemetry we

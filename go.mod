@@ -1,4 +1,4 @@
-module github.com/CRPerdue/agentids
+module github.com/CRPerdue/watchman
 
 go 1.22
 

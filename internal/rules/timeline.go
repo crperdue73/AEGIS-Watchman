@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // Timeline is a small, bounded per-host record of recently observed events.

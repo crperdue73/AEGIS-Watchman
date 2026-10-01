@@ -6,15 +6,15 @@
   - Enumerated 6 target environments (bare host, Docker, K8s, CI, cloud-managed, workstation).
   - Telemetry inventory per layer (L1 file hash/inotify/auditd; L2 create-our-own; L3 eBPF/auditd/conntrack + agent-native scope events).
   - First architecture sketch: per-host collector → central service, mTLS.
-  - Drafted Layer-1 collector config + `agentids.event/v1` event schema (the public contract).
+  - Drafted Layer-1 collector config + `watchman.event/v1` event schema (the public contract).
   - Restated the 5 decisions needed from Rob.
 - **Next step (heartbeat 2):** repo skeleton. Structure, LICENSE (Apache-2.0),
   README, CONTRIBUTING, Go module scaffold for collector + central. Blocked on
-  NAME (Q1) — if no answer, use placeholder `agentids` and rename later.
+  NAME (Q1) — if no answer, use placeholder `watchman` and rename later.
 - **Blocking:** GitHub repo access (expected Sept 28) + name decision.
 
 ## 2026-09-27 (Sun), ~20:35 ET — Heartbeat 2
-- Built the **repo skeleton** with placeholder name `agentids` (rename when Rob
+- Built the **repo skeleton** with placeholder name `watchman` (rename when Rob
   picks; Q1 still open). Go module root written, not `git init`-ed yet
   (no Go toolchain on this box to `go mod tidy` — that comes once the repo lands).
 - Files created:
@@ -25,15 +25,15 @@
     every rule needs a fixture; no telemetry exfil).
   - `Makefile` — build/test/vet/fmt/clean for both binaries.
   - `.gitignore` — binaries, local configs, secrets, local DBs.
-  - `go.mod` — `module github.com/CRPerdue/agentids`, go 1.22.
+  - `go.mod` — `module github.com/CRPerdue/watchman`, go 1.22.
   - `cmd/collector/main.go`, `cmd/central/main.go` — runnable scaffolds with
     flag surfaces (`-config`, `-version`) + Phase-1 TODOs.
   - `internal/schema/schema.go` — **the public contract as Go structs**: Event
     envelope, event-class + severity constants, `NewEnvelope()`.
   - `internal/collector/`, `internal/central/`, `internal/rules/` — package
     stubs with scoped TODO breadcrumbs.
-  - `agentids.event.schema.json` — machine-readable JSON Schema (draft 2020-12)
-    for `agentids.event/v1`.
+  - `watchman.event.schema.json` — machine-readable JSON Schema (draft 2020-12)
+    for `watchman.event/v1`.
   - `docs/event-schema.md` — envelope field table, per-layer semantics,
     versioning policy (breaking = bump version segment; additive = no bump).
   - `examples/collector.yaml`, `examples/identity.drift.json` — sample config +
@@ -47,7 +47,7 @@
   builder. (Go toolchain may still be absent; can author code + fixtures and
   verify on the repo box.)
 - **Blocking:** GitHub repo access (expected Sept 28) + NAME (Q1). Everything
-  built under `agentids` placeholder; a rename is a find/replace on module path
+  built under `watchman` placeholder; a rename is a find/replace on module path
   + docs.
 
 ## 2026-09-27 (Sun), ~21:35 ET — Heartbeat 3
@@ -74,7 +74,7 @@
   HTTP ingest endpoint `POST /api/v1/events`. Then wire a 2nd `cmd/collector`
   mode that walks + diffs against a local baseline file so we have an
   end-to-end demo before the central service is fully built.
-- **Blocking:** same — repo access + NAME. Placeholder `agentids` still in use.
+- **Blocking:** same — repo access + NAME. Placeholder `watchman` still in use.
 
 ## 2026-09-27 (Sun), ~22:35 ET — Heartbeat 4
 - **Central service (Phase 1) implemented, tested, AND demoed end-to-end.**
@@ -91,7 +91,7 @@
   - `cmd/central/main.go` — real server on `:8080` (flag `-addr`), read header timeout.
 - **Verification:** `gofmt` clean, `go vet` clean, both binaries build,
   **14/14 tests pass** across collector + central.
-- **Live end-to-end demo (real HTTP, not mocked):** started `agentids-central`,
+- **Live end-to-end demo (real HTTP, not mocked):** started `watchman-central`,
   POSTed an inventory → `first_seen:true, events:[]`. Edited SOUL.md (the
   CARBONATO TTP) → POSTed again → got a `severity:high` `identity.drift` event
   with before/after sha256 (`5885b1…` → `9300fe…`), size 53→64. Identical
@@ -175,7 +175,7 @@
     sensitive — owner-only).
 - 3 new tests: persist across a real reopen; **drift detected after a simulated
   restart**; empty/half-written file opens cleanly.
-- `cmd/central` gains `-store <path>` (default `agentids-baselines.json`).
+- `cmd/central` gains `-store <path>` (default `watchman-baselines.json`).
 - **Verification:** gofmt + vet clean; **26/26 tests pass.**
 - **Live e2e with the real binaries:** enroll → killed central → edited SOUL.md
   while central was DOWN → restarted with the same `-store` → collector reported
@@ -236,7 +236,7 @@
   - Body is **plain text** (readable without an HTML client, hard for mail
     gateways to mangle): summary line, host/agent, then per-event severity +
     path + short sha256 pair + the full indented diff. Subject:
-    `[agentids] HIGH drift on h-1 (/root)`.
+    `[watchman] HIGH drift on h-1 (/root)`.
   - Multiple recipients supported; the `To:` header is joined.
 - `central.yaml` gains `alerts.email: {host, username, password, from, to[],
   allow_plaintext}`; config validates that `from` + at least one `to` are present
@@ -311,7 +311,7 @@
   need to modify an existing file — **dropping a new skill is enough**, and
   nothing has drifted. Layer 1 alone is blind to that. New `internal/provenance/`.
 - Model: an **Ed25519-signed approval manifest**, `path -> sha256` per agent root
-  (`agentids.manifest/v1`). Signature is over a **canonical, key-sorted body**
+  (`watchman.manifest/v1`). Signature is over a **canonical, key-sorted body**
   (excluding the signature field), so a manifest survives JSON/YAML round-trips
   and reformatting and still verifies. Offline-verifiable — approve on a laptop,
   ship to the fleet; no PKI server.
@@ -324,7 +324,7 @@
   is a *signed* manifest, not "first hash we saw." An attacker rewriting a file
   cannot also produce a valid signature. (Tested: tampering the approval list
   fails verification; a wrong key fails; an unsigned manifest is rejected.)
-- New CLI `cmd/agentids-manifest` (`keygen` / `sign` / `verify`) for the operator
+- New CLI `cmd/watchman-manifest` (`keygen` / `sign` / `verify`) for the operator
   workflow; `deploy/gen-certs.sh`-style ergonomics. `verify` default scan
   **walks** the workspace (not just the manifest's paths) so a newly dropped
   directory IS found — globbing the manifest's own paths would never look inside
@@ -464,7 +464,7 @@
   telemetry→rules engine firing the CARBONATO chain, benign ls silence, source
   error propagation, config behavior block + missing-rules-dir rejection,
   engine-disabled-is-nil, malformed-pack rejection).
-- **Live e2e (real binary):** built `bin/agentids-collector`, pointed it at a
+- **Live e2e (real binary):** built `bin/watchman-collector`, pointed it at a
   temp agent root + a synthetic audit log, appended a CARBONATO chain
   (`bash -c "cat ~/.ssh/id_ed25519"`, then `nohup ./beacon`), watched it emit
   `RULE process.exec carbonato.exec.shell_spawn` + `.ssh_key_heredoc` +
@@ -737,7 +737,7 @@
   and a user."
 - **`internal/central/uidmap.go`:** a `UidResolver` backed by a passwd-style map
   (`LoadUidMapFromPasswd`), applied to every event's actor at ingest. Config knob
-  `uid_map: /etc/agentids/passwd`. Wired into both ingest paths at the single
+  `uid_map: /etc/watchman/passwd`. Wired into both ingest paths at the single
   point every event passes before alerting, so no sink (webhook/log/email) needs
   to know about uid mapping.
 - **Design decisions that mattered:**
@@ -1395,7 +1395,7 @@ liability.
 - **Known blind spots** — points at the README section + `PHASE0-COVERAGE.md`,
   so a *missed detection* is triaged against documented coverage before it is
   called a bug.
-- **How agentids protects itself** — operator-facing posture: mTLS required on
+- **How watchman protects itself** — operator-facing posture: mTLS required on
   ingest, least-data/least-privilege, atomic `0600` durable state,
   append-before-send spool, one dependency + no CGO. A deployer should know what
   they're trusting.
@@ -1624,7 +1624,7 @@ cut). Writing it immediately surfaced a defect in the guard added last heartbeat
 **Shipped `CHANGELOG.md`** — Keep a Changelog format, organised by the product's
 actual shape rather than a commit dump: a **Versioning stance** section (pre-1.0,
 changes land on `main`, the event wire format is versioned separately as
-`agentids.event/v1`), an `[Unreleased]` entry grouped as Layer 1 / Layer 2 /
+`watchman.event/v1`), an `[Unreleased]` entry grouped as Layer 1 / Layer 2 /
 Layer 3 / Central / Telemetry / Tooling-and-docs (each item tied to what is really
 in the tree — 18 rules, three record backends, the demo, the fleet view), and a
 **Known gaps** list naming the open work (eBPF kernel half, Postgres, G6
@@ -1776,10 +1776,10 @@ code (`inspect` off-by-default confirmed at `docker.go:338`); `make lint` green
 ## Heartbeat 48 — real build provenance: `-version` now means something
 
 Enough docs for a beat; took a small real *code* step this time. Every binary's
-`-version` printed a hardcoded string — `"agentids-central (phase 1)"` — with no
+`-version` printed a hardcoded string — `"watchman-central (phase 1)"` — with no
 version, commit, or date. For a security tool whose whole theme is supply-chain
 trust ("which build is this, and is it the one I think?"), that is a real gap,
-not a nicety. `agentids-manifest` had no version path at all.
+not a nicety. `watchman-manifest` had no version path at all.
 
 **Shipped:**
 - `internal/buildinfo` — `Version` / `Commit` / `Date` vars that default to
@@ -1794,11 +1794,11 @@ not a nicety. `agentids-manifest` had no version path at all.
   a CI archive or vendored copy still builds.
 
 **Explicitly distinguished** (in code, README, CHANGELOG): the **product**
-version is not the **event wire format** version (`agentids.event/v1`) — different
+version is not the **event wire format** version (`watchman.event/v1`) — different
 things on different schedules.
 
 **Verification:** `make build` stamps and each binary prints e.g.
-`agentids-central 3302cdf-dirty (commit 3302cdf, built 2026-09-29T20:37:18Z)`;
+`watchman-central 3302cdf-dirty (commit 3302cdf, built 2026-09-29T20:37:18Z)`;
 `gofmt`/`vet` clean; `go test` green in **both** build modes (**8** packages —
 the new one included); `make lint` green; `demo/run.sh` exit 0 (ci-relevant, since
 `run.sh` builds via the changed Makefile).
@@ -1941,13 +1941,13 @@ chain (12 events, container-escape critical). Committed.
   Dad's toolchain call) and P2.1c-4 (Postgres, on demand). The rule-ecosystem
   hardening is now reasonably complete (strict keys, strict globs, unique ids
   across the set). Next unblocked candidate: a real **rule-pack publishing
-  format** (Phase 3 item) or a `agentids-rules verify` CLI over a pack/dir, so a
+  format** (Phase 3 item) or a `watchman-rules verify` CLI over a pack/dir, so a
   contributor can lint a pack without a running collector. Re-read
   `PHASE1-PLAN.md` §open decisions first.
 
 ---
 
-## Heartbeat 52 — `agentids-rules`: check a pack without a collector
+## Heartbeat 52 — `watchman-rules`: check a pack without a collector
 
 The rule-ecosystem promise is "shareable, versioned, **auditable** rule packs".
 Until now the only way to check a pack was to start a collector pointed at a host
@@ -1955,16 +1955,16 @@ and watch the logs — which is not how a contributor in a rules repo wants to
 work, and gives a community repo nothing to run in CI. This beat shipped the
 missing tool.
 
-**Shipped a fourth binary, `agentids-rules`** (`cmd/rules/`):
+**Shipped a fourth binary, `watchman-rules`** (`cmd/rules/`):
 
-- `agentids-rules verify [path...]` — parses and validates a pack file or
+- `watchman-rules verify [path...]` — parses and validates a pack file or
   directory with the **collector's own** parser (no reimplementation), prints a
   summary (packs, rule count, severity breakdown, distinct techniques, per-pack
   line), and exits non-zero on the first error.
-- `agentids-rules list [path...]` — every rule in the set, sorted by id, with
+- `watchman-rules list [path...]` — every rule in the set, sorted by id, with
   severity/technique/title.
-- `version` (buildinfo) and usage matching the `agentids-manifest` CLI.
-- Default path is `./rules`, so `agentids-rules verify` in the repo root just
+- `version` (buildinfo) and usage matching the `watchman-manifest` CLI.
+- Default path is `./rules`, so `watchman-rules verify` in the repo root just
   works. Multiple args are treated as **one set**.
 
 **Refactor it needed:** the cross-pack id-uniqueness check lived *inside*
@@ -1981,7 +1981,7 @@ dir, and — the point — duplicate id across two *paths* vs. one dir), `Makefi
 `README.md` (the "two binaries" line was already stale — now names all four;
 Layout gains `cmd/rules/`), `CONTRIBUTING.md`, `CHANGELOG.md`.
 
-**Verification:** `./bin/agentids-rules verify rules/` → `ok: 1 pack(s), 18
+**Verification:** `./bin/watchman-rules verify rules/` → `ok: 1 pack(s), 18
 rule(s)`, severity `critical=6 high=6 medium=6`, 11 techniques, exit 0; a pack
 with `argv_anyy` → exit 1 naming the key; `go test ./...` green (**10** packages
 now, `cmd/rules` included); `make lint` green (67 links); `gofmt`/`vet` clean;
@@ -2029,7 +2029,7 @@ re-broadening (a bare `*rpc*` glob) fails the build.
 `rules/README.md`, `README.md` (Layer 3 bullet + the "v6, 19 rules" line),
 `CHANGELOG.md`.
 
-**Verification:** `agentids-rules verify rules/` → `ok: 1 pack(s), 19 rule(s)`,
+**Verification:** `watchman-rules verify rules/` → `ok: 1 pack(s), 19 rule(s)`,
 `critical=6 high=6 medium=7`; `go test ./...` green (10 packages); `make lint`
 green (67 links); `gofmt`/`vet` clean; `demo/run.sh` exit 0. Committed.
 
@@ -2073,7 +2073,7 @@ no packs is not an error" is a fine loader contract) and pushed the
 (silent blind spot) and the CLI's verify. The loader stays reusable; the
 policy lives where the consequence is.
 
-**Verification:** `agentids-rules verify /tmp/emptyrules` → exit 1, "no rules
+**Verification:** `watchman-rules verify /tmp/emptyrules` → exit 1, "no rules
 found"; a missing dir → exit 1; `rules/` → `ok: 1 pack(s), 19 rule(s)`, exit 0;
 the demo now prints `Layer 3 loaded 19 rule(s) from 1 pack(s)`; `go test ./...`
 green (10 packages); `make lint` green (67 links); `gofmt`/`vet` clean;
@@ -2096,7 +2096,7 @@ is the same disease one level down: the **primary telemetry source**. `audit_log
 is where the actions actually come from; when it is wrong the rules are loaded
 and the engine polls, but nothing is ever read. The collector printed
 
-    Layer 3 enabled (rules=/etc/agentids/rules, audit_log="/var/log/audit/audit.log")
+    Layer 3 enabled (rules=/etc/watchman/rules, audit_log="/var/log/audit/audit.log")
 
 and then tailed a file that did not exist — `FileSource.Actions` returns an empty
 batch for a missing file (correct for "this host has no auditd"), so the run
@@ -2129,7 +2129,7 @@ eye, and a *named* primary source is a promise that it exists, so its absence is
 startup error, not a degradation. Same rule as the empty rules dir: if we would
 look protected without being able to fire, refuse to start and say why.
 
-**Verification:** `agentids-collector -config <rules_dir + missing audit_log>`
+**Verification:** `watchman-collector -config <rules_dir + missing audit_log>`
 → exit 1, `config: behavior.audit_log "...": stat ...: no such file or directory`;
 same config with a real (empty) log → starts, `Layer 3 loaded 19 rule(s) from 1
 pack(s)`; the three new tests pass; `go test ./...` green (10 packages);
@@ -2268,8 +2268,8 @@ recorded *which set we agreed on*.
   `DiffPins` returning **changed** / **missing** / **unpinned** issues, sorted.
   `PinSet` selects files through the *same* helper `LoadPacks` now uses
   (`packFileNames`), so a pin always describes the set a collector would load.
-- `agentids-rules pin [path...]` writes a pin file to stdout;
-  `agentids-rules verify --pins <file> [path...]` checks a set against it and
+- `watchman-rules pin [path...]` writes a pin file to stdout;
+  `watchman-rules verify --pins <file> [path...]` checks a set against it and
   exits non-zero, naming each drift. A `--pins` with no value is an arg error,
   not a silent path.
 - `rules/packs.pins` — the shipped pack is pinned (`carbonato@6`,
@@ -2290,7 +2290,7 @@ so this detects accidental or uncoordinated drift, not a determined forger.
 Signing the pin with an Ed25519 key — reusing `internal/provenance`'s
 manifest crypto — is the next slice, and the doc says so plainly.
 
-**Verification:** `agentids-rules verify --pins rules/packs.pins rules/` → `pins:
+**Verification:** `watchman-rules verify --pins rules/packs.pins rules/` → `pins:
 ok — 1 pack(s) match`; a one-blank-line edit to a copy → exit 1, `changed …
 pinned 5bd1240eb148, found 080dfe22a3b2`; `make pin` is a no-op diff against the
 committed file; `go test ./...` and `go test -tags sqlite ./...` green;
@@ -2298,7 +2298,7 @@ committed file; `go test ./...` and `go test -tags sqlite ./...` green;
 Committed.
 
 - **Next step (heartbeat 59):** sign the pin file (Ed25519 over the pin bytes,
-  `agentids-rules verify --pins … --pubkey …`), reusing `internal/provenance`
+  `watchman-rules verify --pins … --pubkey …`), reusing `internal/provenance`
   so a fleet can trust a *third-party* pack set, not just its own. Then: whether
   the collector should refuse to start when its `rules_dir` disagrees with a
   configured pin (the enforcement half of "pin the fleet's packs").
@@ -2315,15 +2315,15 @@ file's bytes.
 
 **Shipped:**
 - `internal/provenance/keys.go` — `LoadPrivateKey`/`LoadPublicKey` (the
-  `agentids-manifest keygen` base64 format), `SignDetached`, and
+  `watchman-manifest keygen` base64 format), `SignDetached`, and
   `VerifyDetached` over arbitrary bytes. `LoadPublicKey` accepts **either** the
   `.pub` file or the private key (deriving the public half), because operators
   keep one file more often than two — the common slip was "I passed ops.key" and
   got "bad public key size".
-- `agentids-rules sign-pins --key <priv> [--out <sig>] <pins>` — writes a
+- `watchman-rules sign-pins --key <priv> [--out <sig>] <pins>` — writes a
   **detached** `<pins>.sig` (base64 Ed25519 over the pin's exact bytes). Detached
   on purpose: signing must not change the artifact it signs.
-- `agentids-rules verify --pins <f> --pubkey <key> [--sig <s>] [paths...]` —
+- `watchman-rules verify --pins <f> --pubkey <key> [--sig <s>] [paths...]` —
   checks the signature **first**, then the drift. Comparing a set against a pin
   whose provenance is unproven would be checking against the wrong document.
 - `parseVerifyArgs` replaces `splitPinsFlag`: one parser for `verify`, so
@@ -2398,7 +2398,7 @@ existing deployments.
 
 **Verification:** real binary: collector config with a matching pin logs
 `pack set matches pinned set …` and starts; one appended line to the pinned pack
-→ exit 1, `agentids-collector: behavior: rules_dir "…" does not match pins "…":
+→ exit 1, `watchman-collector: behavior: rules_dir "…" does not match pins "…":
 changed carbonato.yaml`. `go test ./...` and `-tags sqlite` green; `go vet` clean
 both; `make lint` green; `demo/run.sh` exit 0. Committed.
 
@@ -2467,7 +2467,7 @@ still documented as a gap.
   `README.md` (action list + the G3 blind-spot entry now says the write half is
   built and only the read half waits on eBPF), CHANGELOG.
 - Demo: a fourth auditd frame — a wrapped interpreter drops
-  `/etc/cron.d/agentids-beacon` with no command line naming it — so `run.sh`
+  `/etc/cron.d/watchman-beacon` with no command line naming it — so `run.sh`
   now shows **twelve matches + one drift (13 events), five critical**, and the
   fleet rollup gains `phase3/persistence=1`. Verified through the real binaries.
 
@@ -2482,7 +2482,7 @@ move with the pack.
 
 **Verification:** real binaries — `make build`; `demo/run.sh` exit 0 with
 `file.write → carbonato.persist.file_write` present in `demo/out/records.json`;
-`agentids-rules verify --pins rules/packs.pins rules/` → `ok: 1 pack(s), 20
+`watchman-rules verify --pins rules/packs.pins rules/` → `ok: 1 pack(s), 20
 rule(s) … pins: ok`; `go test ./...` and `go test -tags sqlite ./...` green;
 `go vet` clean both; `make lint` green (72 links). Committed.
 
@@ -2602,7 +2602,7 @@ private keys or tokens (the scan is clean; the Layer 2 keygen output was never
 committed, by design from heartbeat 59); no tracked binaries or oversized files
 (`bin/`, `demo/out/`, `*.db`, `*.log` are gitignored; the largest tracked file is
 this worklog); LICENSE is Apache-2.0; the module path is the public
-`github.com/CRPerdue/agentids`; and CI already gates build + pin-current + vet +
+`github.com/CRPerdue/watchman`; and CI already gates build + pin-current + vet +
 test on both builds + lint + the end-to-end demo. The repo was in good shape —
 these three were the exceptions.
 
@@ -2631,16 +2631,16 @@ wall immediately.
 templates:
 
 ```sh
-./bin/agentids-central   -config examples/central.yaml
-./bin/agentids-collector -config examples/collector.yaml -once -dry-run
+./bin/watchman-central   -config examples/central.yaml
+./bin/watchman-collector -config examples/collector.yaml -once -dry-run
 ```
 
-`examples/collector.yaml` points at `/etc/agentids/rules` and
+`examples/collector.yaml` points at `/etc/watchman/rules` and
 `/var/log/audit/audit.log`; `examples/central.yaml` points at
-`/etc/agentids/passwd`, `/var/lib/agentids/…`, and a real SMTP host. Run
+`/etc/watchman/passwd`, `/var/lib/watchman/…`, and a real SMTP host. Run
 verbatim on a fresh clone, the collector dies with
-`behavior.rules_dir "/etc/agentids/rules": no such file or directory`, and
-central dies with `uid map: open "/etc/agentids/passwd": no such file`. The one
+`behavior.rules_dir "/etc/watchman/rules": no such file or directory`, and
+central dies with `uid map: open "/etc/watchman/passwd": no such file`. The one
 step meant to be effortless was the one guaranteed to fail.
 
 **Shipped — the getting-started path, made true:**
@@ -2675,9 +2675,9 @@ itself the honest statement that "works on a fresh host" is a promise the repo
 should be able to keep on its own.
 
 **Verification:** real binaries, from the repository root — `make build`;
-`./bin/agentids-collector -config examples/collector.local.yaml -once -dry-run`
+`./bin/watchman-collector -config examples/collector.local.yaml -once -dry-run`
 → exits 0 with `-dry-run: rules ok — 20 rule(s) from 1 pack(s)` and the
-inventory; `./bin/agentids-central -config examples/central.local.yaml` starts
+inventory; `./bin/watchman-central -config examples/central.local.yaml` starts
 and listens on `:8080`; the non-dry-run pair enrolls the demo agent end to end.
 `go test ./...` and `-tags sqlite` green; `go vet` clean both; `make lint` green.
 
@@ -2703,11 +2703,11 @@ have was the last mile: nothing in the repo showed how to keep the thing running
 after the shell closes. No unit, no service account, no install steps.
 
 **Shipped:**
-- `deploy/agentids-collector.service` and `deploy/agentids-central.service` —
-  systemd unit templates. Both run **unprivileged** (`User=agentids`, no root, no
+- `deploy/watchman-collector.service` and `deploy/watchman-central.service` —
+  systemd unit templates. Both run **unprivileged** (`User=watchman`, no root, no
   capabilities by default) with a hardened profile: `ProtectSystem=strict`,
   `PrivateTmp`, `NoNewPrivileges`, `RestrictSUIDSGID`, `ProtectKernel*`, a
-  private `StateDirectory=agentids` for the spool and cursor, and an
+  private `StateDirectory=watchman` for the spool and cursor, and an
   address-family restriction. The collector gets `ProtectHome=read-only` (it must
   *read* agent workspaces); central gets `ProtectHome=yes` (it never touches
   them).
@@ -2715,7 +2715,7 @@ after the shell closes. No unit, no service account, no install steps.
   sources in commented blocks: `CAP_BPF` + `CAP_PERFMON` for eBPF (never
   `CAP_SYS_ADMIN` — the design's D7), `AF_UNIX` retained for the Docker adapter.
   The hardening is written to be *read*, not pasted blindly, and the docs say so.
-- `deploy/README.md` — the install walkthrough: the `agentids` service account,
+- `deploy/README.md` — the install walkthrough: the `watchman` service account,
   the two things it needs read access to (the audit log — `adm` on Debian,
   `systemd-journal` on RHEL — and each `agent_roots` path) and nothing else, the
   binary/config/unit install, the eBPF/Docker deltas, and the TLS step.
@@ -2752,14 +2752,14 @@ heartbeat is that file — and it turned out to be broken in a way nobody would
 have caught by reading it.
 
 **What was wrong.** Three things, in increasing order of nastiness:
-1. It copied only `agentids-collector` and `agentids-central` — no
-   `agentids-manifest`, no `agentids-rules`, and **no `rules/`**, so a collector
+1. It copied only `watchman-collector` and `watchman-central` — no
+   `watchman-manifest`, no `watchman-rules`, and **no `rules/`**, so a collector
    built from it would start Layer 3 with zero rules: the "looks protected,
    detects nothing" failure the whole codebase refuses elsewhere.
 2. No `.dockerignore`, so `COPY . .` dragged `.git`, `bin/`, `demo/out`, and any
    local secrets into the build context.
 3. **The binaries could not run.** `docker run` failed on the very first command
-   with `exec /agentids-collector: no such file or directory`. The binary was
+   with `exec /watchman-collector: no such file or directory`. The binary was
    there — the interpreter was not. A `go build` inside the `golang` builder
    image finds a C compiler and enables **cgo** by default, so it linked glibc;
    the distroless `static` runtime has no libc, and the kernel cannot exec a
@@ -2769,8 +2769,8 @@ have caught by reading it.
 **Shipped:**
 - `deploy/docker/Dockerfile` rewritten: `ENV CGO_ENABLED=0` (load-bearing, not
   tidiness — the comment says why), all four binaries copied, the shipped pack
-  baked to `/etc/agentids/rules`, OCI labels, `EXPOSE 8080`, and a pre-created
-  `/var/lib/agentids` **owned by the image's unprivileged user** so a mounted
+  baked to `/etc/watchman/rules`, OCI labels, `EXPOSE 8080`, and a pre-created
+  `/var/lib/watchman` **owned by the image's unprivileged user** so a mounted
   volume inherits writable ownership (otherwise the nonroot runtime cannot even
   create its store). Module download is its own layer for cache; version is
   stamped via `--build-arg` since `.git` is excluded.
@@ -2782,13 +2782,13 @@ have caught by reading it.
   `--cap-add` + a `-tags ebpf` build).
 
 **Proven, not assumed.** The host has a live Docker daemon, so this was verified
-by running it: `docker build` succeeds; `agentids-collector -version` and
-`agentids-manifest version` report `docker`; `agentids-rules verify
-/etc/agentids/rules` in the image returns `ok: 1 pack(s), 20 rule(s)`; a
-containerized `agentids-collector -config … -once -dry-run` with the demo
+by running it: `docker build` succeeds; `watchman-collector -version` and
+`watchman-manifest version` report `docker`; `watchman-rules verify
+/etc/watchman/rules` in the image returns `ok: 1 pack(s), 20 rule(s)`; a
+containerized `watchman-collector -config … -once -dry-run` with the demo
 workspace mounted logs `rules ok — 20 rule(s) from 1 pack(s)` and the inventory,
 exit 0; and a **collector + central pair on a Docker network** runs end to end —
-central writes to its `/var/lib/agentids` volume and the collector enrolls the
+central writes to its `/var/lib/watchman` volume and the collector enrolls the
 agent. The first build is what surfaced the cgo bug; the second is what proves
 the fix.
 
@@ -2895,8 +2895,8 @@ nothing, exit 0). All as documented. No fix needed.
 commands as a sequence:
 
 ```sh
-./bin/agentids-central   -config examples/central.local.yaml          # the service
-./bin/agentids-collector -config examples/collector.local.yaml -once -dry-run
+./bin/watchman-central   -config examples/central.local.yaml          # the service
+./bin/watchman-collector -config examples/collector.local.yaml -once -dry-run
 ```
 
 Two reader traps in one block. First, **central runs in the foreground** — copy
@@ -2939,22 +2939,22 @@ container pair from heartbeat 66), but the TLS container story was a paragraph
 nobody had run. This heartbeat ran it. It did not survive contact.
 
 **Setup.** Built the image (`docker build -f deploy/docker/Dockerfile -t
-agentids .`), generated certs with `deploy/gen-certs.sh /tmp/agentids-tls central`
+watchman .`), generated certs with `deploy/gen-certs.sh /tmp/watchman-tls central`
 (so the SAN carries the container name `central`), put both containers on a
-`agentids-net` bridge, and mounted the cert dir plus a named volume for central's
+`watchman-net` bridge, and mounted the cert dir plus a named volume for central's
 stores.
 
 **Finding 1 — the documented mount shadows the baked rule pack.** The first move
 was to run the image exactly as its own header comment and `deploy/README.md`
-show: `-v /etc/agentids:/etc/agentids:ro`. The collector died immediately:
+show: `-v /etc/watchman:/etc/watchman:ro`. The collector died immediately:
 
 ```
-agentids-collector: config: behavior.rules_dir "/etc/agentids/rules": stat
-  /etc/agentids/rules: no such file or directory
+watchman-collector: config: behavior.rules_dir "/etc/watchman/rules": stat
+  /etc/watchman/rules: no such file or directory
 ```
 
-A bind mount at `/etc/agentids` **hides** the rule pack the same Dockerfile
-brags about baking to `/etc/agentids/rules`. Layer 3, the reason the product
+A bind mount at `/etc/watchman` **hides** the rule pack the same Dockerfile
+brags about baking to `/etc/watchman/rules`. Layer 3, the reason the product
 exists, silently has no rules — except it does *not* do it silently, which is the
 one saving grace: the collector refused to start. Fixed the mount to `/config` in
 the Dockerfile header and `deploy/README.md`, with the "why" inline.
@@ -2963,7 +2963,7 @@ the Dockerfile header and `deploy/README.md`, with the "why" inline.
 logged:
 
 ```
-agentids-central: fleet view records -> /var/lib/agentids/records.json (backend=file, retain=0d, max=0)
+watchman-central: fleet view records -> /var/lib/watchman/records.json (backend=file, retain=0d, max=0)
 ```
 
 `0d` / `max=0` reads as *retention disabled / unbounded* — the exact opposite of
@@ -2992,7 +2992,7 @@ still says "plaintext", `https://` says `report TLS has no client identity`.
 
 - **mTLS pair, enrolled.** Collector: `mutual TLS enabled -> ...`, `Layer 3
   loaded 20 rule(s) from 1 pack(s)`, `enrolled /agent-root (1 files)`, exit 0.
-- **The ingest landed.** Central's durable baseline (`/var/lib/agentids/
+- **The ingest landed.** Central's durable baseline (`/var/lib/watchman/
   baselines.json`, mode `0600`) held the agent root and its `SOUL.md` hash —
   read back from the volume, not assumed from a log line.
 - **Fail-closed, both ways.** No client cert → handshake refused (`x509:
@@ -3021,20 +3021,20 @@ three bugs in a file three heartbeats of work had already "finished". It held up
 again — but this time the miss was the one that stops a service dead.
 
 **Finding — the TLS section omits the fatal step.** The install walkthrough sets
-up an `agentids` service account and both units run `User=agentids`. The TLS
-section then says to run `deploy/gen-certs.sh /etc/agentids/tls central.example.com`
+up an `watchman` service account and both units run `User=watchman`. The TLS
+section then says to run `deploy/gen-certs.sh /etc/watchman/tls central.example.com`
 and "point central's `tls: {cert, key, ca}` at the generated files." What it never
 says is that **`gen-certs.sh` writes the private keys mode `0600` owned by whoever
-ran it** — and you run it as root to write under `/etc/agentids`. Central, as
-`agentids`, then cannot read its own key. This is not a degradation (everything
+ran it** — and you run it as root to write under `/etc/watchman`. Central, as
+`watchman`, then cannot read its own key. This is not a degradation (everything
 else in this tool degrades); it is `log.Fatalf`.
 
 Reproduced it for real, without systemd: generated the certs, wrote a config, and
-ran the deployed `agentids-central` as an unprivileged uid against the root-owned
+ran the deployed `watchman-central` as an unprivileged uid against the root-owned
 keys:
 
 ```
-agentids-central: tls: mtls: load key pair: open /tmp/tlsperm/leaf.key: permission denied
+watchman-central: tls: mtls: load key pair: open /tmp/tlsperm/leaf.key: permission denied
 ```
 
 Then handed the material to the service uid and re-ran — central came up with
@@ -3045,7 +3045,7 @@ miss: I had just written the container version of the warning and still had not
 connected it to the systemd path.)
 
 **Shipped:**
-- `deploy/README.md` §TLS gains the ownership step — `chown -R agentids:agentids`
+- `deploy/README.md` §TLS gains the ownership step — `chown -R watchman:watchman`
   (or `chgrp` + `chmod 0640`), key readable by the service and nobody else — with
   the fatal error text quoted so it is greppable.
 - `docs/deploy-central.md` §3 points at it, named as "the thing that bites on the
@@ -3054,8 +3054,8 @@ connected it to the systemd path.)
   operator is holding the fresh keys — the best place for it, since the failure
   surfaces much later, at service start.
 - **Second, smaller gap in the same file:** the install step (§Install) installed
-  only `agentids-collector` and `agentids-central`. Layer 2's operator workflow
-  needs `agentids-manifest` and rule pinning needs `agentids-rules` — both named
+  only `watchman-collector` and `watchman-central`. Layer 2's operator workflow
+  needs `watchman-manifest` and rule pinning needs `watchman-rules` — both named
   by the docs an operator reads right after installing. Added both to the install
   with a one-line note on when they are needed.
 
@@ -3094,18 +3094,18 @@ implemented (R2.2)` — the doc's claim restated, not wrong. Every rule id in th
 
 **Fixed — the §5 "short version" could not start the collector.** Its snippet
 installed the binary and the systemd unit but never installed
-`/etc/agentids/collector.yaml` or created `/etc/agentids`. Followed verbatim, the
+`/etc/watchman/collector.yaml` or created `/etc/watchman`. Followed verbatim, the
 unit dies at once:
 
 ```
-agentids-collector: read config: open /etc/agentids/collector.yaml: no such file or directory
+watchman-collector: read config: open /etc/watchman/collector.yaml: no such file or directory
 ```
 
 exit 1 — a **fatal**, not a degradation. (Note the asymmetry the doc never named:
 central's missing config falls back to defaults; the collector's does not.) The
-snippet now creates `/etc/agentids`, installs the example config, and says to
+snippet now creates `/etc/watchman`, installs the example config, and says to
 edit `agent_roots` before enabling the unit. It also notes that
-`/var/lib/agentids` is made by `StateDirectory=` and should not be created by
+`/var/lib/watchman` is made by `StateDirectory=` and should not be created by
 hand.
 
 **Fixed — the Scope line omitted a third of the doc.** It named auditd and the
@@ -3135,36 +3135,36 @@ service starts, stays up, or does its job. This host runs systemd as PID 1, so
 this heartbeat installed the units and let them run.
 
 **What was done (all on the host, all torn down afterward).** Created the
-`agentids` system account and `/etc/agentids`, installed all four binaries and
+`watchman` system account and `/etc/watchman`, installed all four binaries and
 the shipped rule pack, generated certs with `gen-certs.sh` and handed the keys to
 the service account (the step heartbeat 70 found missing from the docs),
 installed both units, and `systemctl enable --now`. To keep the test honest and
 the family's data out of it, `agent_roots` pointed at a copy of the demo persona
-under `/etc/agentids/agent-root` — **not** the real workspaces.
+under `/etc/watchman/agent-root` — **not** the real workspaces.
 
 **Result — clean, first try, no bugs.** Both services came up as
-`User=agentids` (no root, no capabilities):
+`User=watchman` (no root, no capabilities):
 
 ```
-agentids-central:  listening on :8080 (store=/var/lib/agentids/baselines.json)
-agentids-central:  mutual TLS required on the ingest listener
-agentids-collector: mutual TLS enabled -> https://localhost:8080/api/v1/events
-agentids-collector: behavior: Layer 3 loaded 20 rule(s) from 1 pack(s)
-agentids-collector: enrolled /etc/agentids/agent-root (1 files)
-agentids-collector: polling every 30s
+watchman-central:  listening on :8080 (store=/var/lib/watchman/baselines.json)
+watchman-central:  mutual TLS required on the ingest listener
+watchman-collector: mutual TLS enabled -> https://localhost:8080/api/v1/events
+watchman-collector: behavior: Layer 3 loaded 20 rule(s) from 1 pack(s)
+watchman-collector: enrolled /etc/watchman/agent-root (1 files)
+watchman-collector: polling every 30s
 ```
 
 Then the test that matters — an actual intrusion, not a synthetic one. Appended
 one line to the watched persona file and waited one poll:
 
 ```
-agentids-collector: DRIFT SOUL.md identity.drift (severity=high)
-agentids-central:   ALERT: 1 drift on debian:/etc/agentids/agent-root (max=high)
+watchman-collector: DRIFT SOUL.md identity.drift (severity=high)
+watchman-central:   ALERT: 1 drift on debian:/etc/watchman/agent-root (max=high)
 ```
 
 The full chain under systemd: unprivileged collector → mTLS hop → central
 baseline → drift detected → alert, with `baselines.json` and `records.json`
-written `0600` into the `StateDirectory=agentids` dir by systemd's own machinery
+written `0600` into the `StateDirectory=watchman` dir by systemd's own machinery
 (not pre-created by hand). `systemctl is-active` reported `active` for both.
 
 **Shipped:** one honest note in `deploy/README.md` under the install section —
@@ -3173,8 +3173,8 @@ claim an operator reads is backed by an actual run. No code change; nothing was
 broken to fix.
 
 **Teardown:** disabled and removed both units, `daemon-reload`, removed
-`/etc/agentids`, `/var/lib/agentids` and the four binaries, and `userdel
-agentids`. Verified afterward: no user, no dirs, no units, no binaries, `:8080`
+`/etc/watchman`, `/var/lib/watchman` and the four binaries, and `userdel
+watchman`. Verified afterward: no user, no dirs, no units, no binaries, `:8080`
 free. The host is exactly as it was found.
 
 **Verification:** the run above; `make lint` green; `go test ./...` green (no code
@@ -3387,7 +3387,7 @@ because `.gitignore`'s operator patterns caught them:
 | `demo/fixtures/audit.log` | the demo's whole CARBONATO chain (pass 1) | `*.log` |
 
 On a fresh clone the quickstart's first real command —
-`./bin/agentids-collector -config examples/collector.local.yaml` — dies with
+`./bin/watchman-collector -config examples/collector.local.yaml` — dies with
 `no such file`, and `demo/run.sh` loses pass 1. The CI `demo` job checks out the
 repo and runs exactly that script, so this was a **red CI waiting to happen** the
 moment the repo goes public. It was invisible in the working tree because the
@@ -3472,25 +3472,25 @@ question this heartbeat asked is the one a reader actually faces — **does the
 block, exactly as written, produce running services?**
 
 **The find.** No. The block copies `examples/central.yaml` and
-`examples/collector.yaml` into `/etc/agentids` and `systemctl enable --now`s both
+`examples/collector.yaml` into `/etc/watchman` and `systemctl enable --now`s both
 units, but creates none of the paths those configs point at. Reproduced on this
 host, at the real paths:
 
-- central → `tls: mtls: load key pair: open /etc/agentids/leaf.crt: no such file
+- central → `tls: mtls: load key pair: open /etc/watchman/leaf.crt: no such file
   or directory`, exit 1. (And before TLS, with `uid_map` configured but absent:
   exits 1 at startup, so even ordering TLS later would not have been enough.)
-- collector → `config: behavior.rules_dir "/etc/agentids/rules": stat: no such
+- collector → `config: behavior.rules_dir "/etc/watchman/rules": stat: no such
   file or directory`, exit 1.
 
 So a stranger following the walkthrough gets two red units. The prerequisites —
-TLS material, a `uid_map` file, the rule pack at `/etc/agentids/rules`, and a
+TLS material, a `uid_map` file, the rule pack at `/etc/watchman/rules`, and a
 loaded auditd rule set so `audit_log` exists — were implied by the configs and
 never stated. The "This path has been run" note is honest about the *run*, but the
 run did steps the block does not list.
 
 **The fix.** The install block gained the four missing steps, in an order that
 starts: install the rule pack (`rules/*.yaml` + `packs.pins`), load the auditd
-rules, `deploy/gen-certs.sh /etc/agentids central.example` with the
+rules, `deploy/gen-certs.sh /etc/watchman central.example` with the
 service-account chown/chmod, and install a `uid_map` file — each with a sentence
 on *why it is fatal, not optional* (central and collector both refuse to start on
 a missing configured path, deliberately, so a service never comes up blind). Also
@@ -3500,8 +3500,8 @@ handshake does not fail closed.
 **Verified at the real paths, then torn down.** With the four steps applied:
 central reached `listening on :8080` + `mutual TLS required on the ingest
 listener` and stayed up; the collector validated `-dry-run: rules ok — 20 rule(s)
-from 1 pack(s)`, exit 0. Without them, both exit 1 as above. `/etc/agentids`,
-`/var/lib/agentids`, and `/var/log/audit` (which did not exist before) were
+from 1 pack(s)`, exit 0. Without them, both exit 1 as above. `/etc/watchman`,
+`/var/lib/watchman`, and `/var/log/audit` (which did not exist before) were
 removed; `:8080` is free; the tree is clean apart from the commit.
 
 **A process note I owe myself.** The collector dry-run enrolls `agent_roots`,
@@ -3516,7 +3516,7 @@ file and grep for the one line under test; never `cat` it. Same principle as
 - **Next step (heartbeat 79):** the un-diffed doc blocks are nearly exhausted
   (quickstart and demo are now CI-guarded; deploy walkthrough just fixed and run).
   Two remain: (1) the `deploy/docker/Dockerfile` path — the container section of
-  `deploy/README.md` makes specific claims (baked rule pack at `/etc/agentids/rules`,
+  `deploy/README.md` makes specific claims (baked rule pack at `/etc/watchman/rules`,
   distroless uid `65532`, `--cap-add` for eBPF) that a container build would
   settle; check whether Docker is available here, and if not, say so rather than
   analysing it. (2) If Dad answers the P2.0 toolchain question, take it — that
@@ -3541,7 +3541,7 @@ noting — the four runtime `COPY`s came back **CACHED**, i.e. the rebuilt binar
 were byte-identical to the last build. Nothing in hb76/77 touched compiled Go, so
 the image is unchanged, and the build is reproducible from the same source.
 Re-checked by hand: uid 65532, pack loads (`ok: 1 pack(s), 20 rule(s)`), the
-`/etc/agentids` shadow caveat holds, binaries statically linked.
+`/etc/watchman` shadow caveat holds, binaries statically linked.
 
 **Then turned the hand check into a guard, which is the actual step.** A one-off
 manual verification is not protection against the hb66 class — "a Dockerfile that
@@ -3550,7 +3550,7 @@ could ever catch a container defect; nothing in CI built the image. Added:
 
 - `scripts/container-check.sh` — builds `deploy/docker/Dockerfile` and asserts the
   documented claims on the real image: nonroot uid 65532, the baked pack validates
-  at `/etc/agentids/rules`, a bind mount at `/etc/agentids` still shadows that pack
+  at `/etc/watchman/rules`, a bind mount at `/etc/watchman` still shadows that pack
   (so the README's `/config` instruction stays true), and the copied binaries are
   statically linked. Needs a Docker daemon (stated in the header and in
   `CONTRIBUTING.md`).
@@ -3675,7 +3675,7 @@ the gate is only worth having if it fails when it should, and I verified it does
 **The decisions, written down.** `docs/PUBLISH-READINESS.md` is the checklist:
 what is verified (license, README, CONTRIBUTING/CoC/SECURITY, CI incl. container
 and publish scan, scan-clean tree) and what is *Rob's call*, not a code change —
-(1) the **name** (module path is still the `github.com/CRPerdue/agentids`
+(1) the **name** (module path is still the `github.com/CRPerdue/watchman`
 placeholder; a rename is a mechanical find/replace plus `go mod edit -module`,
 cheapest done once, before first push); (2) whether the **internal process docs**
 (`BRIEF.md`, `WORKLOG.md`, `PHASE0-*`, `PHASE1-PLAN.md`) ship — `.gitattributes
@@ -4080,3 +4080,45 @@ restored. Full `go test ./...` green (+`-tags sqlite`); `gofmt`/`vet` clean;
   judging, if this thread keeps paying — or the honest call may be that the
   public-cut doc surface is now held and this line is done. Gated fronts
   unchanged: **P2.0**, **P2.1c-4**, and the three publish decisions.
+
+---
+
+## Heartbeat 90 — the name is Watchman; the rename is done before the push
+
+Rob picked the name: **Watchman**. The publish checklist is explicit that the
+name is cheapest to land **once, before the first push** — it is baked into the
+module path, every import, the four binary names, the deploy unit files, the
+Dockerfile labels, the event schema file, and every doc that names a binary. So
+this heartbeat is the rename, done now, so that tonight's token lands on a repo
+that is already correct.
+
+**Shipped (mechanical, whole tracked tree).** Two token forms —
+`agentids` (774 occurrences) and `Agentids` (1, `README.md`) — replaced across
+every tracked file: `s/agentids/watchman/g; s/Agentids/Watchman/g`. Three files
+renamed: `agentids.event.schema.json` → `watchman.event.schema.json`,
+`deploy/agentids-{collector,central}.service` →
+`deploy/watchman-{collector,central}.service`. Then
+`go mod edit -module github.com/CRPerdue/watchman`. Post-check: `git grep -i
+agentids` returns nothing. The event wire version becomes `watchman.event/v1` —
+safe only because nothing was ever published, so there is no consumer to break.
+
+**Doc updates that the rename forced.** `README.md` dropped its "working name /
+placeholder" banner. `docs/PUBLISH-READINESS.md` §1 flipped the name from an
+open decision to ✅ decided, with the full list of what the name touches.
+`PHASE0-DISCOVERY.md` §0.5 marked Q1 resolved and logged the date.
+`CHANGELOG.md` gained a `### Changed` entry.
+
+**Verified.** `gofmt -l` clean; `go vet ./...` clean; `go build ./...` ok;
+`go test ./...` green (default **and** `-tags sqlite`); `make build` produced
+`bin/watchman-{collector,central,manifest,rules}`; `check-links` (96 links),
+`quickstart-check`, `container-check` (image builds, runs nonroot, baked pack
+validates), and `publish-scan` all PASS. Stale `bin/agentids-*` artifacts
+removed (untracked).
+
+- **Next step (heartbeat 91):** the tree is rename-clean and green; the only
+  thing between it and a first push is GitHub access. When the token lands: add
+  the remote (`github.com/CRPerdue/watchman`), push `main`, confirm the CI badge
+  resolves, and tag `0.1.0`. Still-open publish decisions unchanged: **(2)** do
+  `BRIEF.md` / `WORKLOG.md` / `PHASE0-*` / `PHASE1-PLAN.md` ship, **(3)**
+  copyright holder + `NOTICE`. Code fronts unchanged: **P2.0** (eBPF, blocked on
+  the `clang`/`libbpf-dev` call), **P2.1c-4** (Postgres, on demand).

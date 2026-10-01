@@ -1,6 +1,6 @@
 # DEPLOY — CENTRAL (INGEST, ALERTING, FLEET VIEW)
 
-**Audience:** the operator standing up `agentids-central` — the one service the
+**Audience:** the operator standing up `watchman-central` — the one service the
 whole fleet talks to.
 **Scope:** the decisions central forces on you: what it stores, how it
 authenticates collectors, how it alerts, and how it stays bounded. The collector
@@ -72,7 +72,7 @@ section exists to prevent.
 | Config key | `store` | `records` |
 | Holds | each agent's last-known file hashes — **the drift baseline** | a bounded, time-limited copy of every **detected event** |
 | Backs | Layer 1 drift (`identity.drift`) | the fleet view (`GET /`, `/api/v1/fleet`) |
-| Unset means | *(never)* — defaults to `agentids-baselines.json` | in-memory only; the view works but **resets on restart** |
+| Unset means | *(never)* — defaults to `watchman-baselines.json` | in-memory only; the view works but **resets on restart** |
 | Written by | every ingest | every detected event |
 
 **The baseline store is not optional and not cache.** It is the thing your
@@ -89,13 +89,13 @@ at an incident.
 
 ```yaml
 # central.yaml
-store:   /var/lib/agentids/baselines.json   # the drift baseline — durable
-records: /var/lib/agentids/records.json     # the fleet view's data
+store:   /var/lib/watchman/baselines.json   # the drift baseline — durable
+records: /var/lib/watchman/records.json     # the fleet view's data
 ```
 
 Both files are created `0600`. The systemd unit gives central a private
-`StateDirectory=agentids`, so `/var/lib/agentids` already exists, is owned by the
-unprivileged `agentids` user, and is the only place central needs to write — see
+`StateDirectory=watchman`, so `/var/lib/watchman` already exists, is owned by the
+unprivileged `watchman` user, and is the only place central needs to write — see
 §8.
 
 ### Retention is bounded by two independent limits
@@ -124,7 +124,7 @@ is authenticated in **both** directions — a stolen collector cert still cannot
 impersonate central, and a rogue endpoint cannot enroll as a collector.
 
 ```sh
-./deploy/gen-certs.sh /etc/agentids/tls central.example.com
+./deploy/gen-certs.sh /etc/watchman/tls central.example.com
 ```
 
 Point central's `tls` block and each collector's `report.tls` at the generated
@@ -133,20 +133,20 @@ material:
 ```yaml
 # central.yaml
 tls:
-  cert: /etc/agentids/tls/leaf.crt   # central's own cert/key
-  key:  /etc/agentids/tls/leaf.key
-  ca:   /etc/agentids/tls/ca.crt     # verifies every collector's cert
+  cert: /etc/watchman/tls/leaf.crt   # central's own cert/key
+  key:  /etc/watchman/tls/leaf.key
+  ca:   /etc/watchman/tls/ca.crt     # verifies every collector's cert
 ```
 
 When `tls` is set, central requires and verifies a client certificate on the
 ingest listener; an unauthenticated client is refused at the handshake, before
 any request is parsed. TLS 1.2 is the floor.
 
-One thing that bites on the systemd path: **the `agentids` service user must be
+One thing that bites on the systemd path: **the `watchman` service user must be
 able to read the private key.** `deploy/gen-certs.sh` writes keys `0600` owned by
 whoever ran it, so generating them as root leaves central unable to start
 (`tls: mtls: load key pair: ... permission denied` — a fatal). `chown` the
-material to `agentids` after generating; the exact commands are in
+material to `watchman` after generating; the exact commands are in
 [`deploy/README.md`](../deploy/README.md) §TLS.
 
 Three rules the loader enforces, so a half-configured hop fails at startup rather
@@ -164,7 +164,7 @@ than silently downgrading:
 **With `tls` unset, central speaks plain HTTP and logs a warning at startup:**
 
 ```
-agentids-central: WARNING plaintext ingest (configure tls for a real fleet)
+watchman-central: WARNING plaintext ingest (configure tls for a real fleet)
 ```
 
 That warning is the whole point — a loopback test is fine, a fleet is not. If you
@@ -180,15 +180,15 @@ and would otherwise sail through.
 
 Central is where Layer 2 is enforced: it compares each ingest against a
 **signed** approval manifest (one `*.json` per agent root, produced with
-`agentids-manifest sign`) and raises `provenance.untrusted` for anything
+`watchman-manifest sign`) and raises `provenance.untrusted` for anything
 unapproved or modified. Because the source of truth is signed, it is not evadable
 by rewriting a baseline hash.
 
 ```yaml
 # central.yaml
 manifests:
-  dir: /etc/agentids/manifests            # one *.json per agent root; empty -> Layer 2 off
-  trust_keys: /etc/agentids/trust-keys.json  # {"name": "base64-ed25519-pubkey"}
+  dir: /etc/watchman/manifests            # one *.json per agent root; empty -> Layer 2 off
+  trust_keys: /etc/watchman/trust-keys.json  # {"name": "base64-ed25519-pubkey"}
   require_approval: false                 # true -> an agent with NO manifest is fully untrusted
 ```
 
@@ -216,7 +216,7 @@ concern, so it lives on central:
 
 ```yaml
 # central.yaml
-uid_map: /etc/agentids/passwd
+uid_map: /etc/watchman/passwd
 ```
 
 A passwd-style file (`name:passwd:uid:gid:...`) — copy it from the fleet's base
@@ -241,17 +241,17 @@ which they got.
 ```yaml
 # central.yaml
 alerts:
-  webhook: https://hooks.example/agentids   # any endpoint that accepts a JSON POST
+  webhook: https://hooks.example/watchman   # any endpoint that accepts a JSON POST
   log: true                                 # one line per alert to the service log (default on)
   email:                                    # delete the block to disable
     host: smtp.example.com:587              # 465 = implicit TLS; others use STARTTLS
-    username: agentids
+    username: watchman
     password: change-me
-    from: agentids@example.com
+    from: watchman@example.com
     to: [oncall@example.com]
 ```
 
-- **`webhook`** — the body is an agentids `Alert`: `{when, host, agent, events[]}`.
+- **`webhook`** — the body is an watchman `Alert`: `{when, host, agent, events[]}`.
   Slack incoming webhooks, PagerDuty Events API v2, a ticket bot, or a three-line
   shell receiver all work; central only does an HTTP `POST`.
 - **`log`** — a one-line summary per alert via `Alert.Summary()`. Cheap, greppable,
@@ -275,7 +275,7 @@ Validation the loader performs so email fails at startup, not at 03:00: if
 | Key | Default | What it does |
 |---|---|---|
 | `addr` | `:8080` | Listen address. Empty is rejected. |
-| `store` | `agentids-baselines.json` | Durable drift baseline. Empty is rejected. |
+| `store` | `watchman-baselines.json` | Durable drift baseline. Empty is rejected. |
 | `records` | *(empty)* | Record store path. Empty → in-memory, view resets on restart. |
 | `record_backend` | `file` | `file` (atomic JSON, zero-dep) or `sqlite` (needs `-tags sqlite`). Unknown → `file` + a log line, not a failed start. |
 | `record_retention_days` | `7` | Drop records older than this. |
@@ -305,20 +305,20 @@ set, so an operator can re-point a running service without editing YAML.
 Central is the first unit to come up and the last to go down — collectors retry,
 so a central restart costs latency, never evidence. The
 [`deploy/`](../deploy/README.md) directory ships a systemd unit template
-(`agentids-central.service`) that runs it **unprivileged** with a hardened
+(`watchman-central.service`) that runs it **unprivileged** with a hardened
 profile: `ProtectSystem=strict`, `PrivateTmp`, `NoNewPrivileges`,
 `RestrictSUIDSGID`, address-family restrictions, and `ProtectHome=yes` (central
 never reads agent workspaces — only the collector does). Its private
-`StateDirectory=agentids` is the one write path, holding both stores.
+`StateDirectory=watchman` is the one write path, holding both stores.
 
 ```sh
-sudo install -m 0755 bin/agentids-central /usr/local/bin/
-sudo install -m 0640 -o agentids -g agentids examples/central.yaml /etc/agentids/central.yaml
-sudo install -m 0644 deploy/agentids-central.service /etc/systemd/system/
-sudo systemctl daemon-reload && sudo systemctl enable --now agentids-central
+sudo install -m 0755 bin/watchman-central /usr/local/bin/
+sudo install -m 0640 -o watchman -g watchman examples/central.yaml /etc/watchman/central.yaml
+sudo install -m 0644 deploy/watchman-central.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now watchman-central
 ```
 
-The full install walkthrough — the `agentids` service account, both binaries, the
+The full install walkthrough — the `watchman` service account, both binaries, the
 TLS step, and the capability deltas for the optional collector sources — is in
 [`deploy/README.md`](../deploy/README.md). The startup log tells you the
 configuration central actually resolved (store path, record backend and
@@ -326,20 +326,20 @@ retention, whether Layer 2 is on, whether uid resolution is on, and where alerts
 go), so you can confirm the config took without reading it back:
 
 ```
-agentids-central listening on :8080 (store=/var/lib/agentids/baselines.json)
-agentids-central: fleet view records -> /var/lib/agentids/records.json (backend=file, retain=7d, max=10000)
-agentids-central: layer 2 provenance enabled (manifest dir=/etc/agentids/manifests, require_approval=true)
-agentids-central: uid->name resolution enabled (map=/etc/agentids/passwd)
-agentids-central: webhook alerts -> https://hooks.example/agentids
-agentids-central: mutual TLS required on the ingest listener
+watchman-central listening on :8080 (store=/var/lib/watchman/baselines.json)
+watchman-central: fleet view records -> /var/lib/watchman/records.json (backend=file, retain=7d, max=10000)
+watchman-central: layer 2 provenance enabled (manifest dir=/etc/watchman/manifests, require_approval=true)
+watchman-central: uid->name resolution enabled (map=/etc/watchman/passwd)
+watchman-central: webhook alerts -> https://hooks.example/watchman
+watchman-central: mutual TLS required on the ingest listener
 ```
 
 If a line is missing — or reads `disabled` / `in-memory only` / `WARNING
 plaintext ingest` — that is your configuration, stated plainly.
 
 > **In a container instead?** Central runs from the same image with
-> `--entrypoint /agentids-central`. Two container-specific gotchas: mount the
-> config directory at a path *other than* `/etc/agentids` (a bind mount there
+> `--entrypoint /watchman-central`. Two container-specific gotchas: mount the
+> config directory at a path *other than* `/etc/watchman` (a bind mount there
 > shadows the rule pack the image bakes), and — for mTLS — make the mounted cert
 > files readable by the image's `nonroot` uid (`65532`). The exact `docker run`
 > flags, verified end to end, are in

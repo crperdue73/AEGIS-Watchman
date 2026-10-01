@@ -183,7 +183,7 @@ One item needs a call, not a code change:
   audit obligation — a fleet must be able to say *which* packs it runs and that
   they are still the approved bytes. Shipped: a pack **pin file**
   (`rules/packs.pins`, `<sha256>  <name@version>  <file>` per pack),
-  `agentids-rules pin` (write it) and `agentids-rules verify --pins` (fail
+  `watchman-rules pin` (write it) and `watchman-rules verify --pins` (fail
   non-zero on any **changed**/**missing**/**unpinned** pack), a `make pin`
   target, and a CI gate that the committed pin is current. The pin describes the
   same file set a collector loads. It is a lockfile, **not** a signature —

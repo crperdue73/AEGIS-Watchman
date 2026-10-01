@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# agentids — runnable end-to-end demo.
+# watchman — runnable end-to-end demo.
 #
 # Reproduces the CARBONATO chain and the container entry vector through the real
 # collector, the real rules engine, and the real central service — with NO root,
@@ -46,7 +46,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "== starting central on :$port =="
-"$bin_dir/agentids-central" -config central.yaml > out/central.log 2>&1 &
+"$bin_dir/watchman-central" -config central.yaml > out/central.log 2>&1 &
 central_pid=$!
 
 # Wait for the port to accept.
@@ -57,7 +57,7 @@ done
 
 echo
 echo "== pass 1: enroll the agent and replay the captured chain =="
-"$bin_dir/agentids-collector" -config collector.yaml -once \
+"$bin_dir/watchman-collector" -config collector.yaml -once \
   -host-id demo-host -host-name demo 2>&1 | sed 's/^/   /'
 
 echo
@@ -66,7 +66,7 @@ echo "== pass 2: an intruder edits the persona file, then activity resumes =="
 # collector feeds to the timeline before Layer 3 evaluates — that ordering is
 # what lets the egress-after-change correlation fire.
 printf '\n<!-- overwritten by attacker -->\n' >> agent-root/SOUL.md
-"$bin_dir/agentids-collector" -config collector.yaml -once \
+"$bin_dir/watchman-collector" -config collector.yaml -once \
   -host-id demo-host -host-name demo 2>&1 | sed 's/^/   /'
 
 echo

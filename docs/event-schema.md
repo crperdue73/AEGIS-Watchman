@@ -1,8 +1,8 @@
-# Event schema — `agentids.event/v1`
+# Event schema — `watchman.event/v1`
 
 The wire format is the **public contract** of this project. Other people will
 build on it, so treat changes as breaking. The machine-readable schema is
-[`../agentids.event.schema.json`](../agentids.event.schema.json); Phase 0/1
+[`../watchman.event.schema.json`](../watchman.event.schema.json); Phase 0/1
 Go structs live in [`../internal/schema/`](../internal/schema/).
 
 ## Envelope
@@ -11,7 +11,7 @@ Every event shares an envelope:
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `schema` | string | ✅ | Always `agentids.event/v1`. Bump the version segment on breaking change. |
+| `schema` | string | ✅ | Always `watchman.event/v1`. Bump the version segment on breaking change. |
 | `event` | enum | ✅ | `identity.drift` (L1) · `provenance.untrusted` (L2) · `behavior.rule_match` (L3). |
 | `ts` | date-time | ✅ | RFC 3339, UTC. |
 | `host` | object | ✅ | `{ id, name? }`. `id` is a stable host identifier. |
@@ -46,12 +46,12 @@ change?"; Layer 2 asks "was this ever ours?"
   case — nothing has drifted, so Layer 1 alone is blind to it), `medium` for a
   listed-but-modified file, `low` for a listed-but-absent file.
 - The approval manifest is an Ed25519-signed inventory of `path -> sha256` for
-  one agent root (`agentids.manifest/v1`, see `internal/provenance`). It is
+  one agent root (`watchman.manifest/v1`, see `internal/provenance`). It is
   offline-verifiable, so an operator can approve a workspace on a laptop and
   ship the manifest to the fleet. Because the source is a signed manifest,
   Layer 2 detection is **not evadable by rewriting the hash** the way a naive
   "trust-on-first-use" baseline is.
-- Built and checked with `agentids-manifest` (`keygen` / `sign` / `verify`).
+- Built and checked with `watchman-manifest` (`keygen` / `sign` / `verify`).
 
 ## Layer 3 — `behavior.rule_match`
 
@@ -66,7 +66,7 @@ Fires when a rule matches an observed action.
 ## Versioning policy
 
 - **Breaking** (rename/remove a required field, change a semantic): bump the
-  version segment — `agentids.event/v2` — and support v1 for a deprecation window.
+  version segment — `watchman.event/v2` — and support v1 for a deprecation window.
 - **Additive** (new optional field): no bump; consumers must ignore unknown keys.
 - `additionalProperties: false` on the schema is a v1 strictness choice; relax
   if adding optional fields downstream proves painful.

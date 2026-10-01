@@ -1,8 +1,6 @@
-# agentids — Agent-layer Intrusion Detection
+# watchman — Agent-layer Intrusion Detection
 
-[![CI](https://github.com/CRPerdue/agentids/actions/workflows/ci.yml/badge.svg)](https://github.com/CRPerdue/agentids/actions/workflows/ci.yml)
-
-> **Working name.** Placeholder until Rob picks one (see `PHASE0-DISCOVERY.md` §0.5 Q1).
+[![CI](https://github.com/CRPerdue/watchman/actions/workflows/ci.yml/badge.svg)](https://github.com/CRPerdue/watchman/actions/workflows/ci.yml)
 
 **Snort for AI agents.** A fleet-wide detection tool for agent-layer intrusions —
 identity drift, supply-chain tampering, and behavioral rules that name *intent*,
@@ -97,7 +95,7 @@ Built so far:
   `deploy/gen-certs.sh` generates the CA and leaf material.
 - **Layer 2 — provenance / attestation** (`internal/provenance/` + central
   wiring): an **Ed25519-signed approval manifest** of `path -> sha256` per agent
-  root, and `agentids-manifest keygen/sign/verify` for the operator workflow.
+  root, and `watchman-manifest keygen/sign/verify` for the operator workflow.
   Catches what Layer 1 cannot: a **brand-new dropped skill** (nothing drifted,
   but the file was never ours) as `provenance.untrusted`, plus in-place
   modification and deletion. Because the source of truth is *signed*, it is not
@@ -156,12 +154,12 @@ Built so far:
 In a hurry? [`docs/quickstart.md`](docs/quickstart.md) is the one-page path:
 build → run the demo → see an alert, with links out for depth.
 
-Four binaries: `agentids-collector` (one per host), `agentids-central` (the
-service), `agentids-manifest` (Layer 2 approvals), and `agentids-rules`
+Four binaries: `watchman-collector` (one per host), `watchman-central` (the
+service), `watchman-manifest` (Layer 2 approvals), and `watchman-rules`
 (Layer 3 pack tooling). Build them all from source:
 
 ```sh
-git clone <repo> && cd agentids
+git clone <repo> && cd watchman
 make                              # builds cmd/{collector,central,manifest,rules} into ./bin
 go build -tags sqlite ./cmd/...   # optional: adds the pure-Go SQLite record backend (no CGO)
 go test ./...                     # no root, no live daemon required
@@ -174,11 +172,11 @@ audit `connect`, `bind`, or `listen` out of the box. Enable them before you
 expect any behavioral rule to fire:
 
 ```
-# /etc/audit/rules.d/agentids.rules
--a always,exit -F arch=b64 -S execve   -k agentids
--a always,exit -F arch=b64 -S connect  -k agentids
--a always,exit -F arch=b64 -S bind     -k agentids
--a always,exit -F arch=b64 -S listen   -k agentids
+# /etc/audit/rules.d/watchman.rules
+-a always,exit -F arch=b64 -S execve   -k watchman
+-a always,exit -F arch=b64 -S connect  -k watchman
+-a always,exit -F arch=b64 -S bind     -k watchman
+-a always,exit -F arch=b64 -S listen   -k watchman
 ```
 
 ```sh
@@ -189,7 +187,7 @@ Then point the collector at the log:
 
 ```yaml
 behavior:
-  rules_dir: /etc/agentids/rules
+  rules_dir: /etc/watchman/rules
   audit_log: /var/log/audit/audit.log
 ```
 
@@ -203,19 +201,19 @@ listener rule. Full details and the per-rule breakdown:
 ### Run it locally
 
 From the repository root — the `.local` configs use only paths that exist in a
-fresh clone and no `/etc/agentids/...` system paths. The collector's dry-run
+fresh clone and no `/etc/watchman/...` system paths. The collector's dry-run
 needs nothing else running:
 
 ```sh
-./bin/agentids-collector -config examples/collector.local.yaml -once -dry-run
+./bin/watchman-collector -config examples/collector.local.yaml -once -dry-run
 ```
 
 To submit for real, start the service in another terminal first (it runs in the
 foreground) and drop `-dry-run`:
 
 ```sh
-./bin/agentids-central -config examples/central.local.yaml            # terminal 1
-./bin/agentids-collector -config examples/collector.local.yaml -once  # terminal 2
+./bin/watchman-central -config examples/central.local.yaml            # terminal 1
+./bin/watchman-collector -config examples/collector.local.yaml -once  # terminal 2
 ```
 
 `-dry-run` validates the config **and the rule pack** (the fail-loud checks
@@ -223,7 +221,7 @@ startup would run), prints the inventory, and ships nothing; `-once` does a
 single pass instead of the poll loop. The operator templates with real system
 paths, TLS, provenance, and alerting are `examples/central.yaml` and
 `examples/collector.yaml`. Every binary answers `-version` (and
-`agentids-manifest version`) with its version, git commit, and build date —
+`watchman-manifest version`) with its version, git commit, and build date —
 stamped at link time by `make build`.
 
 **To see a detection with no root, no live auditd, and no Docker daemon, run the
@@ -283,7 +281,7 @@ The public contract, versioned from day one. See
 
 ## Deploying
 
-Agentids has two deployable halves, and each has its own operator guide.
+Watchman has two deployable halves, and each has its own operator guide.
 
 **Central** — the service the whole fleet talks to — is
 [`docs/deploy-central.md`](docs/deploy-central.md): the two stores (baseline vs.
@@ -323,9 +321,9 @@ testdata/           fixtures
 
 ## Security
 
-This is a security tool, so its own posture is part of the product. agentids is
+This is a security tool, so its own posture is part of the product. watchman is
 **alert-only** — it never remediates — and no telemetry leaves a host except to
-the configured central endpoint. Found a vulnerability in agentids itself?
+the configured central endpoint. Found a vulnerability in watchman itself?
 Don't open a public issue; report it privately per [`SECURITY.md`](SECURITY.md),
 which also names the known blind spots and what is by-design rather than a bug.
 
@@ -338,8 +336,8 @@ describes.
 ## Changelog
 
 What's built so far, and what's deliberately not — see
-[`CHANGELOG.md`](CHANGELOG.md). agentids is pre-1.0; changes land on `main`, and
-the event wire format is versioned separately as `agentids.event/v1`.
+[`CHANGELOG.md`](CHANGELOG.md). watchman is pre-1.0; changes land on `main`, and
+the event wire format is versioned separately as `watchman.event/v1`.
 
 ## License
 

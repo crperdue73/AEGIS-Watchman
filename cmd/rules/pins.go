@@ -6,17 +6,17 @@ import (
 	"os"
 	"strings"
 
-	"github.com/CRPerdue/agentids/internal/rules"
+	"github.com/CRPerdue/watchman/internal/rules"
 )
 
 // runPin writes a pin file for a pack set to stdout: the byte-exact record of
 // which packs (and which revisions) a deployment approves. Redirect it into the
 // repo next to the packs:
 //
-//	agentids-rules pin rules/ > rules/packs.pins
+//	watchman-rules pin rules/ > rules/packs.pins
 func runPin(args []string) {
 	if isHelp(args) {
-		fmt.Fprintln(os.Stderr, "usage: agentids-rules pin [pack-file-or-dir ...]   (default: ./rules)")
+		fmt.Fprintln(os.Stderr, "usage: watchman-rules pin [pack-file-or-dir ...]   (default: ./rules)")
 		return
 	}
 	paths := args
@@ -25,11 +25,11 @@ func runPin(args []string) {
 	}
 	pins, err := rules.PinSet(paths)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "agentids-rules: %v\n", err)
+		fmt.Fprintf(os.Stderr, "watchman-rules: %v\n", err)
 		os.Exit(1)
 	}
 	if len(pins) == 0 {
-		fmt.Fprintf(os.Stderr, "agentids-rules: no packs found in %s\n", strings.Join(paths, ", "))
+		fmt.Fprintf(os.Stderr, "watchman-rules: no packs found in %s\n", strings.Join(paths, ", "))
 		os.Exit(1)
 	}
 	os.Stdout.Write(rules.FormatPins(pins))

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 const samplePack = `

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 func testEvents(ids ...string) []schema.Event {

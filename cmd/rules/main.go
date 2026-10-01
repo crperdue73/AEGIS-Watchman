@@ -1,23 +1,23 @@
-// Command agentids-rules is the Layer 3 rule tooling CLI: it parses, validates,
+// Command watchman-rules is the Layer 3 rule tooling CLI: it parses, validates,
 // and inspects rule packs without a running collector, so a rule author can
 // check a pack the way they check code.
 //
 //	# validate the in-repo pack (default path: ./rules)
-//	agentids-rules verify
+//	watchman-rules verify
 //
 //	# validate one file, or several packs/dirs as one set
-//	agentids-rules verify rules/carbonato.yaml
-//	agentids-rules verify rules/ community-rules/
+//	watchman-rules verify rules/carbonato.yaml
+//	watchman-rules verify rules/ community-rules/
 //
 //	# see what a pack set defines
-//	agentids-rules list rules/
+//	watchman-rules list rules/
 package main
 
 import (
 	"fmt"
 	"os"
 
-	"github.com/CRPerdue/agentids/internal/buildinfo"
+	"github.com/CRPerdue/watchman/internal/buildinfo"
 )
 
 func main() {
@@ -35,7 +35,7 @@ func main() {
 	case "sign-pins":
 		runSignPins(os.Args[2:])
 	case "version", "-version", "--version":
-		fmt.Println(buildinfo.String("agentids-rules"))
+		fmt.Println(buildinfo.String("watchman-rules"))
 	case "-h", "--help", "help":
 		usage()
 	default:
@@ -46,7 +46,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprint(os.Stderr, `agentids-rules — Layer 3 rule tooling
+	fmt.Fprint(os.Stderr, `watchman-rules — Layer 3 rule tooling
 
 commands:
   verify [--pins <file> [--pubkey <key>]] [path...]  parse, validate, and check a pack set
@@ -68,17 +68,17 @@ would load.
 
 func verify(args []string) {
 	if isHelp(args) {
-		fmt.Fprintln(os.Stderr, "usage: agentids-rules verify [--pins <file> [--pubkey <key>]] [pack-file-or-dir ...]")
+		fmt.Fprintln(os.Stderr, "usage: watchman-rules verify [--pins <file> [--pubkey <key>]] [pack-file-or-dir ...]")
 		return
 	}
 	o, err := parseVerifyArgs(args)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "agentids-rules: %v\n", err)
+		fmt.Fprintf(os.Stderr, "watchman-rules: %v\n", err)
 		os.Exit(2)
 	}
 	packs, err := loadSet(o.Paths)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "agentids-rules: %v\n", err)
+		fmt.Fprintf(os.Stderr, "watchman-rules: %v\n", err)
 		os.Exit(1)
 	}
 	summarize(os.Stdout, packs)
@@ -92,12 +92,12 @@ func verify(args []string) {
 		// provenance is unproven would be checking against the wrong document.
 		if o.Pub != "" {
 			if err := checkPinSignature(os.Stdout, o.Pins, o.Pub, o.Sig); err != nil {
-				fmt.Fprintf(os.Stderr, "agentids-rules: %v\n", err)
+				fmt.Fprintf(os.Stderr, "watchman-rules: %v\n", err)
 				os.Exit(1)
 			}
 		}
 		if err := checkPins(os.Stdout, o.Pins, resolved); err != nil {
-			fmt.Fprintf(os.Stderr, "agentids-rules: %v\n", err)
+			fmt.Fprintf(os.Stderr, "watchman-rules: %v\n", err)
 			os.Exit(1)
 		}
 	}
@@ -105,12 +105,12 @@ func verify(args []string) {
 
 func list(args []string) {
 	if isHelp(args) {
-		fmt.Fprintln(os.Stderr, "usage: agentids-rules list [pack-file-or-dir ...]")
+		fmt.Fprintln(os.Stderr, "usage: watchman-rules list [pack-file-or-dir ...]")
 		return
 	}
 	packs, err := loadSet(args)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "agentids-rules: %v\n", err)
+		fmt.Fprintf(os.Stderr, "watchman-rules: %v\n", err)
 		os.Exit(1)
 	}
 	listRules(os.Stdout, packs)

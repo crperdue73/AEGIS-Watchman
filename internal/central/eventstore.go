@@ -26,7 +26,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // Record is one detected event as retained for the fleet view. It is a

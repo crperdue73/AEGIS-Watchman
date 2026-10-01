@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // stubSource yields a fixed batch, or an error, for composition tests.

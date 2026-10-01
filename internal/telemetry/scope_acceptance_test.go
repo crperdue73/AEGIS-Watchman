@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/rules"
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/rules"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // TestScopeChangeFiresPackRule closes the P1.3 acceptance criterion end to end

@@ -5,14 +5,14 @@ import (
 	"testing"
 )
 
-// watchKey is the audit rule key the deploy guide uses for every agentids rule.
-const watchKey = "agentids"
+// watchKey is the audit rule key the deploy guide uses for every watchman rule.
+const watchKey = "watchman"
 
 // TestParseFileWriteCreate verifies a create-family openat on a watched path
 // becomes a file.write naming the created file — not the PARENT directory.
 func TestParseFileWriteCreate(t *testing.T) {
 	log := strings.Join([]string{
-		`type=SYSCALL msg=audit(1790593100.100:900): arch=x86_64 syscall=openat success=yes pid=4242 ppid=1 uid=1000 auid=1000 exe="/usr/bin/python3" key="agentids"`,
+		`type=SYSCALL msg=audit(1790593100.100:900): arch=x86_64 syscall=openat success=yes pid=4242 ppid=1 uid=1000 auid=1000 exe="/usr/bin/python3" key="watchman"`,
 		`type=CWD msg=audit(1790593100.100:900): cwd="/home/agent"`,
 		`type=PATH msg=audit(1790593100.100:900): item=0 name="/etc/cron.d" inode=100 nametype=PARENT`,
 		`type=PATH msg=audit(1790593100.100:900): item=1 name="/etc/cron.d/payload" inode=101 nametype=CREATE`,
@@ -51,7 +51,7 @@ func TestParseFileWriteCreate(t *testing.T) {
 // so the only signal it is a write is that it came from a file watch.
 func TestParseFileWriteAppendToWatchedExistingFile(t *testing.T) {
 	log := strings.Join([]string{
-		`type=SYSCALL msg=audit(1790593100.200:901): arch=x86_64 syscall=openat success=yes pid=4242 ppid=1 uid=1000 auid=1000 exe="/usr/bin/bash" key="agentids"`,
+		`type=SYSCALL msg=audit(1790593100.200:901): arch=x86_64 syscall=openat success=yes pid=4242 ppid=1 uid=1000 auid=1000 exe="/usr/bin/bash" key="watchman"`,
 		`type=PATH msg=audit(1790593100.200:901): item=0 name="/home/agent/.bashrc" inode=200 nametype=NORMAL`,
 	}, "\n")
 
@@ -122,7 +122,7 @@ func TestReadOpenIsNotAWrite(t *testing.T) {
 // process.exec — not be mistaken for a file write.
 func TestExecveWithNormalPathStaysProcessExec(t *testing.T) {
 	log := strings.Join([]string{
-		`type=SYSCALL msg=audit(1790593100.500:904): arch=x86_64 syscall=execve success=yes pid=4242 ppid=1 uid=1000 auid=1000 exe="/usr/bin/bash" key="agentids"`,
+		`type=SYSCALL msg=audit(1790593100.500:904): arch=x86_64 syscall=execve success=yes pid=4242 ppid=1 uid=1000 auid=1000 exe="/usr/bin/bash" key="watchman"`,
 		`type=EXECVE msg=audit(1790593100.500:904): argc=3 a0="bash" a1="-c" a2="cat ~/.ssh/id_ed25519"`,
 		`type=PATH msg=audit(1790593100.500:904): item=0 name="/usr/bin/bash" inode=500 nametype=NORMAL`,
 	}, "\n")

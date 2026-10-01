@@ -1,5 +1,5 @@
 {
-  "schema": "agentids.event/v1",
+  "schema": "watchman.event/v1",
   "event": "identity.drift",
   "ts": "2026-09-28T00:30:00Z",
   "host": { "id": "h-9f2c1a", "name": "builder-01" },

@@ -1,4 +1,4 @@
-// Package schema defines the agentids event wire format.
+// Package schema defines the watchman event wire format.
 //
 // This is the PUBLIC CONTRACT of the project. Other people build on it.
 // Treat changes as breaking — see ../../../docs/event-schema.md for the
@@ -8,7 +8,7 @@ package schema
 import "time"
 
 // Version is the current event schema version string.
-const Version = "agentids.event/v1"
+const Version = "watchman.event/v1"
 
 // Event class names.
 const (

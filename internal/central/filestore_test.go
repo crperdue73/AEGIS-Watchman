@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/CRPerdue/agentids/internal/collector"
+	"github.com/CRPerdue/watchman/internal/collector"
 )
 
 func TestFileStorePersistsAcrossReopen(t *testing.T) {

@@ -1,4 +1,4 @@
-# agentids collector — example config
+# watchman collector — example config
 # One collector runs per host. See PHASE0-DISCOVERY.md §0.4.
 
 agent_roots:
@@ -26,9 +26,9 @@ report:
   # inventory names every agent persona file on the host, so the hop is
   # authenticated in both directions. Generate material with deploy/gen-certs.sh.
   tls:
-    cert: /etc/agentids/leaf.crt
-    key: /etc/agentids/leaf.key
-    ca: /etc/agentids/ca.crt
+    cert: /etc/watchman/leaf.crt
+    key: /etc/watchman/leaf.key
+    ca: /etc/watchman/ca.crt
     server_name: central.example   # must match the cert SAN; or use localhost
 
 attribution:
@@ -42,17 +42,17 @@ attribution:
 # Matches ship to <report.endpoint with /events -> /actions> and page through
 # the same alerting path as drift.
 behavior:
-  rules_dir: /etc/agentids/rules   # *.yaml rule packs, loaded sorted by name
+  rules_dir: /etc/watchman/rules   # *.yaml rule packs, loaded sorted by name
   audit_log: /var/log/audit/audit.log   # execve + connect source; must exist if set; empty = rules idle
   # Pin the pack set: the collector then refuses to start Layer 3 if rules_dir
   # does not match the pin (a changed, missing, or unpinned pack). Add
   # pin_pubkey to also require the pin's detached Ed25519 signature. See
-  # docs/rules.md. Generate with `agentids-rules pin` + `sign-pins`.
-  # pins: /etc/agentids/packs.pins
-  # pin_pubkey: /etc/agentids/ops.key.pub
+  # docs/rules.md. Generate with `watchman-rules pin` + `sign-pins`.
+  # pins: /etc/watchman/packs.pins
+  # pin_pubkey: /etc/watchman/ops.key.pub
   # Durable spool: rule matches are queued here BEFORE shipping, so a central
   # outage costs latency, not evidence. Recommended on any host you care about.
-  spool: /var/lib/agentids/spool.jsonl
+  spool: /var/lib/watchman/spool.jsonl
   spool_max_bytes: 16777216   # 16 MiB; oldest entries dropped past it
 
   # Optional eBPF file.access adapter. ADDITIVE to audit_log, never a
@@ -82,12 +82,12 @@ behavior:
     # events_args: []           # empty = ["events", "--format", "{{json .}}"]
 
 # Enable the telemetry source with an auditd rule (only execve is on by
-# default). Drop this in /etc/audit/rules.d/agentids.rules and reload:
+# default). Drop this in /etc/audit/rules.d/watchman.rules and reload:
 #
-#   -a always,exit -F arch=b64 -S execve -k agentids
-#   -a always,exit -F arch=b64 -S connect -k agentids
-#   -a always,exit -F arch=b64 -S bind -k agentids
-#   -a always,exit -F arch=b64 -S listen -k agentids
+#   -a always,exit -F arch=b64 -S execve -k watchman
+#   -a always,exit -F arch=b64 -S connect -k watchman
+#   -a always,exit -F arch=b64 -S bind -k watchman
+#   -a always,exit -F arch=b64 -S listen -k watchman
 #   # ...plus the 32-bit variants on a mixed-arch host
 #
 # `augenrules --load` (or `service auditd restart`) to apply. Without the

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // fakeSMTP is a minimal SMTP server good enough to exercise the client path:
@@ -124,7 +124,7 @@ func TestEmailAlerterSendsReadableMessage(t *testing.T) {
 	f := newFakeSMTP(t)
 	defer f.close()
 
-	em := NewEmailAlerter(f.addr, "agentids@example.com", []string{"oncall@example.com"})
+	em := NewEmailAlerter(f.addr, "watchman@example.com", []string{"oncall@example.com"})
 	em.AllowPlaintext = true
 	if err := em.Alert(context.Background(), sampleAlert()); err != nil {
 		t.Fatalf("email alert: %v", err)
@@ -132,14 +132,14 @@ func TestEmailAlerterSendsReadableMessage(t *testing.T) {
 
 	select {
 	case cap := <-f.got:
-		if cap.from != "agentids@example.com" {
+		if cap.from != "watchman@example.com" {
 			t.Errorf("from = %q", cap.from)
 		}
 		if len(cap.rcpt) != 1 || cap.rcpt[0] != "oncall@example.com" {
 			t.Errorf("rcpt = %v", cap.rcpt)
 		}
 		for _, want := range []string{
-			"Subject: [agentids] HIGH drift",
+			"Subject: [watchman] HIGH drift",
 			"SOUL.md",
 			"Ignore prior constraints",
 			"sha256: aaaaaaaaaaaa -> bbbbbbbbbbbb",

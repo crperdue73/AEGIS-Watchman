@@ -13,12 +13,12 @@ Depth lives elsewhere, and this page links to it rather than repeating it.
 ## 1. Build
 
 ```sh
-git clone <repo> && cd agentids
-make            # -> ./bin/agentids-{collector,central,manifest,rules}
+git clone <repo> && cd watchman
+make            # -> ./bin/watchman-{collector,central,manifest,rules}
 ```
 
 Needs Go (one build dependency, no CGO). `make build` stamps version, commit,
-and date into the binaries, so `./bin/agentids-central -version` is real. To add
+and date into the binaries, so `./bin/watchman-central -version` is real. To add
 the optional pure-Go SQLite record backend: `go build -tags sqlite ./cmd/...`.
 
 ## 2. See a detection in one command
@@ -44,7 +44,7 @@ one screen.
 pack and ships nothing, so run it on its own first — from the repository root:
 
 ```sh
-./bin/agentids-collector -config examples/collector.local.yaml -once -dry-run
+./bin/watchman-collector -config examples/collector.local.yaml -once -dry-run
 ```
 
 To see an actual submission, start the service first. It runs in the
@@ -53,14 +53,14 @@ To see an actual submission, start the service first. It runs in the
 
 ```sh
 # terminal 1 — leave it running; Ctrl-C to stop
-./bin/agentids-central -config examples/central.local.yaml
+./bin/watchman-central -config examples/central.local.yaml
 
 # terminal 2 — drop -dry-run to actually submit to the local central
-./bin/agentids-collector -config examples/collector.local.yaml -once
+./bin/watchman-collector -config examples/collector.local.yaml -once
 ```
 
 The `.local` configs use only paths that exist in a fresh clone (the shipped
-rule pack, the demo persona) and none of the `/etc/agentids/...` system paths,
+rule pack, the demo persona) and none of the `/etc/watchman/...` system paths,
 so they work with nothing installed. `-dry-run` validates the config **and the
 rule pack**, prints the inventory, and ships nothing. `-once` does a single pass
 instead of the poll loop. The operator templates with real system paths are
@@ -74,11 +74,11 @@ Layer 3 matches **actions**, and the actions come from auditd — which does
 expect any behavioral rule to trigger:
 
 ```sh
-# /etc/audit/rules.d/agentids.rules
--a always,exit -F arch=b64 -S execve   -k agentids
--a always,exit -F arch=b64 -S connect  -k agentids
--a always,exit -F arch=b64 -S bind     -k agentids
--a always,exit -F arch=b64 -S listen   -k agentids
+# /etc/audit/rules.d/watchman.rules
+-a always,exit -F arch=b64 -S execve   -k watchman
+-a always,exit -F arch=b64 -S connect  -k watchman
+-a always,exit -F arch=b64 -S bind     -k watchman
+-a always,exit -F arch=b64 -S listen   -k watchman
 
 sudo augenrules --load
 ```
@@ -87,7 +87,7 @@ Then point the collector at the log:
 
 ```yaml
 behavior:
-  rules_dir: /etc/agentids/rules
+  rules_dir: /etc/watchman/rules
   audit_log: /var/log/audit/audit.log
 ```
 

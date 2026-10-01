@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/mtls"
-	"github.com/CRPerdue/agentids/internal/telemetry"
+	"github.com/CRPerdue/watchman/internal/mtls"
+	"github.com/CRPerdue/watchman/internal/telemetry"
 	"gopkg.in/yaml.v3"
 )
 

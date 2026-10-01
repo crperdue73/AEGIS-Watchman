@@ -53,7 +53,7 @@ between "grep the alert log" and "which hosts are alerting, and with what".
   `inspect`. That is the whole point of the `Source` seam: the collector does not
   know the difference.
 - **The real binaries.** Nothing here re-implements the pipeline; `run.sh`
-  starts the actual `agentids-central` and `agentids-collector`.
+  starts the actual `watchman-central` and `watchman-collector`.
 
 ## Files
 

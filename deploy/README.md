@@ -1,4 +1,4 @@
-# deploy — running agentids on a real host
+# deploy — running watchman on a real host
 
 Everything in this directory is for the operator who has tried the
 [quickstart](../docs/quickstart.md) and now wants the tool *running*, not just
@@ -6,8 +6,8 @@ Everything in this directory is for the operator who has tried the
 
 | Artifact | What it is |
 |---|---|
-| `agentids-collector.service` | systemd unit template for the per-host collector (Layer 1/2/3). |
-| `agentids-central.service` | systemd unit template for the central service (ingest, alerting, fleet view). |
+| `watchman-collector.service` | systemd unit template for the per-host collector (Layer 1/2/3). |
+| `watchman-central.service` | systemd unit template for the central service (ingest, alerting, fleet view). |
 | `gen-certs.sh` | Generates the mutual-TLS material for the collector → central hop. |
 | `docker/Dockerfile` | Builds all four binaries **and** the shipped rule pack into one distroless image, instead of installing units. |
 
@@ -20,7 +20,7 @@ even without auditd still runs the unit cleanly (see
 ## Install (systemd)
 
 The configs in `examples/` and the units in this directory reference a handful of
-host paths under `/etc/agentids` and `/var/lib/agentids`. The steps below create
+host paths under `/etc/watchman` and `/var/lib/watchman`. The steps below create
 every one of them, in an order that starts. (Central and the collector both
 **fail loudly** — exit 1, not a silent degrade — if a configured path is missing:
 that is deliberate, because a service that starts with its telemetry or its TLS
@@ -29,73 +29,73 @@ that the install has to be complete, which is what this block is for.)
 
 ```sh
 # 1. A dedicated, unprivileged service account — no login, no home.
-sudo useradd --system --no-create-home --shell /usr/sbin/nologin agentids
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin watchman
 
 # 2. Give it the read access it needs (and nothing more):
 #    - the audit log (Layer 3 telemetry). Group name varies by distro:
 #        Debian/Ubuntu: adm        RHEL/Fedora: systemd-journal
-sudo usermod -aG adm agentids
+sudo usermod -aG adm watchman
 
 # 3. Binaries and directories.
-sudo install -m 0755 bin/agentids-collector /usr/local/bin/
-sudo install -m 0755 bin/agentids-central   /usr/local/bin/
-# The operator CLIs — needed only if you use Layer 2 (agentids-manifest) or
-# pin rule packs (agentids-rules). Install them from the same build so the
+sudo install -m 0755 bin/watchman-collector /usr/local/bin/
+sudo install -m 0755 bin/watchman-central   /usr/local/bin/
+# The operator CLIs — needed only if you use Layer 2 (watchman-manifest) or
+# pin rule packs (watchman-rules). Install them from the same build so the
 # versions match the running service.
-sudo install -m 0755 bin/agentids-manifest  /usr/local/bin/
-sudo install -m 0755 bin/agentids-rules     /usr/local/bin/
-sudo install -d -m 0750 -o agentids -g agentids /etc/agentids
-sudo install -d -m 0750 -o agentids -g agentids /var/lib/agentids
+sudo install -m 0755 bin/watchman-manifest  /usr/local/bin/
+sudo install -m 0755 bin/watchman-rules     /usr/local/bin/
+sudo install -d -m 0750 -o watchman -g watchman /etc/watchman
+sudo install -d -m 0750 -o watchman -g watchman /var/lib/watchman
 
 # 4. Configs (start from the templates), then edit the paths.
-sudo install -m 0640 -o agentids -g agentids examples/collector.yaml /etc/agentids/collector.yaml
-sudo install -m 0640 -o agentids -g agentids examples/central.yaml   /etc/agentids/central.yaml
+sudo install -m 0640 -o watchman -g watchman examples/collector.yaml /etc/watchman/collector.yaml
+sudo install -m 0640 -o watchman -g watchman examples/central.yaml   /etc/watchman/central.yaml
 
 # 5. The rule pack the collector config points at (behavior.rules_dir). The
 #    collector REFUSES to start if that directory is missing or empty — a rule
 #    engine with no rules is a silent blind spot, so it fails loud. Without this
-#    step the collector unit exits with 'stat /etc/agentids/rules: no such file'.
-sudo install -d -m 0750 -o agentids -g agentids /etc/agentids/rules
-sudo install -m 0644 rules/*.yaml rules/packs.pins /etc/agentids/rules/
+#    step the collector unit exits with 'stat /etc/watchman/rules: no such file'.
+sudo install -d -m 0750 -o watchman -g watchman /etc/watchman/rules
+sudo install -m 0644 rules/*.yaml rules/packs.pins /etc/watchman/rules/
 
 # 6. auditd telemetry. The collector config sets behavior.audit_log, and a
 #    named-but-absent log is fatal (same blind-spot rule). Install auditd, drop
-#    the four -a ... -k agentids lines from docs/quickstart.md §4 into
-#    /etc/audit/rules.d/agentids.rules, and load them:
+#    the four -a ... -k watchman lines from docs/quickstart.md §4 into
+#    /etc/audit/rules.d/watchman.rules, and load them:
 sudo augenrules --load
 
 # 7. TLS material — generate it BEFORE starting central. The shipped central.yaml
 #    sets tls:, and a missing cert is a deliberate *fatal* error (a fleet must
-#    never silently fall back to plaintext). Write it into /etc/agentids so the
+#    never silently fall back to plaintext). Write it into /etc/watchman so the
 #    config's default paths line up, and hand it to the service account; the
 #    permission trap is spelled out under "## TLS" below.
 #    Use the SAME name here that collector.yaml sets as report.tls.server_name,
 #    or the collector's handshake fails closed.
-sudo deploy/gen-certs.sh /etc/agentids central.example
-sudo chown agentids:agentids /etc/agentids/ca.crt /etc/agentids/leaf.crt /etc/agentids/leaf.key
-sudo chmod 0640 /etc/agentids/leaf.key        # readable by agentids, by no one else
+sudo deploy/gen-certs.sh /etc/watchman central.example
+sudo chown watchman:watchman /etc/watchman/ca.crt /etc/watchman/leaf.crt /etc/watchman/leaf.key
+sudo chmod 0640 /etc/watchman/leaf.key        # readable by watchman, by no one else
 
-# 8. uid_map — the shipped central.yaml sets uid_map: /etc/agentids/passwd, and a
+# 8. uid_map — the shipped central.yaml sets uid_map: /etc/watchman/passwd, and a
 #    configured-but-absent file is a FATAL config error (not a silent numeric
 #    fallback). Copy your fleet's base-image /etc/passwd, or delete the uid_map
 #    line from central.yaml if you do not want uids named in alerts.
-sudo install -m 0644 /etc/passwd /etc/agentids/passwd
+sudo install -m 0644 /etc/passwd /etc/watchman/passwd
 
 # 9. The units.
-sudo install -m 0644 deploy/agentids-central.service   /etc/systemd/system/
-sudo install -m 0644 deploy/agentids-collector.service /etc/systemd/system/
+sudo install -m 0644 deploy/watchman-central.service   /etc/systemd/system/
+sudo install -m 0644 deploy/watchman-collector.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now agentids-central
-sudo systemctl enable --now agentids-collector
+sudo systemctl enable --now watchman-central
+sudo systemctl enable --now watchman-collector
 ```
 
 The collector hashes the agent workspaces it is configured to watch, so the
-`agentids` user must be able to **read** each `agent_roots` path. The units set
+`watchman` user must be able to **read** each `agent_roots` path. The units set
 `ProtectHome=read-only` for the collector for exactly this reason, and
 `ProtectHome=yes` for central (it never needs the workspaces).
 
 > **This path has been run, not just analysed.** Both units were installed and
-> started as the unprivileged `agentids` user with mutual TLS on: central came up
+> started as the unprivileged `watchman` user with mutual TLS on: central came up
 > serving mTLS on `:8080`, the collector enrolled an agent root over the
 > authenticated hop, and a one-line edit to a persona file produced
 > `DRIFT … identity.drift` on the collector and a matching `ALERT: 1 drift …` on
@@ -115,9 +115,9 @@ blindly. Two knobs change if you use the optional sources:
 
 - **eBPF `file.access`** needs `CAP_BPF` + `CAP_PERFMON` (never `CAP_SYS_ADMIN`)
   and a binary built with `-tags ebpf`. Uncomment the `AmbientCapabilities=` /
-  `CapabilityBoundingSet=` block in `agentids-collector.service`.
+  `CapabilityBoundingSet=` block in `watchman-collector.service`.
 - **The Docker adapter** talks to `/var/run/docker.sock`. Keep `AF_UNIX` in
-  `RestrictAddressFamilies` (it is there by default) and make sure the `agentids`
+  `RestrictAddressFamilies` (it is there by default) and make sure the `watchman`
   user is in the `docker` group — or point `behavior.docker` at a socket it can
   read.
 
@@ -131,7 +131,7 @@ The collector → central hop carries the agent inventory (every persona/skill
 file on the host), so it should be authenticated in both directions:
 
 ```sh
-./deploy/gen-certs.sh /etc/agentids/tls central.example.com
+./deploy/gen-certs.sh /etc/watchman/tls central.example.com
 ```
 
 Point central's `tls: {cert, key, ca}` and the collector's
@@ -139,20 +139,20 @@ Point central's `tls: {cert, key, ca}` and the collector's
 unset both ends speak plain HTTP — fine for a loopback test, not for a fleet.
 
 > **The service must be able to read the keys.** Both units run as
-> `User=agentids`, but `gen-certs.sh` writes the private keys mode `0600` owned
+> `User=watchman`, but `gen-certs.sh` writes the private keys mode `0600` owned
 > by whoever ran it. Generate them as root (you usually are, to write under
-> `/etc/agentids`) and central fails at startup — a **fatal**, not a
+> `/etc/watchman`) and central fails at startup — a **fatal**, not a
 > degradation: `tls: mtls: load key pair: open .../leaf.key: permission denied`.
 > Hand the material to the service account after generating:
 >
 > ```sh
-> sudo chown -R agentids:agentids /etc/agentids/tls
-> sudo chmod 0640 /etc/agentids/tls/*.key   # group-readable; never world-readable
+> sudo chown -R watchman:watchman /etc/watchman/tls
+> sudo chmod 0640 /etc/watchman/tls/*.key   # group-readable; never world-readable
 > ```
 >
 > Or grant it to the group instead of chowning:
-> `sudo chgrp -R agentids /etc/agentids/tls && sudo chmod 0640 /etc/agentids/tls/*.key`.
-> Either way, the key must be readable by `agentids` and by nobody else. (The
+> `sudo chgrp -R watchman /etc/watchman/tls && sudo chmod 0640 /etc/watchman/tls/*.key`.
+> Either way, the key must be readable by `watchman` and by nobody else. (The
 > same constraint applies inside the container, where the reader is uid `65532`
 > — see "Mutual TLS in containers" below.)
 
@@ -164,41 +164,41 @@ systemd units are the lighter path on a plain Linux host. Build from the repo
 root:
 
 ```sh
-docker build -f deploy/docker/Dockerfile -t agentids .
+docker build -f deploy/docker/Dockerfile -t watchman .
 ```
 
 The image is unprivileged and has no shell — that is the point. Configs are not
 baked in (they are host-specific), so mount them; the rule pack **is** baked in
-at `/etc/agentids/rules`, and `/var/lib/agentids` is a volume for the durable
+at `/etc/watchman/rules`, and `/var/lib/watchman` is a volume for the durable
 stores:
 
-> **Mount configs at `/config`, not `/etc/agentids`.** A bind mount at
-> `/etc/agentids` *shadows* the rule pack the image bakes there, and Layer 3 then
-> fails to load — `behavior.rules_dir "/etc/agentids/rules": no such file or
+> **Mount configs at `/config`, not `/etc/watchman`.** A bind mount at
+> `/etc/watchman` *shadows* the rule pack the image bakes there, and Layer 3 then
+> fails to load — `behavior.rules_dir "/etc/watchman/rules": no such file or
 > directory`. Move the mount one level over and the baked pack survives (or point
 > `behavior.rules_dir` at wherever you mounted a pack).
 
 ```sh
 # collector — mount what it reads: config, audit log, agent workspaces
 docker run --rm \
-  -v /etc/agentids:/config:ro \
+  -v /etc/watchman:/config:ro \
   -v /var/log/audit/audit.log:/var/log/audit/audit.log:ro \
   -v /home:/home:ro \
-  agentids -config /config/collector.yaml
+  watchman -config /config/collector.yaml
 
 # central — override the entrypoint, persist the stores
 #   (no -p 8080:8080 needed if collectors share a Docker network with it)
 docker run --rm -p 8080:8080 \
-  -v /etc/agentids:/config:ro \
-  -v agentids-state:/var/lib/agentids \
-  --entrypoint /agentids-central \
-  agentids -config /config/central.yaml
+  -v /etc/watchman:/config:ro \
+  -v watchman-state:/var/lib/watchman \
+  --entrypoint /watchman-central \
+  watchman -config /config/central.yaml
 ```
 
 Three container-specific caveats: there is no `docker` CLI inside the image, so
 the Docker adapter still fires but with **identity only** (no `inspect`
 enrichment); the eBPF adapter needs `--cap-add=BPF --cap-add=PERFMON` and an image
-built with `-tags ebpf`; and a bind mount at `/etc/agentids` shadows the baked
+built with `-tags ebpf`; and a bind mount at `/etc/watchman` shadows the baked
 pack (above). The binaries are compiled `CGO_ENABLED=0` — required for the
 distroless (no-libc) runtime, and true to the project's no-CGO promise.
 
@@ -211,7 +211,7 @@ central container's network alias):
 
 ```sh
 ./deploy/gen-certs.sh ./tls central        # SAN: DNS:central, DNS:localhost, 127.0.0.1
-docker network create agentids-net
+docker network create watchman-net
 ```
 
 Point central's `tls: {cert, key, ca}` and each collector's
@@ -221,16 +221,16 @@ network so the collector can resolve `central`:
 
 ```sh
 # central — serves mTLS on :8080
-docker run -d --name central --network agentids-net \
-  -v ./tls:/tls:ro -v agentids-state:/var/lib/agentids \
-  --entrypoint /agentids-central \
-  agentids -config /config/central.yaml
+docker run -d --name central --network watchman-net \
+  -v ./tls:/tls:ro -v watchman-state:/var/lib/watchman \
+  --entrypoint /watchman-central \
+  watchman -config /config/central.yaml
 
 # collector — reaches central by name over the network
-docker run --rm --network agentids-net \
+docker run --rm --network watchman-net \
   -v ./tls:/tls:ro \
   -v /home:/home:ro \
-  agentids -config /config/collector.yaml -once
+  watchman -config /config/collector.yaml -once
 ```
 
 Two things to get right, both verified end to end:

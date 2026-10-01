@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // EgressConnect is the syscall this adapter understands.
@@ -36,7 +36,7 @@ const (
 // plus a SOCKADDR line carrying the peer address hex-encoded in saddr=.
 // Enable it with:
 //
-//	-a always,exit -F arch=b64 -S connect -k agentids
+//	-a always,exit -F arch=b64 -S connect -k watchman
 func ParseAuditConnectLog(r io.Reader) ([]*AuditRecord, error) {
 	data, err := io.ReadAll(r)
 	if err != nil {

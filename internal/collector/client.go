@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CRPerdue/agentids/internal/mtls"
-	"github.com/CRPerdue/agentids/internal/schema"
+	"github.com/CRPerdue/watchman/internal/mtls"
+	"github.com/CRPerdue/watchman/internal/schema"
 )
 
 // InventoryRequest is the collector -> central submission body. It matches the
