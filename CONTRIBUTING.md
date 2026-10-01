@@ -27,9 +27,9 @@ like it's going public, because it is.
   and PR: build, `vet` and `test` in **both** build modes (default and
   `-tags sqlite`), `make lint`, the end-to-end `demo/run.sh`, the doc's own
   commands via `make quickstart-check`, the container image via
-  `make container-check`, the publish scan via `make publish-scan`, and a
-  bounded `make fuzz`. Run the same before you push — it is the same thing, just
-  slower.
+  `make container-check`, the publish scan via `make publish-scan`, a bounded
+  `make fuzz`, and the dependency-license check via `make deps-report`. Run the
+  same before you push — it is the same thing, just slower.
 - Publish scan: `make publish-scan` (`scripts/publish-scan.sh`) fails if any
   tracked file carries a credential, a real operator home path, or private
   infrastructure. The repo is public and was built in private; this is the
@@ -41,6 +41,10 @@ like it's going public, because it is.
   service against the detector. A crash writes its reproducer to `testdata/fuzz/`,
   which `make test` then re-checks. Add a fuzz target for any new parser or
   matcher for untrusted input.
+- Dependencies: `make deps-report` (`scripts/deps-report.sh`) lists the modules
+  compiled into the binaries, with their licenses read from the module cache, and
+  fails on a copyleft or unrecognised license — a release blocker for an
+  Apache-2.0 project, and one that only ever arrives via a transitive upgrade.
 - Container: `make container-check` builds `deploy/docker/Dockerfile` and
   asserts the claims the container docs make about the resulting image (nonroot
   uid 65532, the baked rule pack loads, the `/etc/agentids` shadow caveat,

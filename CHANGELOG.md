@@ -193,6 +193,14 @@ opt-in design.
   return on hostile input, never panic. The seed corpus runs under an ordinary
   `go test`; a live fuzz found no crash across ~5M executions, and any future
   crash writes a reproducer to `testdata/fuzz/` that `make test` re-checks.
+- **`scripts/deps-report.sh`** (`make deps-report`, and a CI job) — lists every
+  module compiled into the binaries (both build modes), with its version and
+  license read from the module cache, and fails on a copyleft or unrecognised
+  license. A security tool shipping under Apache-2.0 must not link a copyleft
+  dependency, and that risk only ever arrives through a transitive upgrade. The
+  compiled set is small — nine modules, all MIT/BSD/Apache — and the check reads
+  only what is built, not the wider module graph (which includes test-only
+  requirements that are never distributed).
 - **Deployment artifacts for a real host** (`deploy/`): systemd unit templates
   for the collector and central — unprivileged, hardened, with a private state
   directory for the spool and cursor — plus a `deploy/README.md` install

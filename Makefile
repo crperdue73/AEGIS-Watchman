@@ -15,7 +15,7 @@ DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)
 PKG     := github.com/CRPerdue/agentids/internal/buildinfo
 LDFLAGS := -X $(PKG).Version=$(VERSION) -X $(PKG).Commit=$(COMMIT) -X $(PKG).Date=$(DATE)
 
-.PHONY: all build build-collector build-central build-manifest build-rules test lint check-links clean fmt vet version pin ebpf-preflight quickstart-check container-check publish-scan fuzz
+.PHONY: all build build-collector build-central build-manifest build-rules test lint check-links clean fmt vet version pin ebpf-preflight quickstart-check container-check publish-scan fuzz deps-report
 
 all: build
 
@@ -73,6 +73,12 @@ publish-scan:
 # never panic the detector. See scripts/fuzz.sh.
 fuzz:
 	./scripts/fuzz.sh
+
+# List the modules compiled into the binaries, with their licenses, and fail on
+# a copyleft or unrecognised one (a release blocker for an Apache-2.0 project).
+# See scripts/deps-report.sh.
+deps-report:
+	./scripts/deps-report.sh
 
 # Re-pin the shipped rule packs. Run after editing rules/ and commit the result;
 # CI fails if rules/packs.pins drifts from the packs.

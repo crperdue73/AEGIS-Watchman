@@ -140,3 +140,22 @@ jobs:
         run: make fuzz
         env:
           FUZZTIME: 15s
+
+  deps:
+    name: dependencies (licenses permissive)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      # A security tool shipping under Apache-2.0 must not link a copyleft
+      # dependency, and the risk only ever arrives through a transitive
+      # upgrade. Read each compiled module's license from the module cache and
+      # fail on copyleft or unknown. `go mod download` populates the cache the
+      # check reads.
+      - name: download modules
+        run: go mod download
+      - name: make deps-report
+        run: make deps-report

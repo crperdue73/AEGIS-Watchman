@@ -3786,3 +3786,42 @@ its own (8/8). Committed.
   (Postgres, on demand), plus the publish decisions in
   `docs/PUBLISH-READINESS.md` (name, internal docs, copyright). If none move,
   say so rather than manufacture work.
+
+---
+
+## Heartbeat 84 — the dependency inventory a supply-chain tool should ship
+
+Another publish-readiness front nobody had checked: **what this thing is actually
+built from, and under what licenses.** It matters more here than usual — this is
+a supply-chain security tool, and shipping it without an auditable dependency
+inventory would be a poor advertisement for its own thesis. A copyleft or
+unlicensed dependency is a release blocker for an Apache-2.0 project, and that
+risk only ever arrives via a transitive upgrade.
+
+**Shipped.** `scripts/deps-report.sh` (`make deps-report`, CI job `deps`) lists
+every module compiled into the binaries, with version and license read from the
+module cache, and fails on a copyleft (GPL/AGPL/LGPL/SSPL/BUSL/EUPL) or
+unrecognised license.
+
+**Two corrections worth recording.** My first version read `go list -m all` — the
+module *graph* — and reported eleven "NO LICENSE FILE FOUND". Those modules
+(`x/tools`, `pprof`, `modernc.org/cc`, `token`, …) are test/build-only
+requirements of dependencies; they are never compiled or distributed, and are not
+even downloaded, so their sources are not in the cache to read. Checking the
+graph was checking the wrong set. Fixed to enumerate what actually compiles —
+`go list -deps` over `./cmd/...` in **both** build modes (default and
+`-tags sqlite`). That set is **nine modules, all permissive** (MIT/BSD-3-Clause/
+Apache-2.0). The second correction: the whole thing exists because "publish-ready"
+keeps surfacing real, checkable obligations, which is the argument for having
+looked rather than assuming.
+
+**Verified.** Full `ci.yml` matrix re-run after the change: **13/13 green** —
+including the new fuzz and deps jobs. `docs/PUBLISH-READINESS.md` gained the row.
+Committed.
+
+- **Next step (heartbeat 85):** publish-readiness now has three guards (scan,
+  fuzz, deps) and no open *engineering* item left that is not a decision. The
+  open fronts remain exactly: **P2.0** (eBPF, blocked on the `clang`/`libbpf-dev`
+  call), **P2.1c-4** (Postgres, on demand), and the three publish decisions in
+  `docs/PUBLISH-READINESS.md` (name, internal docs, copyright). If none move, the
+  honest answer is to say so — do not open a seventh sweep.

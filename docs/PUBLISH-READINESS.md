@@ -38,6 +38,7 @@ that are invisible in review and permanent once pushed.
 | No credentials in the tracked tree | ✅ scan clean |
 | No operator home path in the tracked tree | ✅ scan clean |
 | No private infrastructure in the tracked tree | ✅ scan clean |
+| Dependency licenses permissive (no copyleft/unknown) | ✅ `make deps-report` |
 | Module path / project name | ⏳ **placeholder** — see below |
 | Internal process docs in the public tree | ⏳ **decision** — see below |
 | Copyright holder / `NOTICE` | ⏳ **decision** — see below |
