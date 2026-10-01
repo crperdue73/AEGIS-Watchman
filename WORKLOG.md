@@ -3981,3 +3981,55 @@ covered), which is the same number from the other side. Committed.
   the `file.access` half of this), **P2.1c-4** (Postgres), and the three publish
   decisions. If none move, I should look for the next *class* of false claim a
   test could hold, not the next instance.
+
+---
+
+## Heartbeat 88 — the rule table is now a contract, not prose
+
+Heartbeat 87's note said the better end state is a *guard*, not another diff —
+find the next class a test can hold rather than the next instance. There was one
+class left unheld, and it is the public-facing one.
+
+**The gap.** `docs/rules.md` carries the rule table an operator reads to decide
+whether this tool covers them: one row per rule, its id and severity. That table
+is *the* claim the product makes in public, and it was hand-maintained with
+nothing checking it against the pack it describes. A rule shipped but not
+tabulated is invisible coverage; a row with no rule behind it, or a severity that
+no longer matches, is a lie about how loudly an alert should page — and nothing
+failed the build when they diverged. (Two heartbeats in a row now, the defect has
+been *a doc standing next to code with no test between them*.)
+
+**Shipped.** `internal/rules/docs_agreement_test.go`, two guards over the shipped
+pack:
+
+1. **The table.** Extracts the pipe-table rows (`| `id` … | severity |`) and
+   checks them against the pack **both ways** — a rule in the pack with no row,
+   a row with no rule, a rule listed twice, and a severity that disagrees are
+   each a failure. It is structural, not prose, so a reflow is fine and a new
+   rule must be added in both places.
+2. **The summary.** Checks the prose an operator also reads — the stated pack
+   `version`, the `N rules` count, and the coverage sentence (*"N of the M rules
+   can fire, and only K of the J critical rules"*) — against the pack and
+   against the `InertRules` computation from hb87, not against a hand-typed
+   number. That last one is deliberately pointed at hb86's own wound: the number
+   that was wrong is now the number a test recomputes. A missing match is a loud
+   failure, so a rewording can't make the guard silently blind.
+
+Shared the stock-source model between the two coverage guards (`stockAvailable()`
+in `coverage_test.go`) so the prose and the code use one definition of "stock
+build", not two that can disagree.
+
+**Verified.** Negative-tested both guards — a bogus table row, a wrong severity,
+and a one-off change to the coverage number each failed with a precise message,
+then passed again on restore. Full `go test ./...` green (+`-tags sqlite`);
+`gofmt`/`vet` clean; `check-links`, `quickstart-check`, `publish-scan` PASS.
+Committed.
+
+- **Next step (heartbeat 89):** the doc/code seam now has guards on both sides of
+  the rule pack: what *fires* (coverage) and what is *said* (table + summary).
+  The remaining doc/code seams a stranger relies on are the operator docs
+  (`deploy-collector.md`, `deploy-central.md`, `collector-config.md`) — and
+  `collector-config.md` claims it lists "every `collector.yaml` key, with its
+  default", which is exactly the kind of complete-set claim that rots. That is
+  the next class worth holding, if this line of work keeps paying. Gated fronts
+  unchanged: **P2.0**, **P2.1c-4**, and the three publish decisions.

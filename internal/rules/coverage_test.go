@@ -52,13 +52,7 @@ func TestShippedPackCoverageOnStockBuild(t *testing.T) {
 	}
 	packs := []*Pack{p}
 
-	// The classes a stock collector emits: auditd (when audit_log is set) plus
-	// the default-on scope.change shim. eBPF (file.access) and docker
-	// (container.start) are both opt-in and off by default.
-	stock := map[string]bool{
-		"process.exec": true, "net.egress": true, "net.listen": true,
-		"file.write": true, "scope.change": true,
-	}
+	stock := stockAvailable()
 	withDocker := map[string]bool{"container.start": true}
 	withEBPF := map[string]bool{"file.access": true}
 
@@ -108,6 +102,17 @@ func TestShippedPackCoverageOnStockBuild(t *testing.T) {
 	}
 	if crit != 5 {
 		t.Errorf("stock-build inert critical = %d, want 5", crit)
+	}
+}
+
+// stockAvailable is the set of action classes a stock collector emits: auditd
+// (when audit_log is set) plus the default-on scope.change shim. eBPF
+// (file.access) and docker (container.start) are both opt-in and off by default.
+// Shared with the docs-agreement guard so the prose and the code use one model.
+func stockAvailable() map[string]bool {
+	return map[string]bool{
+		"process.exec": true, "net.egress": true, "net.listen": true,
+		"file.write": true, "scope.change": true,
 	}
 }
 
