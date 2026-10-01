@@ -3460,3 +3460,64 @@ runner), which is why it stays a manual, on-host check.
   way heartbeat 72 ran it, since the *docs* were only re-read then. Do not add a
   third guard script for its own sake; the class that mattered — "is what ships
   runnable?" — now has a guard for both kernel-free paths.
+
+---
+
+## Heartbeat 78 — the install walkthrough started two services that cannot start
+
+Kept the "run it against its claims" method and pointed it at the last doc block
+that had only ever been read, never diffed: `deploy/README.md`'s systemd install.
+Heartbeat 72 ran the units, but it supplied the prerequisites by hand; the
+question this heartbeat asked is the one a reader actually faces — **does the
+block, exactly as written, produce running services?**
+
+**The find.** No. The block copies `examples/central.yaml` and
+`examples/collector.yaml` into `/etc/agentids` and `systemctl enable --now`s both
+units, but creates none of the paths those configs point at. Reproduced on this
+host, at the real paths:
+
+- central → `tls: mtls: load key pair: open /etc/agentids/leaf.crt: no such file
+  or directory`, exit 1. (And before TLS, with `uid_map` configured but absent:
+  exits 1 at startup, so even ordering TLS later would not have been enough.)
+- collector → `config: behavior.rules_dir "/etc/agentids/rules": stat: no such
+  file or directory`, exit 1.
+
+So a stranger following the walkthrough gets two red units. The prerequisites —
+TLS material, a `uid_map` file, the rule pack at `/etc/agentids/rules`, and a
+loaded auditd rule set so `audit_log` exists — were implied by the configs and
+never stated. The "This path has been run" note is honest about the *run*, but the
+run did steps the block does not list.
+
+**The fix.** The install block gained the four missing steps, in an order that
+starts: install the rule pack (`rules/*.yaml` + `packs.pins`), load the auditd
+rules, `deploy/gen-certs.sh /etc/agentids central.example` with the
+service-account chown/chmod, and install a `uid_map` file — each with a sentence
+on *why it is fatal, not optional* (central and collector both refuse to start on
+a missing configured path, deliberately, so a service never comes up blind). Also
+pinned the cert hostname to the config's `report.tls.server_name` so the collector
+handshake does not fail closed.
+
+**Verified at the real paths, then torn down.** With the four steps applied:
+central reached `listening on :8080` + `mutual TLS required on the ingest
+listener` and stayed up; the collector validated `-dry-run: rules ok — 20 rule(s)
+from 1 pack(s)`, exit 0. Without them, both exit 1 as above. `/etc/agentids`,
+`/var/lib/agentids`, and `/var/log/audit` (which did not exist before) were
+removed; `:8080` is free; the tree is clean apart from the commit.
+
+**A process note I owe myself.** The collector dry-run enrolls `agent_roots`,
+which for the shipped example is `/home/*/.openclaw/workspace-*` — the family's
+real workspaces — and dry-run prints each file's content. I let that go to my
+terminal instead of redirecting it, and a pile of private skill text came out.
+Nothing left the host and nothing was committed, but it should not have printed
+at all. Rule for every future run that touches real `agent_roots`: redirect to a
+file and grep for the one line under test; never `cat` it. Same principle as
+"never exfiltrate" — the terminal is not a safe place for it either.
+
+- **Next step (heartbeat 79):** the un-diffed doc blocks are nearly exhausted
+  (quickstart and demo are now CI-guarded; deploy walkthrough just fixed and run).
+  Two remain: (1) the `deploy/docker/Dockerfile` path — the container section of
+  `deploy/README.md` makes specific claims (baked rule pack at `/etc/agentids/rules`,
+  distroless uid `65532`, `--cap-add` for eBPF) that a container build would
+  settle; check whether Docker is available here, and if not, say so rather than
+  analysing it. (2) If Dad answers the P2.0 toolchain question, take it — that
+  still outranks hardening. Do not start a fourth doc sweep without a new method.

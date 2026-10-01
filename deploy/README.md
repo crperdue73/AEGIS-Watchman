@@ -19,6 +19,14 @@ even without auditd still runs the unit cleanly (see
 
 ## Install (systemd)
 
+The configs in `examples/` and the units in this directory reference a handful of
+host paths under `/etc/agentids` and `/var/lib/agentids`. The steps below create
+every one of them, in an order that starts. (Central and the collector both
+**fail loudly** — exit 1, not a silent degrade — if a configured path is missing:
+that is deliberate, because a service that starts with its telemetry or its TLS
+quietly absent is worse than one that refuses to start. The cost of that choice is
+that the install has to be complete, which is what this block is for.)
+
 ```sh
 # 1. A dedicated, unprivileged service account — no login, no home.
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin agentids
@@ -43,7 +51,37 @@ sudo install -d -m 0750 -o agentids -g agentids /var/lib/agentids
 sudo install -m 0640 -o agentids -g agentids examples/collector.yaml /etc/agentids/collector.yaml
 sudo install -m 0640 -o agentids -g agentids examples/central.yaml   /etc/agentids/central.yaml
 
-# 5. The units.
+# 5. The rule pack the collector config points at (behavior.rules_dir). The
+#    collector REFUSES to start if that directory is missing or empty — a rule
+#    engine with no rules is a silent blind spot, so it fails loud. Without this
+#    step the collector unit exits with 'stat /etc/agentids/rules: no such file'.
+sudo install -d -m 0750 -o agentids -g agentids /etc/agentids/rules
+sudo install -m 0644 rules/*.yaml rules/packs.pins /etc/agentids/rules/
+
+# 6. auditd telemetry. The collector config sets behavior.audit_log, and a
+#    named-but-absent log is fatal (same blind-spot rule). Install auditd, drop
+#    the four -a ... -k agentids lines from docs/quickstart.md §4 into
+#    /etc/audit/rules.d/agentids.rules, and load them:
+sudo augenrules --load
+
+# 7. TLS material — generate it BEFORE starting central. The shipped central.yaml
+#    sets tls:, and a missing cert is a deliberate *fatal* error (a fleet must
+#    never silently fall back to plaintext). Write it into /etc/agentids so the
+#    config's default paths line up, and hand it to the service account; the
+#    permission trap is spelled out under "## TLS" below.
+#    Use the SAME name here that collector.yaml sets as report.tls.server_name,
+#    or the collector's handshake fails closed.
+sudo deploy/gen-certs.sh /etc/agentids central.example
+sudo chown agentids:agentids /etc/agentids/ca.crt /etc/agentids/leaf.crt /etc/agentids/leaf.key
+sudo chmod 0640 /etc/agentids/leaf.key        # readable by agentids, by no one else
+
+# 8. uid_map — the shipped central.yaml sets uid_map: /etc/agentids/passwd, and a
+#    configured-but-absent file is a FATAL config error (not a silent numeric
+#    fallback). Copy your fleet's base-image /etc/passwd, or delete the uid_map
+#    line from central.yaml if you do not want uids named in alerts.
+sudo install -m 0644 /etc/passwd /etc/agentids/passwd
+
+# 9. The units.
 sudo install -m 0644 deploy/agentids-central.service   /etc/systemd/system/
 sudo install -m 0644 deploy/agentids-collector.service /etc/systemd/system/
 sudo systemctl daemon-reload
@@ -62,7 +100,8 @@ The collector hashes the agent workspaces it is configured to watch, so the
 > authenticated hop, and a one-line edit to a persona file produced
 > `DRIFT … identity.drift` on the collector and a matching `ALERT: 1 drift …` on
 > central on the next poll. Not `systemd-analyze verify` — an actual systemd run,
-> unprivileged, end to end.
+> unprivileged, end to end. The rule pack, TLS material, and uid_map above are the
+> steps that run needed beyond the unit files themselves.
 
 For the service-side decisions behind this install — the two stores, the
 mutual-TLS trust boundary, Layer 2 provenance, `uid_map`, and alerting — see

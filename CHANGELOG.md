@@ -173,6 +173,21 @@ opt-in design.
 
 ### Fixed
 
+- **The systemd install walkthrough installed a config the service could not
+  start.** `deploy/README.md`'s install block copied `examples/central.yaml` and
+  `examples/collector.yaml` to `/etc/agentids` and started both units — but never
+  created the paths those configs demand. Central exits 1 on a missing TLS cert
+  (`tls: mtls: load key pair: open /etc/agentids/leaf.crt: no such file`) and on
+  a missing `uid_map` file; the collector exits 1 on a missing `behavior.rules_dir`
+  (`stat /etc/agentids/rules: no such file`). So a reader following the block got
+  two services that would not start, with the prerequisites only implied by the
+  configs. The block now adds the four missing steps — install the rule pack, load
+  the auditd rules, generate the TLS material into `/etc/agentids` (with the
+  service-account permissions), and provide the `uid_map` file — and says why each
+  is fatal rather than optional. Verified at the real paths: with the four steps,
+  central reaches `listening on :8080` + `mutual TLS required on the ingest
+  listener`, and the collector validates `rules ok — 20 rule(s)`; without them,
+  both exit 1 as above. Host left exactly as found (created paths removed).
 - **A fresh clone was missing the quickstart's configs and the demo's fixture.**
   `.gitignore`'s operator patterns (`*.local.yaml`, `*.log`) matched three files
   that are part of the product, not secrets or runtime logs:
