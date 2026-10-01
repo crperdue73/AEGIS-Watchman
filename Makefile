@@ -15,7 +15,7 @@ DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)
 PKG     := github.com/crperdue73/AEGIS-Watchman/internal/buildinfo
 LDFLAGS := -X $(PKG).Version=$(VERSION) -X $(PKG).Commit=$(COMMIT) -X $(PKG).Date=$(DATE)
 
-.PHONY: all build build-collector build-central build-manifest build-rules test lint check-links clean fmt vet version pin pin-check ebpf-preflight quickstart-check container-check publish-scan fuzz deps-report
+.PHONY: all build build-collector build-central build-manifest build-rules test lint check-links clean fmt vet version pin pin-check ebpf-preflight quickstart-check container-check publish-scan preflight fuzz deps-report
 
 all: build
 
@@ -65,6 +65,11 @@ container-check:
 # Fail if any tracked file carries a credential, an operator home path, or
 # private infrastructure — the repo is public, the work was done in private.
 # See scripts/publish-scan.sh.
+# Run every CI job's local-of-record, in one command, stopping at the first
+# failure. The single verdict for "push-ready" — see scripts/preflight.sh.
+preflight:
+	./scripts/preflight.sh
+
 publish-scan:
 	./scripts/publish-scan.sh
 

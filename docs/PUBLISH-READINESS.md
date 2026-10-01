@@ -25,6 +25,14 @@ fails on three classes:
 It is deliberately narrow. It does not try to judge prose; it catches the classes
 that are invisible in review and permanent once pushed.
 
+The checklist below is partly machine-checkable, so one command runs it all:
+`make preflight` (`scripts/preflight.sh`) executes every CI job's local
+of-record — build, lint (incl. `pin-check`), `go vet -tags sqlite`, tests
+(default and sqlite), demo, quickstart, container, publish-scan, deps, fuzz — and
+stops at the first failure. "Push-ready" is that command's exit status, not
+eight separate recollections of what passed. (It needs Docker and module
+downloads, the same as CI.)
+
 ## Checklist
 
 | Item | Status |
