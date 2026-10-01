@@ -148,6 +148,13 @@ Built so far:
   [`docs/fleet-view.md`](docs/fleet-view.md). To stand central up — the two
   stores, TLS, provenance, alerting, retention — see
   [`docs/deploy-central.md`](docs/deploy-central.md).
+- **Agent roster** — `GET /api/v1/agents` is the identity half of the console:
+  every agent baseline central holds (host, root, and each identity file's path,
+  sha256, size, mtime — never the file body), filterable by `host` and `root`.
+  It reads the durable **baseline store**, so it answers "grep my fleet for every
+  agent's identity" **before any event has fired** — the check the CARBONATO
+  counter is built around, and the brief's *"every agent, its baseline"*
+  differentiator made queryable. Details: [`docs/fleet-view.md`](docs/fleet-view.md).
 
 ## Getting started
 

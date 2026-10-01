@@ -81,6 +81,23 @@ func (f *FileStore) PutBaseline(_ context.Context, key AgentKey, inv *collector.
 	return f.persistLocked()
 }
 
+// ListBaselines implements Store over the in-memory mirror the file baselines are
+// loaded into, so the roster needs no disk read of its own.
+func (f *FileStore) ListBaselines(_ context.Context) ([]AgentBaseline, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]AgentBaseline, 0, len(f.items))
+	for k, inv := range f.items {
+		key, ok := parseAgentKey(k)
+		if !ok {
+			continue
+		}
+		cp := cloneInventory(inv)
+		out = append(out, AgentBaseline{Key: key, Files: cp.Files})
+	}
+	return out, nil
+}
+
 // persistLocked writes the store to disk atomically. Caller holds f.mu.
 func (f *FileStore) persistLocked() error {
 	doc := fileStoreDoc{Version: fileStoreVersion, Items: f.items}

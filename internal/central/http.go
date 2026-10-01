@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/crperdue73/AEGIS-Watchman/internal/collector"
@@ -42,8 +43,86 @@ func (s *Service) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/events", s.handleIngest)
 	mux.HandleFunc("/api/v1/actions", s.handleActions)
 	mux.HandleFunc("/api/v1/fleet", s.handleFleet)
+	mux.HandleFunc("/api/v1/agents", s.handleAgents)
 	mux.HandleFunc("/", s.handleFleetPage)
 	return mux
+}
+
+// agentFile is one file in a roster entry. `content` is deliberately omitted:
+// the roster is identity metadata (path, hash, size, mtime), not persona bodies.
+// Central holds those to diff them, but a query endpoint must not become a way
+// to read every agent's SOUL.md over the network.
+type agentFile struct {
+	Path    string    `json:"path"`
+	SHA256  string    `json:"sha256"`
+	Size    int64     `json:"size"`
+	ModTime time.Time `json:"mod_time"`
+}
+
+// agentRosterEntry is one agent's baseline in the roster.
+type agentRosterEntry struct {
+	HostID string      `json:"host_id"`
+	Root   string      `json:"root"`
+	Files  []agentFile `json:"files"`
+}
+
+// agentsView is the /api/v1/agents response: the fleet's identity roster —
+// every agent baseline central holds, with its file hashes. It is the queryable
+// half of the brief's fleet-view differentiator ("every agent, its baseline")
+// and of Riley's agent-hygiene line ("grep your fleet for someone else's agent
+// identity"), where /api/v1/fleet instead sums events.
+type agentsView struct {
+	GeneratedAt time.Time          `json:"generated_at"`
+	TotalAgents int                `json:"total_agents"`
+	TotalFiles  int                `json:"total_files"`
+	Agents      []agentRosterEntry `json:"agents"`
+}
+
+// handleAgents serves GET /api/v1/agents — the fleet identity roster. Query
+// params (both optional): host=<id>, root=<path>.
+func (s *Service) handleAgents(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	view := agentsView{GeneratedAt: time.Now().UTC(), Agents: []agentRosterEntry{}}
+	if s.store != nil {
+		list, err := s.store.ListBaselines(r.Context())
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "baseline list failed")
+			return
+		}
+		host := r.URL.Query().Get("host")
+		root := r.URL.Query().Get("root")
+		for _, b := range list {
+			if host != "" && b.Key.HostID != host {
+				continue
+			}
+			if root != "" && b.Key.Root != root {
+				continue
+			}
+			entry := agentRosterEntry{HostID: b.Key.HostID, Root: b.Key.Root, Files: []agentFile{}}
+			for _, f := range b.Files {
+				entry.Files = append(entry.Files, agentFile{
+					Path: f.Path, SHA256: f.SHA256, Size: f.Size, ModTime: f.ModTime,
+				})
+			}
+			// Stable file order so the roster is diffable run to run.
+			sort.Slice(entry.Files, func(i, j int) bool { return entry.Files[i].Path < entry.Files[j].Path })
+			view.Agents = append(view.Agents, entry)
+			view.TotalFiles += len(entry.Files)
+		}
+	}
+	view.TotalAgents = len(view.Agents)
+	// Stable agent order: host, then root.
+	sort.Slice(view.Agents, func(i, j int) bool {
+		if view.Agents[i].HostID != view.Agents[j].HostID {
+			return view.Agents[i].HostID < view.Agents[j].HostID
+		}
+		return view.Agents[i].Root < view.Agents[j].Root
+	})
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(view)
 }
 
 func (s *Service) handleIngest(w http.ResponseWriter, r *http.Request) {

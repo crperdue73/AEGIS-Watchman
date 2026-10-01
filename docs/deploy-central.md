@@ -36,6 +36,7 @@ One listener, five endpoints. Two are for collectors (write), three are for you
 | `POST` | `/api/v1/events` | **Ingest an inventory.** Collector → central; returns drift, `202 Accepted`. |
 | `POST` | `/api/v1/actions` | **Ingest Layer 3 behavior events.** Collector → central; returns matches, `202 Accepted`. |
 | `GET` | `/api/v1/fleet` | The fleet rollup as JSON. Scriptable. |
+| `GET` | `/api/v1/agents` | The fleet **identity roster** as JSON — every agent baseline (host, root, per-file sha256/size/mtime, never content), filterable by `host` and `root`. |
 | `GET` | `/` | The same rollup as a plain HTML page. |
 
 `/api/v1/events` and `/api/v1/actions` are **`POST`-only** and cap the body at
@@ -363,6 +364,8 @@ After deploying central:
 - [ ] Alerts log with a **name**, not `uid:N`, if `uid_map` is set.
 - [ ] `GET /` renders the fleet rollup, and `GET /api/v1/fleet?min_severity=high`
       returns the same hosts as JSON.
+- [ ] `GET /api/v1/agents` lists every enrolled agent with its file hashes
+      (and never file content), filterable by `host` and `root`.
 - [ ] If Layer 2 is enabled, a manifest signed by an untrusted key is **refused
       at startup** — central does not come up trusting it.
 

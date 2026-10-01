@@ -19,6 +19,44 @@ copy of every detected event, and the fleet view is a rollup over it.
 
 Both read the same store, so they cannot disagree.
 
+## The sibling view: the identity roster
+
+The fleet view above answers *"which hosts are alerting, and with what."* The
+brief's differentiator — **every agent, its baseline** — is a different question,
+and it is served by a different endpoint over a different store:
+**`GET /api/v1/agents`**, the fleet's **identity roster**.
+
+It returns every agent baseline central holds — `host_id`, `root`, and each
+identity file's `path`, `sha256`, `size`, and `mod_time`. It deliberately does
+**not** return file `content`: central keeps bodies to compute diffs, but a read
+endpoint that shipped them would turn central into a way to read every agent's
+`SOUL.md` over the network. Optional `host` and `root` filters narrow it.
+
+The distinction that matters operationally: the fleet view reads the *record
+store* (bounded, time-limited events), so it can only speak about what has
+already happened. The roster reads the *baseline store* — one durable entry per
+agent file, always current — so it answers **"grep my fleet for every agent's
+identity" before a single event has fired.** That is the agent-hygiene check the
+CARBONATO counter is built around; `identity.drift` alerts tell you something
+changed, the roster tells you what every agent *is* right now.
+
+```jsonc
+{
+  "generated_at": "2026-10-01T18:00:00Z",
+  "total_agents": 1,
+  "total_files": 2,
+  "agents": [
+    {
+      "host_id": "builder-01",
+      "root": "/home/agent/.openclaw/workspace-vivi",
+      "files": [
+        { "path": "SOUL.md", "sha256": "a2cffbd6…", "size": 1634, "mod_time": "2026-10-01T17:58:00Z" }
+      ]
+    }
+  ]
+}
+```
+
 ## Enabling it
 
 Two lines in `central.yaml`:

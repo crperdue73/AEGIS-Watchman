@@ -88,6 +88,15 @@ opt-in design.
   `min_severity` filters and a JSON response), and `GET /` rendering the same
   rollup as plain server-rendered HTML (no JS framework, no build step). One
   source of truth, two views.
+- **The identity roster — `GET /api/v1/agents`.** The fleet view rolls up
+  *events*; the roster answers the other half of the brief's differentiator,
+  *"every agent, its baseline"*: every agent baseline central holds, with host,
+  root, and each identity file's `path`/`sha256`/`size`/`mod_time` — never
+  content, so the endpoint cannot be used to read an agent's `SOUL.md` —
+  filterable by `host` and `root`. It reads the durable **baseline** store, not
+  the record store, so it answers "grep my fleet for every agent's identity"
+  before any event has fired (Riley's agent-hygiene line). New `ListBaselines`
+  on the `Store` interface, implemented by both the memory and file backends.
 - **Derived signals are marked in the fleet view.** Central copies a behavior
   event's `action.detail.source` onto the retained record as `action_source`, so
   the rollup carries a `by_source` count per host and the HTML page badges each
