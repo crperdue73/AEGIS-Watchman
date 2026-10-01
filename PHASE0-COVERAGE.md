@@ -74,9 +74,9 @@ Grounded in the actual packages, not the plan.
 | filesystem walk + sha256 | `internal/collector/drift.go` | `identity.drift` + unified diff | ✅ live, tested |
 | Ed25519 approval manifest | `internal/provenance`, `cmd/manifest` | `provenance.untrusted` | ✅ live, tested |
 | text stream (tests/demo) | `internal/telemetry/text.go` | `process.exec` | ✅ test/demo only |
-| eBPF | (planned) | all four action types, kernel-level | ❌ not built |
-| Docker events | (planned) | container lifecycle, privileged mounts | ❌ not built |
-| agent control-plane log | (planned) | `scope.change`, tool registration | ❌ not built |
+| Docker events | `internal/telemetry/docker.go` | `container.start` + identity/risk (HostConfig via `docker inspect`) | ✅ live, tested (opt-in, off by default; G4 closed) |
+| eBPF | (planned) | `file.access` at the kernel — the G3 *read* half | ❌ not built (P2.0, toolchain-gated) |
+| agent control-plane log | (planned) | `scope.change`, tool registration (native) | ❌ not built — a `scope.change` *heuristic* shim ships (`internal/telemetry/scope.go`; G5/R5) |
 
 **The seam that makes the gaps cheap:** every source above implements one
 interface —

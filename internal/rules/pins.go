@@ -12,9 +12,14 @@ package rules
 //
 // It is a lockfile, not a signature. Byte-exact on purpose, the same way Layer 2
 // hashes an agent file: the pin names the *artifact*, so a reformat that changes
-// the bytes is a deliberate re-approval, not a silent pass. Signing the pin file
-// with an Ed25519 key — the mechanism Layer 2 already uses for agent manifests —
-// is the layer above this one and is not built yet.
+// the bytes is a deliberate re-approval, not a silent pass. A bare pin is only a
+// lockfile — anyone can write or edit one — so the pin *file* can itself be
+// signed. `agentids-rules sign-pins` writes a detached Ed25519 signature over
+// the pin's exact bytes, reusing the same keys Layer 2 uses for agent manifests;
+// `verify --pins <pins> --pubkey <key>` checks that signature *before* it checks
+// the set against the pin, so a tampered pin is rejected as tampered, not merely
+// as mismatched. See `cmd/rules/signpins.go` and `docs/rules.md` ("Signing a
+// pin").
 import (
 	"bufio"
 	"bytes"

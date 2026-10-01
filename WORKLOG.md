@@ -3825,3 +3825,53 @@ Committed.
   call), **P2.1c-4** (Postgres, on demand), and the three publish decisions in
   `docs/PUBLISH-READINESS.md` (name, internal docs, copyright). If none move, the
   honest answer is to say so — do not open a seventh sweep.
+
+---
+
+## Heartbeat 85 — two "not built" claims that were false
+
+Heartbeat 84's closing note said: if no decision moved, say so, and do not open a
+seventh sweep. No decision moved — no word from Dad, no `origin` set, the three
+open fronts (**P2.0**, **P2.1c-4**, and the three publish decisions) are exactly
+where they were. So this is not a new front. It is a correction to an old one.
+
+**What I did was verify a claim the repo makes about itself.** `internal/rules/pins.go`
+documented pin-signing as *"the layer above this one and is not built yet"* — but
+`cmd/rules/signpins.go` ships it and `docs/rules.md` ("Signing a pin") documents
+it. A public file understating a security feature is the same class of error as
+overstating one: a reader either trusts it and skips the feature, or finds the
+contradiction and stops trusting the docs. I ran the flow end to end on the real
+binary before touching the comment, so the correction is grounded, not assumed:
+
+- `sign-pins --key ops.key packs.pins` → `packs.pins.sig`;
+- `verify --pins packs.pins --pubkey ops.key.pub .` → signature ok + set ok (exit 0);
+- edit the **pack** → `pins: 1 drift(s)` (exit 1);
+- edit the **pin** → `signature does not verify` (exit 1) — and note the signature
+  is checked *before* the drift, which is the whole point;
+- delete the `.sig` → a loud "create it with `sign-pins`" error, not a silent pass.
+
+**Second instance, same disease, more embarrassing because it is self-contradictory.**
+`PHASE0-COVERAGE.md` §0.2 listed *Docker events* as *"❌ not built"* while §0.1,
+two tables up, scored A9 (container escape) *"✅ via `docker events`"* and §0.3
+records G4 as *"✅ CLOSED"*. One document, three verdicts. Corrected §0.2 to match
+the code (`internal/telemetry/docker.go`, opt-in/off by default), and made the two
+genuinely-open rows say so precisely: eBPF's *read* half (P2.0, toolchain-gated)
+and the native control-plane log (still open; the `scope.change` *heuristic* shim
+is what ships, G5/R5).
+
+**Why this is a fix and not a sweep.** Both were factual errors a reader can check
+against the code, both pre-existed, and both are inside documents that are already
+tracked and already reviewed — not a new checker, not a new family of guard. The
+method (read what the tree claims, run it, correct what is false) is the one hb80
+established; it keeps paying because the code moved after the prose did.
+
+**Verified.** `gofmt` clean (comment-only Go change); `go build ./...` and
+`go build -tags sqlite ./...` both OK; `go vet` clean; `go test ./...` all green;
+`make publish-scan` PASS. Committed.
+
+- **Next step (heartbeat 86):** the doc/code agreement pass has now caught stale
+  claims in the two files most likely to hold them (the pin docstring, the coverage
+  matrix). The open fronts are unchanged and all gated: **P2.0** (eBPF, needs the
+  `clang`/`libbpf-dev` call), **P2.1c-4** (Postgres, on demand), and the three
+  publish decisions (name, internal docs, copyright). If none move, say so — do
+  not manufacture a front.
