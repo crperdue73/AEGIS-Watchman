@@ -1,6 +1,9 @@
 package telemetry
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -183,5 +186,119 @@ func TestScopeSourceStampsTime(t *testing.T) {
 	evs, _ := ss.Actions()
 	if got := evs[1].Action.Detail["since"]; got != "2026-09-29T12:00:00Z" {
 		t.Errorf("since = %v, want the stamped time", got)
+	}
+}
+
+func countScopeChanges(evs []Event) int {
+	n := 0
+	for _, e := range evs {
+		if e.Action.Type == ScopeChange {
+			n++
+		}
+	}
+	return n
+}
+
+// A restart must not re-report the host's established capabilities as novel.
+// The set is persisted on the first sighting; a second source over the same
+// file is quiet for the same capability.
+func TestScopeSourcePersistsSeenAcrossRestart(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "scope-seen.json")
+
+	first := NewScopeSource(&batchSource{batches: [][]Event{{listenEvent("0.0.0.0:4444", 42)}}}, nil)
+	if err := first.PersistSeen(path); err != nil {
+		t.Fatalf("PersistSeen (fresh): %v", err)
+	}
+	evs, err := first.Actions()
+	if err != nil {
+		t.Fatalf("first Actions: %v", err)
+	}
+	if got := countScopeChanges(evs); got != 1 {
+		t.Fatalf("first run: want 1 scope.change, got %d", got)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("seen file not written: %v", err)
+	}
+
+	// Restart: a new source over the same state file, seeing the SAME listener.
+	second := NewScopeSource(&batchSource{batches: [][]Event{{listenEvent("0.0.0.0:4444", 42)}}}, nil)
+	if err := second.PersistSeen(path); err != nil {
+		t.Fatalf("PersistSeen (restart): %v", err)
+	}
+	evs2, err := second.Actions()
+	if err != nil {
+		t.Fatalf("second Actions: %v", err)
+	}
+	if got := countScopeChanges(evs2); got != 0 {
+		t.Fatalf("after restart the same listener was re-reported: got %d scope.change(s)", got)
+	}
+
+	// A genuinely new capability on the restarted source still fires.
+	second.inner = &batchSource{batches: [][]Event{{egressEvent("slack.com", "slack.com 1.2.3.4:443")}}}
+	evs3, _ := second.Actions()
+	if got := countScopeChanges(evs3); got != 1 {
+		t.Fatalf("a new capability after restart did not fire: got %d", got)
+	}
+}
+
+func TestScopeSourcePersistSeenMissingFileIsFresh(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "nope", "scope-seen.json")
+	s := NewScopeSource(&batchSource{batches: [][]Event{{listenEvent("0.0.0.0:1", 1)}}}, nil)
+	if err := s.PersistSeen(path); err != nil {
+		t.Fatalf("a missing seen file must be a fresh start, got: %v", err)
+	}
+	if s.Seen() != 0 {
+		t.Fatalf("fresh source already has %d seen keys", s.Seen())
+	}
+}
+
+// A corrupt cache is discarded, not fatal: the shim keeps working and rewrites
+// the file on the next new capability.
+func TestScopeSourcePersistSeenCorruptFileRecovers(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "scope-seen.json")
+	if err := os.WriteFile(path, []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := NewScopeSource(&batchSource{batches: [][]Event{{listenEvent("0.0.0.0:4444", 42)}}}, nil)
+	if err := s.PersistSeen(path); err == nil {
+		t.Fatalf("a corrupt seen file should be reported (and then ignored)")
+	}
+	evs, err := s.Actions()
+	if err != nil {
+		t.Fatalf("Actions after a corrupt cache: %v", err)
+	}
+	if got := countScopeChanges(evs); got != 1 {
+		t.Fatalf("a capability after a corrupt cache should still fire: got %d", got)
+	}
+	// The file now holds valid JSON again.
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var keys []string
+	if err := json.Unmarshal(data, &keys); err != nil {
+		t.Fatalf("seen file was not rewritten valid: %v", err)
+	}
+}
+
+// The set is bounded: past the cap the oldest observation is evicted, so a
+// long-untouched capability may re-fire once rather than the set growing
+// without limit.
+func TestScopeSourceSeenCapEvictsOldest(t *testing.T) {
+	s := NewScopeSource(&batchSource{}, nil)
+	s.maxSeen = 3
+	for _, addr := range []string{"0.0.0.0:1", "0.0.0.0:2", "0.0.0.0:3", "0.0.0.0:4"} {
+		s.inner = &batchSource{batches: [][]Event{{listenEvent(addr, 1)}}}
+		s.Actions()
+	}
+	if s.Seen() != 3 {
+		t.Fatalf("seen set not capped: got %d, want 3", s.Seen())
+	}
+	// The oldest (0.0.0.0:1) was evicted, so it is novel again.
+	s.inner = &batchSource{batches: [][]Event{{listenEvent("0.0.0.0:1", 1)}}}
+	evs, _ := s.Actions()
+	if got := countScopeChanges(evs); got != 1 {
+		t.Fatalf("the evicted-oldest capability should re-fire once: got %d", got)
 	}
 }

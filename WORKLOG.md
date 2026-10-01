@@ -3579,3 +3579,58 @@ packages is not mine to decide.
   resets today; that is a named weakness in the coverage matrix and needs no
   external toolchain). Re-read `PHASE0-COVERAGE.md` §G5 and `docs/architecture.md`
   before starting.
+
+---
+
+## Heartbeat 80 — the scope shim's memory survives a restart now
+
+Took the item hb79 named: the G5 `scope.change` heuristic forgets everything on
+a collector restart, so the first re-observation of every routine capability is
+reported as novel again. The coverage matrix called it "benign"; it is not — a
+collector restarts on every deploy and reboot, and a restart that re-emits the
+agent's established listeners/endpoints/execs is exactly the false burst that
+gets a rule tuned off. That is the project's own recurring thesis, so it was
+worth closing rather than documenting.
+
+**What shipped.** `ScopeSource` gained a durable, bounded seen-set:
+
+- `PersistSeen(path)` loads an existing set at startup and saves it (atomic
+  temp+rename, mode 0600, insertion order) whenever it grows. A restart over the
+  same file is quiet for established capabilities and still fires on genuinely
+  new ones.
+- Path follows the cursor's derivation exactly: `behavior.scope.seen`, else
+  `<spool>.scope-seen` when a spool is set, else in-memory only. Same reason as
+  the cursor — a deployment that already configured durability gets this for
+  free, no new knob to forget.
+- Bounded: `DefaultScopeSeenMax` (8192) with oldest-first eviction, so a
+  pathological or hostile host cannot grow the set or its file without limit.
+  Past the cap a long-untouched capability may re-fire once — a bounded,
+  self-healing duplicate, never a standing alert.
+- **Degrades, never dies** (D6, consistent with the other adapters): a missing
+  file is a fresh start; an *unreadable* file is logged, discarded, and rebuilt
+  on the next new capability. A corrupt heuristic cache must not stop a collector.
+
+**Why local, not central.** The old comment said a persistent baseline "belongs
+with the central store." On reflection that was the wrong instinct for this
+signal: the seen-set is per-host, per-source, and central would need a new
+protocol to store and return it. A collector-side cache beside the cursor is the
+standard place, and it needed no engine or wire-format change. Updated the
+comment to match the code instead of leaving the two disagreeing.
+
+**Verified.** Five new tests (persistence round-trip across a simulated restart;
+missing file = fresh; corrupt file = logged + recovered + rewritten valid;
+cap evicts oldest) plus a derivation test for `scopeSeenPath`. Full suite green
+in both build modes; `go vet` clean; demo and quickstart-check still pass on real
+binaries (the demo rollup shows the shim's `heuristic=2`); 93 doc links ok. Docs
+updated where they had become untrue: `internal/telemetry/scope.go`'s WINDOW
+comment, `PHASE0-COVERAGE.md` §G5, `docs/collector-config.md` §behavior.scope,
+`docs/architecture.md` (durability), `docs/deploy-collector.md`, the systemd
+unit comment, `CHANGELOG.md`, and the config comments.
+
+- **Next step (heartbeat 81):** G5 is now as closed as it can be without the
+  agent-native log — the remaining half (held-but-unused capability) still needs
+  an adapter, and that depends on which agent framework a client runs. Open
+  fronts unchanged otherwise: **P2.0** (eBPF, blocked on Dad's `clang`/`libbpf-dev`
+  call) and **P2.1c-4** (Postgres record backend, on demand). If neither moves,
+  re-read `PHASE1-PLAN.md` before inventing work — the v1 line is essentially met,
+  and "publish-ready" is a better next target than a new feature.

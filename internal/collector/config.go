@@ -68,7 +68,10 @@ type Behavior struct {
 	// actions the other sources already emit. It is a derivation, not a source, so
 	// it wraps the composed stream; it is on by default because it costs nothing
 	// but a map lookup per action and the rule it feeds keys on the explicit
-	// detail.source=heuristic marker. Set scope.enabled: false to disable.
+	// detail.source=heuristic marker. Set scope.enabled: false to disable. Its
+	// seen-capability set persists beside the spool (scope.seen, else
+	// <spool>.scope-seen) so a restart does not re-report established
+	// capabilities as novel.
 	Scope telemetry.ScopeConfig `yaml:"scope"`
 }
 

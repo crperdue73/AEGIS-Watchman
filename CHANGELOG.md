@@ -56,7 +56,11 @@ opt-in design.
   unauthenticated API on `:2375` rather than the `docker` CLI.
 - A `scope.change` **heuristic shim** deriving "the agent reached for new scope"
   (new listener, new outbound endpoint, new executable under an agent root) from
-  existing telemetry; `detail.source="heuristic"` marks it as a derivation.
+  existing telemetry; `detail.source="heuristic"` marks it as a derivation. Its
+  seen-capability set is **durable** — persisted beside the spool
+  (`scope.seen`, else `<spool>.scope-seen`) and bounded — so a collector restart
+  does not re-report the host's established capabilities as novel. An unreadable
+  cache is discarded and rebuilt, never fatal.
 - Seed rule pack `rules/carbonato.yaml` (v7, 20 rules) encoding the CARBONATO
   chain, with a fire-test and a quiet-test per rule.
 - Durable action spool in the collector: matches are appended before they ship,

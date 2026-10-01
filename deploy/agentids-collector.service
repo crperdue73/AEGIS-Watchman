@@ -33,9 +33,10 @@ ExecStart=/usr/local/bin/agentids-collector -config /etc/agentids/collector.yaml
 Restart=on-failure
 RestartSec=5s
 
-# A private, writable state dir (/var/lib/agentids) for the spool + cursor, the
-# only place this service writes. ProtectSystem=strict makes the rest of the
-# filesystem read-only; StateDirectory is implicitly writable.
+# A private, writable state dir (/var/lib/agentids) for the spool + cursor and
+# the scope-seen cache, the only place this service writes. ProtectSystem=strict
+# makes the rest of the filesystem read-only; StateDirectory is implicitly
+# writable.
 StateDirectory=agentids
 ProtectSystem=strict
 # Read (not write) access to agent workspaces, which commonly live under /home.

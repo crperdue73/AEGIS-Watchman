@@ -1,7 +1,12 @@
 package telemetry
 
 import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -38,13 +43,16 @@ import (
 // a strict subset and a smaller claim. The rule pack's scope rule therefore
 // keys on detail.novel, and this source is the only thing in v1 that sets it.
 //
-// WINDOW: the "have I seen this before" memory is per-process and unbounded for
-// the life of the collector. That is intentional — a capability seen an hour
-// ago is still seen; forgetting it would re-fire. A collector restart resets
-// the memory, so the first observation after a restart is reported again. That
-// is a known, benign duplicate (at-least-once spirit), documented rather than
-// hidden, because a persistent baseline belongs with the central store, not in
-// a stateless shim.
+// WINDOW: the "have I seen this before" memory is per-process. A capability
+// seen an hour ago is still seen; forgetting it would re-fire. The memory is
+// bounded (DefaultScopeSeenMax) and, when a state file is configured, durable:
+// PersistSeen loads the set at startup and saves it when it grows, so a
+// collector restart does NOT re-report the host's established capabilities as
+// novel. That matters — a collector restarts on every deploy and reboot, and a
+// restart that re-emits every capability the agent routinely uses is exactly
+// the kind of false burst that gets a rule tuned off. The on-disk set is a
+// cache, not a system of record: an unreadable file is discarded and rebuilt,
+// never fatal, because the shim is derived telemetry and must degrade (D6).
 type ScopeSource struct {
 	inner Source
 	agent *schema.Agent
@@ -52,12 +60,26 @@ type ScopeSource struct {
 	mu sync.Mutex
 	// seen holds the capability keys already reported as novel, per class.
 	// Keyed by "class\x00value" so one map serves listeners, endpoints, and
-	// executables without collisions.
-	seen map[string]struct{}
+	// executables without collisions. order preserves insertion order for
+	// bounded eviction and for a deterministic on-disk encoding.
+	seen  map[string]struct{}
+	order []string
+	// seenPath, when non-empty, is where the set is persisted across restarts.
+	seenPath string
+	// maxSeen caps the set (oldest evicted first). Zero means no cap.
+	maxSeen int
 
 	// Now stamps derived actions. Nil means time.Now; tests set it.
 	Now func() time.Time
 }
+
+// DefaultScopeSeenMax bounds the seen-capability set. Distinct capabilities per
+// host are realistically dozens; the cap exists so a pathological host (or a
+// hostile one minting endpoints) cannot grow the set or its file without bound.
+// Past the cap the oldest observation is evicted, so a capability untouched for
+// long enough may re-fire once — a bounded, self-healing duplicate, never a
+// standing alert.
+const DefaultScopeSeenMax = 8192
 
 // Detail keys and the source marker. Exported so rules and docs reference one
 // spelling.
@@ -75,7 +97,103 @@ const (
 // NewScopeSource wraps an inner source and derives scope.change actions from
 // it. agent, when set, is copied onto the derived action for attribution.
 func NewScopeSource(inner Source, agent *schema.Agent) *ScopeSource {
-	return &ScopeSource{inner: inner, agent: agent, seen: map[string]struct{}{}}
+	return &ScopeSource{
+		inner:   inner,
+		agent:   agent,
+		seen:    map[string]struct{}{},
+		maxSeen: DefaultScopeSeenMax,
+	}
+}
+
+// PersistSeen makes the seen-set durable at path and loads any set already
+// there. Call it once, right after construction. A missing file is a fresh
+// start (nil error); an unreadable one is logged and discarded — the shim keeps
+// working with an in-memory set and overwrites the file on the next new
+// capability, so a corrupt cache costs at most a one-time duplicate, never a
+// failure to start. An empty path disables persistence.
+func (s *ScopeSource) PersistSeen(path string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if path == "" {
+		s.seenPath = ""
+		return nil
+	}
+	s.seenPath = path
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("scope: read seen file %q: %w", path, err)
+	}
+	var keys []string
+	if err := json.Unmarshal(data, &keys); err != nil {
+		return fmt.Errorf("scope: seen file %q unreadable, starting empty: %w", path, err)
+	}
+	for _, k := range keys {
+		if _, ok := s.seen[k]; ok {
+			continue
+		}
+		s.seen[k] = struct{}{}
+		s.order = append(s.order, k)
+	}
+	s.evictLocked()
+	return nil
+}
+
+// recordLocked marks key as seen and maintains the cap. Caller holds s.mu.
+func (s *ScopeSource) recordLocked(key string) {
+	s.seen[key] = struct{}{}
+	s.order = append(s.order, key)
+	s.evictLocked()
+}
+
+// evictLocked drops the oldest keys past the cap. Caller holds s.mu.
+func (s *ScopeSource) evictLocked() {
+	for s.maxSeen > 0 && len(s.order) > s.maxSeen {
+		old := s.order[0]
+		s.order = s.order[1:]
+		delete(s.seen, old)
+	}
+}
+
+// saveSeenLocked writes the set atomically (temp file + rename, mode 0600) in
+// insertion order. Caller holds s.mu. A no-op when persistence is off or the
+// set is empty.
+func (s *ScopeSource) saveSeenLocked() error {
+	if s.seenPath == "" || len(s.order) == 0 {
+		return nil
+	}
+	data, err := json.Marshal(s.order)
+	if err != nil {
+		return err
+	}
+	dir := filepath.Dir(s.seenPath)
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, ".scope-seen-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName) // no-op once the rename succeeds
+	if err := tmp.Chmod(0o600); err != nil {
+		tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, s.seenPath)
 }
 
 // ScopeConfig enables the scope.change shim. Enabled is a pointer so an absent
@@ -85,6 +203,11 @@ func NewScopeSource(inner Source, agent *schema.Agent) *ScopeSource {
 // and false means the operator turned it off deliberately.
 type ScopeConfig struct {
 	Enabled *bool `yaml:"enabled"`
+	// Seen is a file path where the seen-capability set is persisted so a
+	// collector restart does not re-report established capabilities as novel.
+	// Empty -> derived as <spool>.scope-seen when a spool is set, else
+	// in-memory only (reset on restart).
+	Seen string `yaml:"seen"`
 }
 
 // IsEnabled resolves the tri-state against the default-on-when-Layer-3 rule.
@@ -145,8 +268,9 @@ func (s *ScopeSource) Actions() ([]Event, error) {
 		}
 		// Guard against the same capability appearing twice in one batch: only
 		// the first sighting is recorded, and it is recorded before we leave the
-		// loop, so the second sighting is a no-op.
-		s.seen[key] = struct{}{}
+		// loop, so the second sighting is a no-op. recordLocked also enforces the
+		// cap and keeps insertion order.
+		s.recordLocked(key)
 		c := cap{kind: kind, value: value}
 		if e, ok := ev.Action.Detail["exe"].(string); ok {
 			c.exe = e
@@ -155,6 +279,14 @@ func (s *ScopeSource) Actions() ([]Event, error) {
 			c.pid = *ev.Actor.PID
 		}
 		novel[key] = c
+	}
+	if len(novel) > 0 {
+		if err := s.saveSeenLocked(); err != nil {
+			// Persisting the cache is best-effort: the derived events below must
+			// still be emitted. A failed save costs a duplicate after the next
+			// restart, not a lost detection.
+			log.Printf("scope: could not persist seen set to %q: %v", s.seenPath, err)
+		}
 	}
 	s.mu.Unlock()
 

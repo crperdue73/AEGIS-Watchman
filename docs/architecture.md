@@ -166,6 +166,13 @@ position so a collector restart resumes instead of replaying the whole log
 is derived beside the spool when not set explicitly, so a deployment that
 already configured durability gets restart-safe reading for free.
 
+The scope shim's **seen-capability set** is persisted the same way (beside the
+spool as `<spool>.scope-seen`): a restart must not re-report the host's
+established listeners, endpoints, and executables as newly novel — a restart
+that re-emits them is exactly the false burst that tunes a rule off. It is a
+bounded cache, not a system of record; an unreadable file is discarded and
+rebuilt rather than failing startup.
+
 ## Graceful degradation — the budgeted failure modes
 
 Each optional source has exactly one expected failure and one log line for it.

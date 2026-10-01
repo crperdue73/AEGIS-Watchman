@@ -132,6 +132,7 @@ stream and infers novelty from the actions already emitted, marking its output
 | Key | Default | Meaning |
 |---|---|---|
 | `enabled` | on when Layer 3 is on | Tri-state. Unset → enabled exactly when `rules_dir` is set. `true` / `false` overrides. |
+| `seen` | derived | File where the seen-capability set is persisted, so a **collector restart does not re-report the host's established capabilities as novel**. Empty → derived as `<spool>.scope-seen` when a spool is set, else in-memory only (reset on restart). Bounded (`DefaultScopeSeenMax`); an unreadable file is discarded and rebuilt, never fatal. |
 
 ## Validation
 

@@ -305,3 +305,23 @@ func TestBehaviorEngineWarnsWhenAuditLogVanishes(t *testing.T) {
 		t.Fatalf("missing source reported every poll: %q", buf.String())
 	}
 }
+
+// The scope shim's persistence path follows the cursor's derivation: explicit
+// config wins, else it rides beside the spool, else it is off (in-memory only).
+func TestScopeSeenPathDerivation(t *testing.T) {
+	cases := []struct {
+		name string
+		cfg  Config
+		want string
+	}{
+		{"explicit", Config{Behavior: Behavior{Scope: telemetry.ScopeConfig{Seen: "/x/seen.json"}}}, "/x/seen.json"},
+		{"from spool", Config{Behavior: Behavior{Spool: "/var/lib/agentids/spool.jsonl"}}, "/var/lib/agentids/spool.jsonl.scope-seen"},
+		{"off", Config{}, ""},
+		{"explicit wins over spool", Config{Behavior: Behavior{Spool: "/s", Scope: telemetry.ScopeConfig{Seen: "/e"}}}, "/e"},
+	}
+	for _, c := range cases {
+		if got := scopeSeenPath(&c.cfg); got != c.want {
+			t.Errorf("%s: scopeSeenPath = %q, want %q", c.name, got, c.want)
+		}
+	}
+}

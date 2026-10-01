@@ -216,6 +216,15 @@ func NewBehaviorEngine(cfg *Config, host schema.Host, agent *schema.Agent, submi
 	// rules are configured (cfg.Behavior.Scope.IsEnabled).
 	var composed telemetry.Source = src
 	if shim := telemetry.NewScopeSourceFromConfig(cfg.Behavior.Scope, cfg.Behavior.RulesDir != "", src, agent); shim != nil {
+		// Persist the seen-capability set beside the spool (or at the configured
+		// path) so a restart does not re-report the host's established
+		// capabilities as novel. Best-effort: a read failure is logged and the
+		// shim runs in-memory, never aborting startup.
+		if p := scopeSeenPath(cfg); p != "" {
+			if err := shim.PersistSeen(p); err != nil {
+				log.Printf("collector: behavior: %v", err)
+			}
+		}
 		composed = shim
 		log.Printf("collector: behavior: scope.change heuristic shim attached (derived, detail.source=heuristic)")
 	}
@@ -245,6 +254,21 @@ func cursorPath(cfg *Config) string {
 	}
 	if cfg.Behavior.Spool != "" {
 		return cfg.Behavior.Spool + ".cursor"
+	}
+	return ""
+}
+
+// scopeSeenPath resolves the scope shim's persistence path: the explicit
+// behavior.scope.seen if set, else derived beside the spool, else empty
+// (in-memory only). Same derivation as the audit cursor, for the same reason —
+// a deployment that already configured durability gets restart-safe state with
+// no extra knob.
+func scopeSeenPath(cfg *Config) string {
+	if cfg.Behavior.Scope.Seen != "" {
+		return cfg.Behavior.Scope.Seen
+	}
+	if cfg.Behavior.Spool != "" {
+		return cfg.Behavior.Spool + ".scope-seen"
 	}
 	return ""
 }

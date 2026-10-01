@@ -157,9 +157,14 @@ biased toward what the brief calls out as the *reason the tool exists*.
   tell a derivation from ground truth; `carbonato.tool.scope_new` fires on it
   (pack v5).
 - **Still open:** it sees first *use*, not a held-but-unused capability (no
-  inventory to diff against), and it resets on collector restart. The full fix
-  remains an agent-native control-plane adapter emitting `detail.source="agent"`
-  — the same shape, so the same rule fires unchanged.
+  inventory to diff against). The full fix remains an agent-native control-plane
+  adapter emitting `detail.source="agent"` — the same shape, so the same rule
+  fires unchanged.
+- **Restart behaviour (updated):** the seen-capability set is now **durable** —
+  persisted beside the spool (`scope.seen`, else `<spool>.scope-seen`) and capped
+  (`DefaultScopeSeenMax`), so a collector restart no longer re-reports the host's
+  established capabilities as novel. An unreadable cache is discarded and
+  rebuilt, never fatal (derived telemetry degrades, D6).
 - **Priority:** MEDIUM. The heuristic shim closes the *rule* end of A10 for v1;
   the authoritative feed depends on which agent framework a client runs.
 - **Owner:** collector + agent integration.

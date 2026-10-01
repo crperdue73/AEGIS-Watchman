@@ -274,7 +274,7 @@ kept alongside the name.
 The [quickstart](quickstart.md) runs the collector once. To run it persistently,
 [`deploy/`](../deploy/README.md) ships **systemd unit templates** for both the
 collector and central — unprivileged, hardened, with a private state directory
-for the spool and cursor. The short version:
+for the spool, cursor, and scope-seen cache. The short version:
 
 ```sh
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin agentids
@@ -290,8 +290,9 @@ sudo systemctl daemon-reload && sudo systemctl enable --now agentids-collector
 `agent_roots`, and the `behavior` block if you turned on Layer 3. The collector
 **fails to start** if the config file is missing (`read config: open
 /etc/agentids/collector.yaml: no such file or directory`) — unlike central, whose
-missing config falls back to defaults. `/var/lib/agentids` (the spool + cursor)
-is created by the unit's `StateDirectory=`, so you do not make it by hand.
+missing config falls back to defaults. `/var/lib/agentids` (the spool, cursor,
+and scope-seen cache) is created by the unit's `StateDirectory=`, so you do not
+make it by hand.
 
 The `agentids` user needs read access to the audit log and to each `agent_roots`
 path — and nothing else. The full walkthrough, the capability deltas for the
