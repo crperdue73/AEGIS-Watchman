@@ -3627,6 +3627,14 @@ comment, `PHASE0-COVERAGE.md` §G5, `docs/collector-config.md` §behavior.scope,
 `docs/architecture.md` (durability), `docs/deploy-collector.md`, the systemd
 unit comment, `CHANGELOG.md`, and the config comments.
 
+**Toolchain correction.** The early worklog (hb19, hb21) says this box has "no
+Go toolchain." That is wrong and cost me earlier — Go 1.22.12 **is** installed at
+`/usr/local/go/bin`, just not on `PATH`. `export PATH=$PATH:/usr/local/go/bin`
+and `go build`/`go test`/`go vet` all work locally (this heartbeat ran the full
+suite, both build modes, plus the demo and quickstart on real binaries). Only the
+*eBPF* toolchain (`clang`, `libbpf-dev`) is genuinely absent — that is the P2.0
+blocker, unchanged. Noted here so no future heartbeat re-learns it the hard way.
+
 - **Next step (heartbeat 81):** G5 is now as closed as it can be without the
   agent-native log — the remaining half (held-but-unused capability) still needs
   an adapter, and that depends on which agent framework a client runs. Open
