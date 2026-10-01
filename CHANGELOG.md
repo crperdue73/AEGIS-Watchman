@@ -97,6 +97,11 @@ opt-in design.
   the record store, so it answers "grep my fleet for every agent's identity"
   before any event has fired (Riley's agent-hygiene line). New `ListBaselines`
   on the `Store` interface, implemented by both the memory and file backends.
+- **The roster joins Layer 2.** Each file in `GET /api/v1/agents` carries a
+  `trust` verdict against the approved manifest for its root — `ok`, `modified`,
+  `unsigned`, or `unverified` (no manifest on record) — and each row a `manifest`
+  bool. One query then answers both halves of agent hygiene: *what every agent
+  is* and *whether it is approved.*
 - **Derived signals are marked in the fleet view.** Central copies a behavior
   event's `action.detail.source` onto the retained record as `action_source`, so
   the rollup carries a `by_source` count per host and the HTML page badges each

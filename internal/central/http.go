@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/crperdue73/AEGIS-Watchman/internal/collector"
+	"github.com/crperdue73/AEGIS-Watchman/internal/provenance"
 	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
@@ -57,6 +58,11 @@ type agentFile struct {
 	SHA256  string    `json:"sha256"`
 	Size    int64     `json:"size"`
 	ModTime time.Time `json:"mod_time"`
+	// Trust is the Layer 2 verdict for this file: "ok" (listed in the approved
+	// manifest, hash matches), "modified" (listed, hash differs), "unsigned"
+	// (on host, not listed), or "unverified" when no approval manifest is on
+	// record for the root (Layer 2 disabled or the agent is unapproved).
+	Trust string `json:"trust"`
 }
 
 // agentRosterEntry is one agent's baseline in the roster.
@@ -64,6 +70,27 @@ type agentRosterEntry struct {
 	HostID string      `json:"host_id"`
 	Root   string      `json:"root"`
 	Files  []agentFile `json:"files"`
+	// Manifest is true when Layer 2 has an approval manifest on record for this
+	// root; when false every file's Trust is "unverified".
+	Manifest bool `json:"manifest"`
+}
+
+// rosterTrust renders the Layer 2 verdict for one baseline file, in the same
+// vocabulary the provenance events use ("ok"/"modified"/"unsigned") plus
+// "unverified" for a root with no approval manifest on record.
+func rosterTrust(m *provenance.Manifest, path, hash string) string {
+	if m == nil {
+		return "unverified"
+	}
+	want, listed := m.Files[path]
+	switch {
+	case !listed:
+		return "unsigned"
+	case want != hash:
+		return "modified"
+	default:
+		return "ok"
+	}
 }
 
 // agentsView is the /api/v1/agents response: the fleet's identity roster —
@@ -102,9 +129,15 @@ func (s *Service) handleAgents(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			entry := agentRosterEntry{HostID: b.Key.HostID, Root: b.Key.Root, Files: []agentFile{}}
+			// Layer 2: join the approved manifest for this root, if any, so the
+			// roster answers "is every agent's identity approved" and not just
+			// "what is it". ForRoot is nil-safe when Layer 2 is disabled.
+			manifest, ok := s.manifests.ForRoot(b.Key.Root)
+			entry.Manifest = ok
 			for _, f := range b.Files {
 				entry.Files = append(entry.Files, agentFile{
 					Path: f.Path, SHA256: f.SHA256, Size: f.Size, ModTime: f.ModTime,
+					Trust: rosterTrust(manifest, f.Path, f.SHA256),
 				})
 			}
 			// Stable file order so the roster is diffable run to run.

@@ -32,6 +32,13 @@ identity file's `path`, `sha256`, `size`, and `mod_time`. It deliberately does
 endpoint that shipped them would turn central into a way to read every agent's
 `SOUL.md` over the network. Optional `host` and `root` filters narrow it.
 
+It also joins **Layer 2** into Layer 1's inventory: each file carries a `trust`
+verdict against the approved manifest for its root — `ok` (listed, hash matches),
+`modified` (listed, hash differs), `unsigned` (on host, not listed), or
+`unverified` (no manifest on record for the root). A row's `manifest` field says
+whether an approval exists at all. So one query answers both halves of agent
+hygiene at once: *what every agent is* **and** *whether it is approved*.
+
 The distinction that matters operationally: the fleet view reads the *record
 store* (bounded, time-limited events), so it can only speak about what has
 already happened. The roster reads the *baseline store* — one durable entry per
@@ -49,8 +56,9 @@ changed, the roster tells you what every agent *is* right now.
     {
       "host_id": "builder-01",
       "root": "/home/agent/.openclaw/workspace-vivi",
+      "manifest": true,
       "files": [
-        { "path": "SOUL.md", "sha256": "a2cffbd6…", "size": 1634, "mod_time": "2026-10-01T17:58:00Z" }
+        { "path": "SOUL.md", "sha256": "a2cffbd6…", "size": 1634, "mod_time": "2026-10-01T17:58:00Z", "trust": "ok" }
       ]
     }
   ]

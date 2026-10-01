@@ -150,11 +150,13 @@ Built so far:
   [`docs/deploy-central.md`](docs/deploy-central.md).
 - **Agent roster** — `GET /api/v1/agents` is the identity half of the console:
   every agent baseline central holds (host, root, and each identity file's path,
-  sha256, size, mtime — never the file body), filterable by `host` and `root`.
-  It reads the durable **baseline store**, so it answers "grep my fleet for every
-  agent's identity" **before any event has fired** — the check the CARBONATO
-  counter is built around, and the brief's *"every agent, its baseline"*
-  differentiator made queryable. Details: [`docs/fleet-view.md`](docs/fleet-view.md).
+  sha256, size, mtime — never the file body), filterable by `host` and `root`,
+  each file carrying a Layer 2 `trust` verdict (`ok` / `modified` / `unsigned` /
+  `unverified`) against its approved manifest. It reads the durable **baseline
+  store**, so it answers "grep my fleet for every agent's identity" — *what every
+  agent is, and whether it is approved* — **before any event has fired**: the
+  check the CARBONATO counter is built around, and the brief's *"every agent, its
+  baseline"* differentiator made queryable. Details: [`docs/fleet-view.md`](docs/fleet-view.md).
 
 ## Getting started
 

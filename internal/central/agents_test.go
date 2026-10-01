@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/crperdue73/AEGIS-Watchman/internal/collector"
+	"github.com/crperdue73/AEGIS-Watchman/internal/provenance"
 	"github.com/crperdue73/AEGIS-Watchman/internal/schema"
 )
 
@@ -169,6 +170,70 @@ func TestFileStoreListsBaselines(t *testing.T) {
 	}
 	if len(list[0].Files) != 1 || list[0].Files[0].Path != "SOUL.md" {
 		t.Errorf("baseline files not round-tripped: %+v", list[0].Files)
+	}
+}
+
+// TestAgentsRosterJoinsLayer2Trust proves the roster answers "is every agent's
+// identity approved", not just "what is it": a file in the approved manifest
+// reads ok, a mismatch reads modified, an unlisted file reads unsigned, and a
+// root with no manifest reads unverified.
+func TestAgentsRosterJoinsLayer2Trust(t *testing.T) {
+	svc := NewService(NewMemoryStore())
+	reg, err := NewManifestRegistry("", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg.Set("/r/approved", &provenance.Manifest{
+		Version: provenance.ManifestVersion,
+		AgentID: "a",
+		Root:    "/r/approved",
+		Files:   map[string]string{"SOUL.md": "good", "config.json": "want"},
+	})
+	svc.SetManifests(reg)
+	ctx := context.Background()
+
+	if _, err := svc.Ingest(ctx, schema.Host{ID: "h"}, schema.Agent{ID: "a"}, rosterInv("/r/approved",
+		fs("SOUL.md", "good", 1),      // listed, matches -> ok
+		fs("config.json", "other", 2), // listed, differs -> modified
+		fs("skills/new.md", "z", 3),   // unlisted         -> unsigned
+	)); err != nil {
+		t.Fatal(err)
+	}
+	// A second agent root with no manifest -> unverified.
+	if _, err := svc.Ingest(ctx, schema.Host{ID: "h"}, schema.Agent{ID: "b"}, rosterInv("/r/plain",
+		fs("SOUL.md", "x", 4))); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := httptest.NewServer(svc.Handler())
+	defer srv.Close()
+	view := decodeAgents(t, srv, "")
+
+	byRoot := map[string]agentRosterEntry{}
+	for _, a := range view.Agents {
+		byRoot[a.Root] = a
+	}
+	approved := byRoot["/r/approved"]
+	if !approved.Manifest {
+		t.Error("approved root should report manifest=true")
+	}
+	got := map[string]string{}
+	for _, f := range approved.Files {
+		got[f.Path] = f.Trust
+	}
+	want := map[string]string{"SOUL.md": "ok", "config.json": "modified", "skills/new.md": "unsigned"}
+	for p, w := range want {
+		if got[p] != w {
+			t.Errorf("trust[%s] = %q, want %q", p, got[p], w)
+		}
+	}
+
+	plain := byRoot["/r/plain"]
+	if plain.Manifest {
+		t.Error("root with no manifest should report manifest=false")
+	}
+	if plain.Files[0].Trust != "unverified" {
+		t.Errorf("unapproved root trust = %q, want unverified", plain.Files[0].Trust)
 	}
 }
 
