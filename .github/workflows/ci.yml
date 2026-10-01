@@ -34,9 +34,9 @@ jobs:
         # The shipped pack has a committed pin (rules/packs.pins). If the pack
         # changed without re-pinning, the fleet would run packs the pin does not
         # approve — fail the build and tell the author to run `make pin`.
-        run: |
-          ./bin/watchman-rules pin rules/ > /tmp/packs.pins
-          diff -u rules/packs.pins /tmp/packs.pins
+        # Same target runs locally (wired into `make lint`), so a green local
+        # run and a green CI run mean the same thing.
+        run: make pin-check
       - name: Vet (default and sqlite builds)
         run: |
           go vet ./...

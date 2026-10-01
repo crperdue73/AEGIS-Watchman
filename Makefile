@@ -15,7 +15,7 @@ DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)
 PKG     := github.com/crperdue73/AEGIS-Watchman/internal/buildinfo
 LDFLAGS := -X $(PKG).Version=$(VERSION) -X $(PKG).Commit=$(COMMIT) -X $(PKG).Date=$(DATE)
 
-.PHONY: all build build-collector build-central build-manifest build-rules test lint check-links clean fmt vet version pin ebpf-preflight quickstart-check container-check publish-scan fuzz deps-report
+.PHONY: all build build-collector build-central build-manifest build-rules test lint check-links clean fmt vet version pin pin-check ebpf-preflight quickstart-check container-check publish-scan fuzz deps-report
 
 all: build
 
@@ -42,7 +42,7 @@ vet:
 check-links:
 	$(PYTHON) scripts/check-links.py
 
-lint: vet check-links
+lint: vet check-links pin-check
 	@echo "add golangci-lint when the tree has code"
 
 # Report whether this host can build/load the optional eBPF file.access source.
@@ -85,6 +85,17 @@ deps-report:
 pin: build-rules
 	./bin/$(BINARY_RULES) pin rules/ > rules/packs.pins
 	@echo "wrote rules/packs.pins"
+
+# Fail if the shipped pin no longer matches the packs (the check CI runs). Kept
+# as its own target and wired into `lint` so a local "all gates green" claim
+# actually covers it: the pin drifted once (a rename rewrote a byte inside a
+# pack but not its hash line) precisely because CI was the only place it ran.
+pin-check: build-rules
+	@tmp=$$(mktemp); ./bin/$(BINARY_RULES) pin rules/ > $$tmp; \
+	  if ! diff -u rules/packs.pins $$tmp; then \
+	    echo "ERROR: rules/packs.pins is stale — run 'make pin' and commit the result."; \
+	    rm -f $$tmp; exit 1; \
+	  fi; rm -f $$tmp; echo "pin-check: ok"
 
 fmt:
 	$(GO) fmt ./...
