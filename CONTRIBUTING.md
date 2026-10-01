@@ -25,8 +25,16 @@ like it's going public, because it is.
 - Test: `make test`.
 - CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs, on every push
   and PR: build, `vet` and `test` in **both** build modes (default and
-  `-tags sqlite`), `make lint`, and the end-to-end `demo/run.sh`. Run the same
-  before you push — it is the same thing, just slower.
+  `-tags sqlite`), `make lint`, the end-to-end `demo/run.sh`, the doc's own
+  commands via `make quickstart-check`, and the container image via
+  `make container-check`. Run the same before you push — it is the same thing,
+  just slower.
+- Container: `make container-check` builds `deploy/docker/Dockerfile` and
+  asserts the claims the container docs make about the resulting image (nonroot
+  uid 65532, the baked rule pack loads, the `/etc/agentids` shadow caveat,
+  static binaries). It needs a Docker daemon; `demo/` and `quickstart-check` do
+  not. A container doc that is only read, never built, is how the image shipped
+  broken once.
 - Lint: `make lint` — `go vet` plus `make check-links`, which fails if a
   relative link in any Markdown file does not resolve. A broken doc link is a
   defect a stranger hits on their first read, so it is checked, not trusted.

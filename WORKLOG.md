@@ -3521,3 +3521,61 @@ file and grep for the one line under test; never `cat` it. Same principle as
   settle; check whether Docker is available here, and if not, say so rather than
   analysing it. (2) If Dad answers the P2.0 toolchain question, take it — that
   still outranks hardening. Do not start a fourth doc sweep without a new method.
+
+---
+
+## Heartbeat 79 — the container path was already done; made it a guard instead
+
+Heartbeat 78's next step (1) said the `deploy/docker/Dockerfile` path still had to
+be run. That was wrong, and worth recording: it was **already run at heartbeats
+66 and 69** — 66 fixed a genuinely broken image (a dynamically-linked binary in a
+distroless runtime), 69 ran the container path with mutual TLS and found three
+bugs. The hb78 note was stale; I checked the worklog before believing it.
+
+So this heartbeat did two things.
+
+**Re-ran the container build as a regression across hb76/77.** Those heartbeats
+changed the quickstart configs, the demo fixture, and CI. A `docker build` from
+the current tree: build stage re-ran (Go recompiled), and — the part worth
+noting — the four runtime `COPY`s came back **CACHED**, i.e. the rebuilt binaries
+were byte-identical to the last build. Nothing in hb76/77 touched compiled Go, so
+the image is unchanged, and the build is reproducible from the same source.
+Re-checked by hand: uid 65532, pack loads (`ok: 1 pack(s), 20 rule(s)`), the
+`/etc/agentids` shadow caveat holds, binaries statically linked.
+
+**Then turned the hand check into a guard, which is the actual step.** A one-off
+manual verification is not protection against the hb66 class — "a Dockerfile that
+was never built." `demo/` and `quickstart-check` both need no Docker, so neither
+could ever catch a container defect; nothing in CI built the image. Added:
+
+- `scripts/container-check.sh` — builds `deploy/docker/Dockerfile` and asserts the
+  documented claims on the real image: nonroot uid 65532, the baked pack validates
+  at `/etc/agentids/rules`, a bind mount at `/etc/agentids` still shadows that pack
+  (so the README's `/config` instruction stays true), and the copied binaries are
+  statically linked. Needs a Docker daemon (stated in the header and in
+  `CONTRIBUTING.md`).
+- `make container-check` and a `container` job in `ci.yml` (`ubuntu-latest` has a
+  Docker daemon; runner-independent).
+- `CONTRIBUTING.md` + `CHANGELOG.md` updated so the check is discoverable and the
+  doc-link check stays green (93 links ok).
+
+**Ran it, it failed, fixed it, it passed.** First run: the `ldd` step reported the
+binaries as dynamically linked — a false failure. Cause: `set -o pipefail` plus
+`ldd ... | grep` — `ldd` exits non-zero for a static binary, so the pipeline
+failed on success. Captured the output instead of piping it. Green run:
+`container-check: PASS — the image builds and every documented claim holds`.
+
+**P2.0 is unchanged and still the only strategic gap.** Re-ran
+`make ebpf-preflight`: this host is **LOAD ready / BUILD not** (no `clang`, no
+`libbpf-dev`). Blocked on Dad's toolchain call, as it has been; installing system
+packages is not mine to decide.
+
+- **Next step (heartbeat 80):** the doc/artifact verification method is now
+  exhausted and CI-guarded (quickstart, demo, container, links, pins). No new doc
+  sweep. The open fronts are: **P2.0** (eBPF, blocked on Dad's `clang`/`libbpf-dev`
+  decision — take it the moment it lands) and **P2.1c-4** (Postgres record
+  backend, "scoped, on demand"). Absent a Dad answer, the honest next code item is
+  to make the **G5 `scope.change` heuristic survive a collector restart** (it
+  resets today; that is a named weakness in the coverage matrix and needs no
+  external toolchain). Re-read `PHASE0-COVERAGE.md` §G5 and `docs/architecture.md`
+  before starting.

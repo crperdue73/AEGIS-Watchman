@@ -162,6 +162,16 @@ opt-in design.
   path; nothing guarded the quickstart path, which is how three referenced files
   went untracked without CI noticing. A doc's copy-paste block is only true if
   it is run.
+- **`scripts/container-check.sh`** (`make container-check`, and a CI job) —
+  builds `deploy/docker/Dockerfile` and asserts, on the real image, every claim
+  the Dockerfile header and `deploy/README.md` make: the runtime uid is 65532
+  (nonroot), the baked rule pack at `/etc/agentids/rules` loads, a bind mount at
+  `/etc/agentids` really does shadow that pack (the reason the doc says to mount
+  at `/config`), and the copied binaries are statically linked — the exact
+  property whose absence shipped the image broken once (a dynamic binary in a
+  distroless, no-libc runtime). The demo and quickstart jobs need no Docker and
+  so could not catch that class; this one does. A container doc that is only
+  read, never built, is how the image went out broken.
 - **Deployment artifacts for a real host** (`deploy/`): systemd unit templates
   for the collector and central — unprivileged, hardened, with a private state
   directory for the spool and cursor — plus a `deploy/README.md` install

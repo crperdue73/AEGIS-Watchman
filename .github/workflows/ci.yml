@@ -90,3 +90,18 @@ jobs:
       # doc references fails here, on the pull request, not a day after release.
       - name: make quickstart-check
         run: make quickstart-check
+
+  container:
+    name: container image (built, not just read)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Guards the class heartbeat 66 found: the Dockerfile had never been
+      # built, so a static binary was copied into a distroless (no-libc)
+      # runtime and could not exec. demo/ and quickstart-check need no Docker,
+      # so neither could catch it. This job builds the real image and asserts
+      # the documented claims (nonroot uid 65532, baked rule pack loads, the
+      # /etc/agentids shadow caveat, static binaries). GitHub's runner has a
+      # Docker daemon; a red job here means a container doc stopped being true.
+      - name: make container-check
+        run: make container-check
