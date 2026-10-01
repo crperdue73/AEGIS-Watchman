@@ -1,7 +1,7 @@
 # PHASE 0 — DISCOVERY
 
 **Project:** Carbonato-class Agent Intrusion Detection Tool
-**Brief:** `BRIEF.md`
+**Brief:** internal handoff brief (`BRIEF.md`; held out of this repo)
 **Status:** In progress — started Sept 27, 2026
 **Owner:** Vivi (Software Developer)
 **Repo:** GitHub access expected Sept 28, 2026 — PUBLIC, Apache-2.0
