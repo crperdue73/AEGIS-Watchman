@@ -37,7 +37,14 @@ cd "$tmp/check"
 # Beat 631: this said "clean: local-only docs stayed out" over an unstated list. A reader could not
 # tell whether two files were checked or twenty -- a clean result wider than its evidence. The list is
 # named and counted so the claim has a reach.
-local_only="WORKLOG.md BRIEF.md"
+#
+# Beat 740: BRIEF.md was on this list and should not have been. It was assumed local-only because it
+# sat in a working tree that had no .git; once checked, it is clean product material (the public
+# Carbonato brief, a link to the published Trend Micro research, and the build spec) and it is now
+# TRACKED at HEAD. Leaving it here made clone-check assert an absence that no longer holds -- the
+# check was right for the tree it was written against and wrong for the tree that now ships. Only
+# genuinely non-public process files belong below.
+local_only="WORKLOG.md"
 n_local=0
 for f in $local_only; do
     if [ -e "$f" ]; then

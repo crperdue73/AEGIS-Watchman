@@ -2,4 +2,4 @@
 # regenerate: watchman-rules pin <dir-or-file>... > packs.pins
 # verify:     watchman-rules verify --pins packs.pins <dir-or-file>...
 # format: <sha256>  <name@version>  <filename>
-a2cffbd659905b182724937434a3bdf0411c9804c91c1099aac2630ee00c6ff4  carbonato@7  carbonato.yaml
+80e47c424edad132f236b00497a0ec365c56eeb047d572a7eb60f8c46aea4162  carbonato@7  carbonato.yaml

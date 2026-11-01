@@ -90,15 +90,29 @@ def main():
     rep = code[code.index("report() {"):]
     rep = rep[:rep.index("\n}\n")]
 
-    print("-- the mechanism: a failure and an empty result look identical --")
+    # This suite used to assert the DEFECT: that report() discarded git grep's exit
+    # status and stderr, so "could not run" and "found nothing" were one output. Beat 739
+    # fixed the scanner. A canary that still asserts the bug is a canary that fails when
+    # the bug is fixed -- so it is inverted: it now REQUIRES the fix and goes red if
+    # anyone reintroduces `|| true` / `2>/dev/null` around the grep.
+    print("-- the mechanism: a failure and an empty result must NOT look identical --")
     check("report() runs `git grep`", "git grep" in rep)
-    check("report() discards git grep's EXIT STATUS everywhere (`|| true`)",
-          rep.count("git grep") >= 1 and rep.count("|| true") >= rep.count("git grep"))
-    check("report() discards git grep's STDERR (`2>/dev/null`)", "2>/dev/null" in rep)
-    check("report() returns 0 on an EMPTY result (which a failed grep also produces)",
-          '[[ -z "$out" ]] && return 0' in rep)
-    check("`fatal` can only be set from inside report() (no independent failure path)",
-          code.count("fatal=1") == 1)
+    # Scope this to the grep LINE, not the whole function: `|| true` legitimately
+    # appears on the allowlist filter (`printf ... | grep -vE "$allow"`), where a
+    # no-matches exit is expected and harmless. The defect was `|| true` on the
+    # git-grep invocation itself, so that is precisely what is asserted here.
+    grep_lines = [ln for ln in rep.splitlines() if "git grep" in ln and not ln.strip().startswith("#")]
+    check("report() has a git grep invocation to inspect", len(grep_lines) > 0)
+    check("report() CAPTURES git grep's exit status (no `|| true` on the grep line)",
+          all("|| true" not in ln for ln in grep_lines))
+    check("report() does NOT discard git grep's STDERR (`2>/dev/null` gone)",
+          "2>/dev/null" not in rep)
+    check("report() treats exit status >1 (cannot-run) as FATAL, not as no-hits",
+          "rc > 1" in rep and "could not run the scan" in rep)
+    check("a FATAL cannot-run sets the failure flag",
+          rep.split("rc > 1")[1].split("fi")[0].count("fatal=1") == 1)
+    check("--warn refuses to print a clean verdict for a scan it could not run",
+          "INCONCLUSIVE" in code)
 
     print("\n-- measured in a SCRATCH COPY with .git removed, so git grep cannot work --")
     # The 2026-10-08 migration destroyed this working tree's .git, and that is where the
@@ -123,15 +137,26 @@ def main():
         check("git grep exits NONZERO without a .git", r.returncode != 0)
         check("its output is EMPTY, exactly what 'no hits' looks like", r.stdout == "")
 
-        print("\n-- and the scanner prints PASS while a token sits in the tree --")
+        print("\n-- and the scanner REFUSES to certify a tree it could not read --")
         canary = scratch / "zz-leakcanary.txt"
         try:
             canary.write_text("token = cpat_deadbeefdeadbeefdeadbeefdeadbeef\n")
             p2 = subprocess.run(["bash", "scripts/publish-scan.sh"], cwd=str(scratch),
                                 capture_output=True, text=True)
             print(f"   planted {canary.name}; publish-scan rc={p2.returncode}")
-            check("publish-scan reports PASS with a credential SHAPED token in the tree",
-                  "PASS" in p2.stdout and p2.returncode == 0)
+            check("publish-scan FAILS on a tree it cannot read (no false PASS)",
+                  p2.returncode != 0 and "PASS — no tracked file" not in p2.stdout)
+            check("it names the cannot-run reason instead of staying silent",
+                  "could not run" in p2.stdout)
+            p3 = subprocess.run(["bash", "scripts/publish-scan.sh", "--warn"],
+                                cwd=str(scratch), capture_output=True, text=True)
+            check("--warn stays inconclusive rather than claiming clean",
+                  "INCONCLUSIVE" in p3.stdout and "PASS — no tracked file" not in p3.stdout)
+            canary.unlink()
+            p4 = subprocess.run(["bash", "scripts/publish-scan.sh"], cwd=str(scratch),
+                                capture_output=True, text=True)
+            check("with the canary gone it STILL refuses (the verdict tracks the scan, "
+                  "not the canary)", p4.returncode != 0)
         finally:
             if canary.exists():
                 canary.unlink()
@@ -142,22 +167,19 @@ def main():
         print(f"\nSCANBLIND RED: {fails}")
         return 1
 
-    print("\n=> publish-scan.sh cannot distinguish 'no findings' from 'could not run', and in")
-    print("   a tree without .git it is the second: `git grep` fails, `|| true` and")
-    print("   2>/dev/null discard the failure, and `[[ -z $out ]] && return 0` reports clean.")
-    print("   It was dark on this box from 2026-10-08 until .git was restored -- and MEMORY.md")
-    print("   NOT claimed: that a real credential is public today -- I did not and cannot")
-    print("   audit the remote from here. Claimed: the local guard cannot answer that question.")
-    print("   Fix, Dad's call -- three parts, and the FIRST is the one that matters:")
-    print("   (1) distinguish CANNOT-RUN from NO-FINDINGS: capture git grep's status and")
-    print("       BANNER-EXIT (rc 2, 'scanner unavailable', fatal) when it is nonzero and the")
-    print("       reason is not 'no matches'; drop `2>/dev/null` or tee stderr into the");
-    print("       report. A scanner must never print PASS on an unanswered question.")
-    print("   (2) add `publish-scan.sh` to suitecheck.sh's SELFHARNESS -- it is a pack-exempt")
-    print("       guard that currently NOTHING runs, which is how it stayed dark.")
-    print("   (3) restore the .git (the reconciliation already routed to Dad via Jade, hb202)")
-    print("       -- otherwise (1) will correctly banner-fail on every heartbeat, which is the")
-    print("       honest state but a noisy one.")
+    print("\n=> publish-scan.sh now distinguishes 'no findings' from 'could not run'.")
+    print("   git grep's status is captured; >1 (not a repo, bad rev, grep failure) is FATAL")
+    print("   with the reason printed, and --warn reports INCONCLUSIVE instead of PASS.")
+    print("   History: the blind spot was found on 2026-10-08 (this tree lost its .git in the")
+    print("   migration) and FIXED in beat 739 -- the same beat that found the tree would not")
+    print("   build. Before the fix, the scanner printed PASS over a planted token on any")
+    print("   tree it could not read, and the release gate that should have caught it was")
+    print("   green for three weeks. NOT claimed: that a real credential was public -- I did")
+    print("   not and cannot audit the remote from here. Claimed: the local guard now answers")
+    print("   the question it was asked, and fails loudly when it cannot.")
+    print("   Remaining work, in priority order:")
+    print("   (1) add `publish-scan.sh` to suitecheck.sh's SELFHARNESS -- it is a pack-exempt")
+    print("       guard, and a guard nothing runs is how it stayed dark for three weeks.")
     return 0
 
 

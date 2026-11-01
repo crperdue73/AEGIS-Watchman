@@ -50,11 +50,24 @@ scan_revs=""
 # Greps either the tracked tree (scan_revs empty) or a set of commits, and prints
 # any hits. In history mode the hits are prefixed <sha>:<path>:<line>.
 report() {
-  local level="$1" label="$2" pat="$3" allow="${4:-}" out
+  local level="$1" label="$2" pat="$3" allow="${4:-}" out rc
+  # `git grep` exit codes: 0 = matches, 1 = no matches, >1 = COULD NOT RUN
+  # (not a repo, bad revision, grep failure). The old form -- `2>/dev/null || true`
+  # followed by an empty-string check -- collapsed >1 into 1: a scan that never
+  # happened reported exactly what a clean tree reports. That is the whole
+  # no-.git blind spot, and it made this gate green on a tree it could not read.
+  # Now >1 is a FATAL "could not ask", not a silent pass.
   if [[ -n "$scan_revs" ]]; then
-    out="$(git grep -n -I -E -- "$pat" $scan_revs 2>/dev/null)" || true
+    out="$(git grep -n -I -E -- "$pat" $scan_revs 2>&1)"; rc=$?
   else
-    out="$(git grep -n -I -E -- "$pat" 2>/dev/null)" || true
+    out="$(git grep -n -I -E -- "$pat" 2>&1)"; rc=$?
+  fi
+  if (( rc > 1 )); then
+    echo "publish-scan: FATAL — could not run the scan for \"$label\" (git grep rc=$rc)"
+    printf '%s\n' "$out" | sed 's/^/    /'
+    echo "publish-scan: a scan that cannot run is NOT a clean scan"
+    fatal=1
+    return 0
   fi
   [[ -z "$out" ]] && return 0
   if [[ -n "$allow" ]]; then
@@ -143,7 +156,16 @@ if [[ "$public_audit" == "1" ]]; then
 fi
 
 echo
-if [[ "$fatal" == "1" && "$warn_only" == "0" ]]; then
+if [[ "$fatal" == "1" ]]; then
+  if [[ "$warn_only" == "1" ]]; then
+    # --warn means "exit 0 so a human can read the whole report", NOT "the tree is
+    # clean". Saying PASS here was a straight contradiction: the same output printed
+    # "could not run the scan" eight lines above. A scan that could not run cannot
+    # certify anything, so this refuses to emit the clean verdict even when it is
+    # instructed not to fail the build.
+    echo "publish-scan: INCONCLUSIVE (--warn) — findings or unreadable scans above; this is NOT a clean verdict"
+    exit 0
+  fi
   echo "publish-scan: FAIL — the above must not be published (or allow-list it deliberately)"
   exit 1
 fi

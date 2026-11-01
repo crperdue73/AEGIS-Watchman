@@ -218,4 +218,11 @@ if [ "$bad_suites" -ne 0 ] || [ "$regress" -ne 0 ]; then
 fi
 
 echo "suitecheck: $count suites held, $total_ok checks ok, 0 reported failures, none below baseline"
-echo "Note: this proves the script tests ran and passed, NOT that the Go tests do — no toolchain here."
+# This note used to read "no toolchain here". That was a hardcoded caveat describing a
+# local breakage, and it went stale the moment Go was reinstated (beat 739) -- a comment
+# that asserts a fact about the box will eventually assert a false one. Ask instead.
+if command -v go >/dev/null 2>&1; then
+  echo "Note: this proves the script tests ran and passed. The Go tests are a SEPARATE gate -- run 'make test'."
+else
+  echo "Note: this proves the script tests ran and passed, NOT that the Go tests do -- no Go toolchain on this box."
+fi

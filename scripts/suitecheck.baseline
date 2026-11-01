@@ -71,7 +71,7 @@ recordloss.py 12
 redundant_mut.py 8
 redundant_test.py 1
 renametrace_test.py 6
-scanblind.py 9
+scanblind.py 14
 scopecheck_test.py 25
 segmentaudit_test.py 11
 severityprobe2_test.py 46

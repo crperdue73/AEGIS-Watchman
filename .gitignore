@@ -39,3 +39,7 @@ secrets/
 .idea/
 .vscode/
 *.swp
+
+# Python bytecode (a `make preflight` run stages 155 .pyc files otherwise)
+__pycache__/
+*.pyc
