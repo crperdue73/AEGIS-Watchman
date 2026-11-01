@@ -73,7 +73,7 @@ These close the remaining *cheap* gaps and make the repo honest enough to publis
 - **Cost:** MEDIUM. **Owner:** collector + rules.
 
 ### P1.4 — Rule pack review pass (quality, not quantity) ✅ DONE
-- **Why:** 18 rules exist; a public pack earns trust by being precise. Every
+- **Why:** 20 rules exist; a public pack earns trust by being precise. Every
   rule should have a description that explains the *why*, a severity that is
   defensible, and a test proving it fires on the attack and stays quiet on the
   benign lookalike.
@@ -187,5 +187,26 @@ One item needs a call, not a code change:
   non-zero on any **changed**/**missing**/**unpinned** pack), a `make pin`
   target, and a CI gate that the committed pin is current. The pin describes the
   same file set a collector loads. It is a lockfile, **not** a signature —
-  Ed25519-signing the pin (reusing the Layer 2 manifest crypto) is the next
-  slice and is documented as not-built. See `docs/rules.md`.
+  Ed25519-signing the pin (reusing the Layer 2 manifest crypto) was the next
+  slice at the time of this entry; it shipped the same day (see the 2026-10-02
+  entry below). See `docs/rules.md`.
+
+- **2026-10-02 (Fri), ~07:5x ET** — **Correction to the 2026-09-30 entry:
+  signing shipped, and the plan no longer contradicts the repo.** The 09-30
+  entry above ends by calling Ed25519 pin signing "the next slice … documented
+  as not-built." That slice landed 48 minutes later in `b6b7e96`
+  (`watchman-rules sign-pins`; `verify --pins --pubkey`; collector
+  `behavior.pins` / `behavior.pin_pubkey` enforcement), and is covered by
+  (`cmd/rules/pins_test.go`, `internal/provenance/keys_test.go`) and documented
+  as **built** in `docs/rules.md`, `rules/README.md`, and the CHANGELOG. No code
+  or behavior change here — this entry is bookkeeping so a reader following the
+  plan is not told a shipped feature does not exist. Phase 3 ("versioned,
+  signed, shareable packs") is complete; the only remaining gate on the first
+  public cut is the push credential.
+
+- **2026-10-02 (Fri), ~08:2x ET** — **Second plan-vs-repo drift, same class as the
+  entry above: a stale rule count.** The P1.4 rationale opened "18 rules
+  exist"; the shipped pack is `rules/carbonato.yaml` **v7, 20 rules** (6
+  critical) — the same figure the README, `docs/rules.md`, and `rules/README.md`
+  already print. Corrected the count here so a reader following the plan is not
+  handed a number the pack contradicts. Docs only; `make preflight` green.

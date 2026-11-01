@@ -197,3 +197,10 @@ access. Q2–Q5 can be answered in parallel.
   (public). Module path repointed to the real owner (`crperdue73`); the four
   binaries rebuilt; all gates green. `BRIEF.md` / `WORKLOG.md` held out of the
   public cut. First push + tag `0.1.0` next.
+- **2026-10-22** — Phase 0 code re-read (no toolchain). One finding filed:
+  [`docs/FINDING-2026-10-22-argv-joined.md`](docs/FINDING-2026-10-22-argv-joined.md) —
+  `argv_any` is documented element-wise but the matcher also tries the space-joined
+  command line; 16 globs across 4 of 20 rules depend on it, 3 only work because of
+  it. Not patched: `go`/`make`/`docker` absent, `.git` absent. Cheapest next act is
+  a test + one doc sentence (no behaviour change); the real fix is a second field
+  with its own documented semantics, which is a threat-coverage call.

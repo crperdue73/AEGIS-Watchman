@@ -147,3 +147,21 @@ func TestFleetPageOnlyRoot(t *testing.T) {
 		t.Errorf("status for /nope = %d, want 404", resp.StatusCode)
 	}
 }
+
+// TestFleetPageLinksToRoster keeps the two console surfaces discoverable from
+// each other: the fleet page must link to the identity roster at /agents. (The
+// roster page's link back to / is covered in agentspage_test.)
+func TestFleetPageLinksToRoster(t *testing.T) {
+	svc := NewService(NewMemoryStore())
+	srv := httptest.NewServer(svc.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if body := readAll(t, resp.Body); !strings.Contains(body, `href="/agents"`) {
+		t.Errorf("fleet page does not link to the identity roster; got:\n%s", body)
+	}
+}

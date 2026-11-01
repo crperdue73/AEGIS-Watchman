@@ -110,4 +110,28 @@ fi
 echo "   the same rollup as a human page: http://127.0.0.1:$port/  (GET /)"
 
 echo
+echo "== identity roster: every agent, its baseline, its trust =="
+echo "   GET /api/v1/agents"
+agents_json="$(curl -s "http://127.0.0.1:$port/api/v1/agents")"
+if command -v python3 >/dev/null 2>&1; then
+  printf '%s' "$agents_json" | python3 -c '
+import json, sys
+v = json.load(sys.stdin)
+agents = v.get("agents", [])
+print("   %d agent(s), %d file(s)" % (v.get("total_agents", 0), v.get("total_files", 0)))
+for a in agents:
+    print("   %s (%s): %d file(s), manifest=%s" % (
+        a.get("host_id"), a.get("root"), len(a.get("files", [])),
+        "yes" if a.get("manifest") else "no"))
+    for f in a.get("files", []):
+        short = (f.get("sha256") or "")[:12]
+        print("      %s  %s…  trust=%s" % (f.get("path"), short, f.get("trust")))
+'
+else
+  printf '   %s\n' "$agents_json"
+fi
+echo "   the same roster as a human page: http://127.0.0.1:$port/agents  (GET /agents)"
+echo "   (the roster is read before any event fires — it answers what each agent is, and whether it is approved)"
+
+echo
 echo "done. full central log: demo/out/central.log"

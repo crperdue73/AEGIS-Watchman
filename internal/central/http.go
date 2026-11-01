@@ -1,6 +1,7 @@
 package central
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log"
@@ -34,8 +35,10 @@ type ActionsRequest struct {
 	Events []schema.Event `json:"events"`
 }
 
-// Handler returns the central service's HTTP mux.
-func (s *Service) Handler() http.Handler {
+// Handler returns the central service's HTTP mux. The concrete *http.ServeMux
+// (not just http.Handler) is returned deliberately: it is the introspectable
+// record of the surface, which the endpoints/docs agreement test relies on.
+func (s *Service) Handler() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -45,6 +48,7 @@ func (s *Service) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/actions", s.handleActions)
 	mux.HandleFunc("/api/v1/fleet", s.handleFleet)
 	mux.HandleFunc("/api/v1/agents", s.handleAgents)
+	mux.HandleFunc("/agents", s.handleAgentsPage)
 	mux.HandleFunc("/", s.handleFleetPage)
 	return mux
 }
@@ -105,46 +109,41 @@ type agentsView struct {
 	Agents      []agentRosterEntry `json:"agents"`
 }
 
-// handleAgents serves GET /api/v1/agents — the fleet identity roster. Query
-// params (both optional): host=<id>, root=<path>.
-func (s *Service) handleAgents(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
+// buildAgentsView assembles the identity roster under optional filters. It is
+// the single source of truth behind both the JSON endpoint and the human page —
+// the page is a second view of one answer, not a second implementation.
+func (s *Service) buildAgentsView(ctx context.Context, host, root string) (agentsView, error) {
 	view := agentsView{GeneratedAt: time.Now().UTC(), Agents: []agentRosterEntry{}}
-	if s.store != nil {
-		list, err := s.store.ListBaselines(r.Context())
-		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "baseline list failed")
-			return
+	if s.store == nil {
+		return view, nil
+	}
+	list, err := s.store.ListBaselines(ctx)
+	if err != nil {
+		return view, err
+	}
+	for _, b := range list {
+		if host != "" && b.Key.HostID != host {
+			continue
 		}
-		host := r.URL.Query().Get("host")
-		root := r.URL.Query().Get("root")
-		for _, b := range list {
-			if host != "" && b.Key.HostID != host {
-				continue
-			}
-			if root != "" && b.Key.Root != root {
-				continue
-			}
-			entry := agentRosterEntry{HostID: b.Key.HostID, Root: b.Key.Root, Files: []agentFile{}}
-			// Layer 2: join the approved manifest for this root, if any, so the
-			// roster answers "is every agent's identity approved" and not just
-			// "what is it". ForRoot is nil-safe when Layer 2 is disabled.
-			manifest, ok := s.manifests.ForRoot(b.Key.Root)
-			entry.Manifest = ok
-			for _, f := range b.Files {
-				entry.Files = append(entry.Files, agentFile{
-					Path: f.Path, SHA256: f.SHA256, Size: f.Size, ModTime: f.ModTime,
-					Trust: rosterTrust(manifest, f.Path, f.SHA256),
-				})
-			}
-			// Stable file order so the roster is diffable run to run.
-			sort.Slice(entry.Files, func(i, j int) bool { return entry.Files[i].Path < entry.Files[j].Path })
-			view.Agents = append(view.Agents, entry)
-			view.TotalFiles += len(entry.Files)
+		if root != "" && b.Key.Root != root {
+			continue
 		}
+		entry := agentRosterEntry{HostID: b.Key.HostID, Root: b.Key.Root, Files: []agentFile{}}
+		// Layer 2: join the approved manifest for this root, if any, so the
+		// roster answers "is every agent's identity approved" and not just
+		// "what is it". ForRoot is nil-safe when Layer 2 is disabled.
+		manifest, ok := s.manifests.ForRoot(b.Key.Root)
+		entry.Manifest = ok
+		for _, f := range b.Files {
+			entry.Files = append(entry.Files, agentFile{
+				Path: f.Path, SHA256: f.SHA256, Size: f.Size, ModTime: f.ModTime,
+				Trust: rosterTrust(manifest, f.Path, f.SHA256),
+			})
+		}
+		// Stable file order so the roster is diffable run to run.
+		sort.Slice(entry.Files, func(i, j int) bool { return entry.Files[i].Path < entry.Files[j].Path })
+		view.Agents = append(view.Agents, entry)
+		view.TotalFiles += len(entry.Files)
 	}
 	view.TotalAgents = len(view.Agents)
 	// Stable agent order: host, then root.
@@ -154,6 +153,21 @@ func (s *Service) handleAgents(w http.ResponseWriter, r *http.Request) {
 		}
 		return view.Agents[i].Root < view.Agents[j].Root
 	})
+	return view, nil
+}
+
+// handleAgents serves GET /api/v1/agents — the fleet identity roster. Query
+// params (both optional): host=<id>, root=<path>.
+func (s *Service) handleAgents(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	view, err := s.buildAgentsView(r.Context(), r.URL.Query().Get("host"), r.URL.Query().Get("root"))
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "baseline list failed")
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(view)
 }

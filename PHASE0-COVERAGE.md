@@ -194,10 +194,12 @@ existing one) — no engine work.
 | **R5** | agent control-plane shim → `scope.change` | G5, A10 | agent-native log | MEDIUM — ⚠️ partial (P1.3): `internal/telemetry/scope.go` derives `scope.change` from first-use telemetry, labelled `heuristic`; authoritative feed still open |
 | **R6** | README "known blind spots" section | G6 | docs | ✅ DONE — README "Known blind spots" |
 
-**Recommended next after the public cut: R4 (trivial, makes every alert
-human-readable), then R4-adjacent R2 scoping.** R1 is done (G2 closed, matrix at
-7/10). R2 (eBPF) is the strategic bet and should be scoped as its own phase, not
-a heartbeat step.
+**Recommended next after the public cut: R2 scoping — the eBPF `file.access`
+(G3 read half).** R4 shipped since this was first written (every alert now names
+a person, not `uid:1000`), and R1/R3/R6 are done too, so the matrix is at 8/10.
+R2 is the strategic bet and should be scoped as its own phase, not a heartbeat
+step; **R5** (agent-native `scope.change`) stays the one remaining adapter gap,
+blocked on a client's agent framework.
 
 ---
 
@@ -213,10 +215,11 @@ a heartbeat step.
    covered end to end today; the other 2 are partial (A5 via argv not kernel,
    A10 via a heuristic not the control plane), each a new file behind one
    interface.
-4. **Attribution quality is the quiet risk.** Detection is strong; *"who did
-   it"* is best-effort numeric. Fixing G1 is cheap and should precede any demo
-   to a human operator — an alert that names a uid instead of a person reads as
-   unfinished.
+4. **Attribution quality was the quiet risk — and it is closed.** Detection is
+   strong; *"who did it"* was best-effort numeric. G1 is closed (R4), so an alert
+   names a person, not `uid:1000`. Fixing it was cheap, and it landed before any
+   demo to a human operator for the reason it was called out: an alert that names
+   a uid instead of a person reads as unfinished.
 5. **Blind spots must be documented, not hidden:** managed/cloud agents (G6) and
    the still-open pieces of scope telemetry. Stating them is a trust feature for
    a public security tool. (G4 — the container entry vector — is now *closed*,

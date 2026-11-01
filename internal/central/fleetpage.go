@@ -200,6 +200,7 @@ const fleetHTML = `<!doctype html>
 </main>
 <footer>
   Same data as <a href="/api/v1/fleet">/api/v1/fleet</a> — machine-readable.
+  See the <a href="/agents">identity roster</a>.
   Refresh for the latest.
 </footer>
 </body>

@@ -45,6 +45,12 @@ jobs:
         run: go test ./...
       - name: Test (sqlite record backend)
         run: go test -tags sqlite ./...
+      - name: Test (race)
+        # The central service, the collector poll loop, and the durable spool are
+        # all concurrent; a data race there is an intermittent failure in a
+        # detector, which is worse than a loud one. Same target runs in
+        # preflight, so a green local run and a green CI run mean the same thing.
+        run: make test-race
 
   lint:
     name: lint (vet + doc link check)
@@ -57,6 +63,23 @@ jobs:
           cache: true
       - name: make lint
         run: make lint
+
+      # lint runs a checker I wrote on a host with no Go toolchain, so it was
+      # proven by hand and the receipt was thrown away. This exercises the alarm
+      # itself: 8 synthetic trees, 4 of them asserting the checker stays QUIET.
+      # Without those 4 the suite is satisfied by a checker that rejects
+      # everything — which is what it did on its first run (31 false findings).
+      - name: pkgcheck can still fail
+        run: make pkgcheck-selfcheck
+
+      # The guard that enforces "preflight covers CI" was itself run by nothing
+      # in CI — a drift went red only for whoever happened to run lint locally,
+      # and did not fail the push. It runs here so it can now fail the push.
+      - name: preflight covers every CI step
+        run: make ci-parity-check
+
+      - name: the parity guard can still fail
+        run: make ci-parity-selfcheck
 
   demo:
     name: end-to-end demo
@@ -111,14 +134,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history, not the default depth-1 checkout: `make
+          # cut-release-check` clones this checkout and pushes a branch to a
+          # scratch remote, and git refuses to push a shallow branch ("shallow
+          # update not allowed"). Without this, the cut-guard step below is red.
+          # The scan is unaffected: run post-push, its "unpushed commits" range
+          # is empty either way, so it guards the tree here. History protection
+          # is inherently a pre-push, local concern — see docs/PUBLISH-READINESS.md.
+          fetch-depth: 0
       # This repo is public under Apache-2.0 and was developed in a private
       # workspace. A credential pasted into a test, a real operator home path, or
       # private infrastructure in a fixture is invisible in review and permanent
-      # once pushed. This job greps the tracked tree for those classes and fails
-      # the PR, so the leak is caught before it is history. See
-      # scripts/publish-scan.sh and docs/PUBLISH-READINESS.md.
+      # once pushed. This job scans the tracked tree *and* the commits a push
+      # would publish — history is permanent, so a value committed and later
+      # removed still ships. See scripts/publish-scan.sh and
+      # docs/PUBLISH-READINESS.md.
       - name: make publish-scan
         run: make publish-scan
+      # The scan's history scope is load-bearing (which range, the empty range,
+      # the absent upstream, warn-vs-fail). Exercise it in a throwaway repo so a
+      # bug cannot silently stop catching the classes it exists to catch.
+      - name: make publish-scan-check
+        run: make publish-scan-check
+      # The cut script enforces the release rules as code and refuses the ways to
+      # get them wrong. Exercise it end to end here too, so a broken refusal
+      # shows up on a push rather than at a real cut on the public repo. See
+      # scripts/cut-release-check.sh — and note it needs the full-depth checkout
+      # above, since it pushes a branch to a scratch remote.
+      - name: make cut-release-check
+        run: make cut-release-check
 
   fuzz:
     name: fuzz (untrusted input never panics)

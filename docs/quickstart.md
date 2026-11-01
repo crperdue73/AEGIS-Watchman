@@ -24,7 +24,8 @@ the optional pure-Go SQLite record backend: `go build -tags sqlite ./cmd/...`.
 ## 2. See a detection in one command
 
 The demo replays a captured CARBONATO-class intrusion through the **real**
-binaries and prints the alerts, then the fleet rollup:
+binaries and prints the alerts, then both console surfaces — the fleet rollup
+and the identity roster:
 
 ```sh
 cd demo && ./run.sh
@@ -103,8 +104,9 @@ silence is the most common first-run confusion. Per-rule breakdown:
   post-deploy checklist: [`deploy-collector.md`](deploy-collector.md).
 - **Operate central** — the two stores, mutual TLS, Layer 2 provenance,
   `uid_map`, alerting, retention/backends: [`deploy-central.md`](deploy-central.md).
-- **Read the fleet view** — `GET /` (human page) and `GET /api/v1/fleet`
-  (JSON): [`fleet-view.md`](fleet-view.md).
+- **Read the console** — the fleet rollup (`GET /` page, `GET /api/v1/fleet`
+  JSON) and the identity roster (`GET /agents` page, `GET /api/v1/agents` JSON):
+  [`fleet-view.md`](fleet-view.md).
 - **Understand the data flow** before adding a source or rule:
   [`architecture.md`](architecture.md). Event contract: [`event-schema.md`](event-schema.md).
 - **Know what it can't see** — the blind spots, kept honest:

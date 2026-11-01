@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/crperdue73/AEGIS-Watchman/actions/workflows/ci.yml/badge.svg)](https://github.com/crperdue73/AEGIS-Watchman/actions/workflows/ci.yml)
 
+![WATCHMAN — agent-layer intrusion detection](assets/01-hero.jpg)
+
 **Snort for AI agents.** A fleet-wide detection tool for agent-layer intrusions —
 identity drift, supply-chain tampering, and behavioral rules that name *intent*,
 not payloads.
@@ -26,7 +28,11 @@ Generic tooling assumes two things that both break here:
 So scan for the *action*, not the package name. If you can't grep your fleet for
 someone else's agent identity, you don't have agent hygiene.
 
+![The CARBONATO attack chain](assets/02-carbonato-chain.jpg)
+
 ## Three detection layers
+
+![Three detection layers](assets/03-three-layers.jpg)
 
 | Layer | What it detects | Detection value | Cost |
 |---|---|---|---|
@@ -39,6 +45,8 @@ API keys or take C2 over Slack without an action a rule can name. Snort's lesson
 exactly: signatures name the payload, good rule engines name the intent.
 
 ## Deployment shape
+
+![Collector to Central architecture](assets/04-architecture.jpg)
 
 ```
 ┌───────────────────── HOST ─────────────────────┐
@@ -57,7 +65,8 @@ exactly: signatures name the payload, good rule engines name the intent.
       │  ─ baseline store (per agent)   │
       │  ─ drift compute + diff         │
       │  ─ rules engine (Layer 3)       │
-      │  ─ fleet view: GET / + /api/v1/fleet │
+      │  ─ console: GET / + /agents     │
+      │    + /api/v1/{fleet,agents}     │
       │  ─ alerting: webhook + email    │
       │  ─ rule pack registry (ver.)    │
       └─────────────────────────────────┘
@@ -123,6 +132,9 @@ Built so far:
   first so a central outage costs latency, never evidence. Rule author's
   reference — the format, every predicate, glob semantics, correlation, and the
   full pack table: [`docs/rules.md`](docs/rules.md).
+
+![Behavior rules pipeline](assets/05-behavior-rules.jpg)
+
 - **Alert readability** — central resolves numeric actor uids to usernames at
   ingest (`uid_map`, a passwd-style file), so an alert names a person
   (`user=deploy uid=1000`) instead of `uid:1000`. Best-effort: an unknown uid
@@ -156,7 +168,11 @@ Built so far:
   store**, so it answers "grep my fleet for every agent's identity" — *what every
   agent is, and whether it is approved* — **before any event has fired**: the
   check the CARBONATO counter is built around, and the brief's *"every agent, its
-  baseline"* differentiator made queryable. Details: [`docs/fleet-view.md`](docs/fleet-view.md).
+  baseline"* differentiator made queryable. `GET /agents` renders the same roster
+  as a plain HTML page beside the fleet view. Details:
+  [`docs/fleet-view.md`](docs/fleet-view.md).
+
+![Fleet view and agent roster](assets/06-fleet-dashboard.jpg)
 
 ## Getting started
 
@@ -241,6 +257,8 @@ match), then prints the fleet rollup from `GET /api/v1/fleet`. See
 
 ## Known blind spots
 
+![Coverage matrix](assets/07-coverage-matrix.jpg)
+
 A public detection tool that hides its blind spots is a liability. What this
 **cannot** see today, with the gap id, kept honest against
 [`PHASE0-COVERAGE.md`](PHASE0-COVERAGE.md):
@@ -258,7 +276,8 @@ A public detection tool that hides its blind spots is a liability. What this
   file; the read half still needs eBPF.
 - **`scope.change` is partial (G5).** "The agent changed its own scope" is
   detected heuristically from host actions, not from an agent-native control-plane
-  log. The first slice lands as P1.3; the full signal is still open.
+  log. The first slice shipped as P1.3 (the `scope` shim); the full signal is
+  still open.
 - **Container telemetry needs Docker enabled (G4 — closed when enabled).** The
   adapter is off by default; a host with it disabled gets no `container.start`
   events, and the container rules stay quiet. A config choice, not a gap — but a
@@ -347,6 +366,13 @@ describes.
 What's built so far, and what's deliberately not — see
 [`CHANGELOG.md`](CHANGELOG.md). watchman is pre-1.0; changes land on `main`, and
 the event wire format is versioned separately as `watchman.event/v1`.
+
+## Maintenance
+
+Operating and recovering the repo: if a migration or a wiped volume ever leaves the
+working tree without its `.git`, [`docs/RECOVERY.md`](docs/RECOVERY.md) is the
+procedure — reconcile to the public baseline by SHA, use `git status` (not `find`)
+for the delta, and verify with the non-git guards before replaying anything.
 
 ## License
 

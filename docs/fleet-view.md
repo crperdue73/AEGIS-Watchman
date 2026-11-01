@@ -65,6 +65,25 @@ changed, the roster tells you what every agent *is* right now.
 }
 ```
 
+### `GET /agents` — the same roster as a page
+
+The roster has a human face, exactly as the fleet rollup does: **`GET /agents`**
+renders the identity roster as a plain server-rendered HTML table — no JS, no
+build step. It is built from the same `agentsView` the JSON endpoint returns (one
+`buildAgentsView` behind both), so the page and the endpoint cannot disagree.
+
+Each agent's block spans its file rows: `path`, the sha256 shortened to twelve
+hex characters (the full digest is in the row's `title`), a human-readable size,
+the mtime in UTC, and a colour-coded `trust` pill (`ok` / `modified` / `unsigned`
+/ `unverified`). A root with no approval manifest shows a dashed `no` badge
+rather than a red one — an unapproved agent is a state to notice, not an alarm.
+The page honours the same `host=` and `root=` filters, and links back to
+`/api/v1/agents` and `/`.
+
+```sh
+curl -s 'http://127.0.0.1:8080/agents?host=builder-01'
+```
+
 ## Enabling it
 
 Two lines in `central.yaml`:

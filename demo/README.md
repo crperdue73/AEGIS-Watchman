@@ -41,6 +41,14 @@ pack version. That is the operator
 console — the same data a human sees at `GET /` — and it is the difference
 between "grep the alert log" and "which hosts are alerting, and with what".
 
+Then it asks for the other console surface, the **identity roster**
+(`GET /api/v1/agents`), and prints each enrolled agent's baseline: its root, the
+files it holds, each file's hash and `trust` verdict, and whether an approval
+manifest is on record. That read comes from the durable *baseline* store, so it
+answers **before any event has fired** — the same roster a human sees at
+`GET /agents`. Together the two views are the whole console: one rolls up *what
+happened*, the other says *what every agent is, and whether it is approved*.
+
 ## Why it is built this way
 
 - **Fixtures, not a live system.** A demo that needs root and a misconfigured
@@ -59,7 +67,7 @@ between "grep the alert log" and "which hosts are alerting, and with what".
 
 | File | What it is |
 |---|---|
-| `run.sh` | the one-command driver: build, start central, two collector passes, print alerts, print the fleet rollup |
+| `run.sh` | the one-command driver: build, start central, two collector passes, print alerts, print the fleet rollup and the identity roster |
 | `fixtures/audit.log` | captured auditd stream: execve → connect → bind/listen, plus a file-watch write (openat/CREATE) |
 | `fixtures/docker-events.jsonl` | captured `docker events`: a container start |
 | `fake-docker.sh` | a `docker` CLI stand-in (`events` + `inspect`), no daemon |

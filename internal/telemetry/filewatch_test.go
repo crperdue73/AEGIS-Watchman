@@ -185,3 +185,80 @@ func TestStrictWriteSyscallWithoutWatchStillFires(t *testing.T) {
 		t.Errorf("path = %v", got)
 	}
 }
+
+// TestDirectoryOpsWithAndWithoutNametype pins the two gaps in FINDING-2026-10-26e (beat 604/605).
+//
+// rmdir, mkdir, and mkdirat are in NEITHER syscall map. A record for them is kept only if auditd
+// tagged the PATH with CREATE or DELETE. Every ordinary case is tagged, which is why this has never
+// shown up in practice -- but nothing tested the untagged case, so the drop was unproven and unguarded.
+//
+// These cases say exactly which rescue each shape gets, so a change to writeTarget's order or to the
+// syscall maps fails here rather than silently moving the boundary.
+func TestDirectoryOpsWithAndWithoutNametype(t *testing.T) {
+	writeOf := func(lines ...string) (string, string, bool) {
+		recs, err := ParseAuditStream(strings.NewReader(strings.Join(lines, "\n")))
+		if err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+		// The parser drops non-actionable records. For the untagged directory ops that IS the
+		// behaviour under test, so zero records is a legitimate answer, not a fixture error.
+		if len(recs) == 0 {
+			return "", "", false
+		}
+		if len(recs) > 1 {
+			t.Fatalf("got %d records, want at most 1", len(recs))
+		}
+		act, _, ok := recs[0].AnyAction()
+		if !ok {
+			return "", "", false
+		}
+		p, _ := act.Detail["path"].(string)
+		nt, _ := act.Detail["nametype"].(string)
+		return p, nt, act.Type == FileWrite
+	}
+
+	sys := func(sc, key string) string {
+		s := `type=SYSCALL msg=audit(1790593200.100:910): arch=x86_64 syscall=` + sc +
+			` success=yes pid=4242 ppid=1 uid=0 auid=1000 exe="/usr/bin/rm"`
+		if key != "" {
+			s += ` key="` + key + `"`
+		}
+		return s
+	}
+
+	// 1. Tagged DELETE -- the ordinary `rm -rf` shape. Caught by the nametype check, which runs first.
+	if p, nt, isWrite := writeOf(
+		sys("rmdir", ""),
+		`type=PATH msg=audit(1790593200.100:910): item=0 name="/etc/" inode=2 nametype=PARENT`,
+		`type=PATH msg=audit(1790593200.100:910): item=1 name="/etc/cron.d" inode=999 nametype=DELETE`,
+	); !isWrite || p != "/etc/cron.d" || nt != "DELETE" {
+		t.Errorf("tagged rmdir: got (%q, %q, write=%v), want (/etc/cron.d, DELETE, true)", p, nt, isWrite)
+	}
+
+	// 2. Untagged rmdir WITH an operator watch key. rmdir is in neither syscall map, and the watch-key
+	//    rescue at writeTarget only covers openSyscalls -- so this is DROPPED even though an operator
+	//    explicitly watched the path. This is the real cost of the missing map entries.
+	if _, _, isWrite := writeOf(
+		sys("rmdir", "watch_etc"),
+		`type=PATH msg=audit(1790593200.100:910): item=0 name="/etc/cron.d" inode=999`,
+	); isWrite {
+		t.Error("untagged rmdir WITH a watch key was kept -- rmdir was added to a syscall map; " +
+			"update FINDING-2026-10-26e and this test together")
+	}
+
+	// 3. Untagged mkdir, same shape.
+	if _, _, isWrite := writeOf(
+		sys("mkdir", ""),
+		`type=PATH msg=audit(1790593200.100:910): item=1 name="/etc/cron.d" inode=999`,
+	); isWrite {
+		t.Error("untagged mkdir was kept -- mkdir was added to a syscall map; update the finding")
+	}
+
+	// 4. The contrast: unlinkat IS in strictWriteSyscalls, so an untagged PATH survives with no key at all.
+	if p, _, isWrite := writeOf(
+		sys("unlinkat", ""),
+		`type=PATH msg=audit(1790593200.100:910): item=1 name="/etc/cron.d/x" inode=999`,
+	); !isWrite || p != "/etc/cron.d/x" {
+		t.Errorf("untagged unlinkat: got (%q, write=%v), want a file.write to /etc/cron.d/x", p, isWrite)
+	}
+}

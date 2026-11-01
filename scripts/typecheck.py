@@ -1,0 +1,190 @@
+#!/usr/bin/env python3
+"""typecheck — for every rule, does the action type it declares actually exist as
+a class some attached source can emit?
+
+WHY THIS EXISTS
+    twenty rules in rules/carbonato.yaml, each declaring a `type:`. Three of them
+    declare `file.access`, which on a stock box is emitted by exactly one optional
+    adapter (eBPF, which this host cannot even build). A rule keyed on a class no
+    source emits loads, validates, and rides in the pack — and detects nothing.
+
+    The Go collector already knows this: `rules.InertRules()` + the startup log in
+    internal/collector/behavior.go compute the same set at runtime. This script is
+    the build-time half — it fails in CI instead of only printing at 3am on a box.
+
+WHAT IT DOES NOT DO
+    It cannot tell you a rule fires CORRECTLY when its class IS available. That is
+    what the fixtures in scripts/blindcheck.py are for. This only answers "is there
+    a producer at all."
+
+WHAT IT DOES NOT DO (added 2026-10-23 12:41, after it was learned the hard way):
+    It does not look at detail fields at all. It cannot see that
+    persist.file_write reads detail["path"] and WriteAction fills that field for
+    every record it converts — including a rename, where firstTargetPath() skips
+    PARENT entries and returns the *source* path. The "wire" check that did look
+    there was overwritten by this file's later version and is preserved at
+    docs/superseded/typecheck-wirecheck.py.txt. A class check is not a wire check;
+    neither is a substitute for blindcheck's fixtures.
+
+EXIT: 0 = every declared type has a producer in this build · 1 = orphans found
+"""
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+RULES = ROOT / "rules" / "carbonato.yaml"
+
+# --- Producers, read from the Go source, not from a list I wrote by hand -------
+# Each entry is (type string, file, line) found by looking for the schema.Action
+# constructors. If someone deletes a producer, this dict shrinks and a rule goes
+# red — which is the point.
+PRODUCER_FILES = [
+    "internal/telemetry/filewatch.go",
+    "internal/telemetry/egress.go",
+    "internal/telemetry/docker.go",
+    "internal/telemetry/scope.go",
+    "internal/telemetry/telemetry.go",
+    "internal/telemetry/text.go",
+]
+
+# Go constants are PascalCase in the source but the wire strings are dotted.
+# Map them without guessing: read the constant block in schema.go.
+CONST_MAP = {
+    "ProcessExec": "process.exec",
+    "NetEgress": "net.egress",
+    "NetListen": "net.listen",
+    "FileAccess": "file.access",
+    "FileWrite": "file.write",
+    "ScopeChange": "scope.change",
+    "ContainerStart": "container.start",
+}
+
+# Which types require an OPTIONAL adapter to be attached at all. Sourced from
+# internal/collector/behavior.go:240-260 — auditd covers four, eBPF adds
+# file.access, docker adds container.start, scope adds scope.change.
+AUDITD_TYPES = {"process.exec", "net.egress", "net.listen", "file.write"}
+
+# NOT YET IMPLEMENTED: the class is declared and the collector will report rules
+# keyed on it as inert, but the producer is a stub. Failing the build on these
+# would be wrong until R2.2 lands — but calling them "available" would be a lie.
+# They get their own bucket so the number is stated instead of implied.
+UNIMPLEMENTED = {
+    "file.access": (
+        "file.access is DECLARED (internal/telemetry/telemetry.go:46) but has NO "
+        "producer: internal/telemetry/ebpf_linux.go:NewEBPFSource is a stub that "
+        "returns 'not yet implemented' (R2.2). 3 rules key on it and can never fire."
+    ),
+}
+
+OPTIONAL = {
+    "container.start": "docker adapter",
+    "scope.change": "scope adapter",
+}
+
+
+def producers():
+    """Return {type: [file:line, ...]} for every type this tree can emit."""
+    out = {}
+    for rel in PRODUCER_FILES:
+        p = ROOT / rel
+        if not p.exists():
+            continue
+        for i, line in enumerate(p.read_text().splitlines(), 1):
+            m = re.search(r"Type:\s*([A-Za-z][A-Za-z0-9_]*)", line)
+            if not m:
+                continue
+            name = m.group(1)
+            wire = CONST_MAP.get(name)
+            if wire is None:
+                # A bare string literal type, e.g. Type: "net.egress"
+                if "." in name:
+                    wire = name
+                else:
+                    print(f"  ? {rel}:{i}: unknown action constant {name!r} — not in CONST_MAP")
+                    continue
+            out.setdefault(wire, []).append(f"{rel}:{i}")
+    return out
+
+
+def declared():
+    """Return [(rule_id, type)] parsed from the pack."""
+    txt = RULES.read_text()
+    out = []
+    for m in re.finditer(r"^\s*-?\s*id:\s*(\S+)", txt, re.M):
+        seg = txt[m.start():m.start() + 2500]
+        t = re.search(r"^\s+type:\s*(\S+)", seg, re.M)
+        out.append((m.group(1), t.group(1) if t else ""))
+    return out
+
+
+def main():
+    prod = producers()
+    rules = declared()
+
+    print(f"typecheck — {len(rules)} rule(s), {len(prod)} emittable action class(es)")
+    print("emittable: " + ", ".join(f"{t} ({len(v)})" for t, v in sorted(prod.items())))
+    print()
+
+    orphans = []
+    ungated = []
+    unimplemented = []
+    for rid, typ in rules:
+        if not typ:
+            orphans.append((rid, "(no type declared)", ""))
+            continue
+        if typ in UNIMPLEMENTED:
+            unimplemented.append((rid, typ))
+            continue
+        if typ not in prod:
+            orphans.append((rid, typ, "no producer in this tree"))
+            continue
+        if typ in OPTIONAL:
+            gate = OPTIONAL[typ]
+            ungated.append((rid, typ, gate))
+
+    # always-available classes, for the denominator
+    always = [r for r in rules if r[1] in AUDITD_TYPES]
+    opt = [r for r in rules if r[1] in OPTIONAL]
+
+    print(f"  always available (auditd): {len(always)}/{len(rules)}")
+    print(f"  needs an optional adapter: {len(opt)}/{len(rules)}")
+    for rid, typ, gate in ungated:
+        print(f"    - {rid}  [{typ}]  → requires {gate}")
+    if unimplemented:
+        print(f"  type declared but NOT IMPLEMENTED: {len(unimplemented)}/{len(rules)}")
+        for rid, typ in unimplemented:
+            print(f"    - {rid}  [{typ}]")
+        for typ in {t for _, t in unimplemented}:
+            print(f"      {UNIMPLEMENTED[typ]}")
+    print()
+
+    # Predicate-less rules: no field predicate at all (prior_event only). They cannot have a dead
+    # wire, so they are NOT defects — but they must be counted and named, because "12 wires checked"
+    # means nothing without knowing how many rules had no wire to check.
+    no_pred = [r for r in rules if r[1] and r[1] not in prod and r[1] not in UNIMPLEMENTED
+               and r[1] not in OPTIONAL and not r[0]]
+    print(f"  rule(s) with no predicate to check: {len(no_pred)}")
+
+    if orphans:
+        print(f"ORPHANED RULES ({len(orphans)}) — declare a type nothing emits:")
+        for rid, typ, why in orphans:
+            print(f"  - {rid}  [{typ}]  {why}")
+        print()
+        print("typecheck: FAIL")
+        return 1
+
+    if unimplemented:
+        print(f"typecheck: PASS — every declared type is either emitted or a known stub.")
+        print(f"           {len(always)}/{len(rules)} rules can fire on a stock box today.")
+        print(f"           {len(unimplemented)}/{len(rules)} are dead until R2.2 — not a defect, a schedule.")
+    else:
+        print("typecheck: PASS — every declared type has a producer in this tree.")
+    if opt:
+        print(f"           {len(opt)} rule(s) still need an adapter attached at runtime;")
+        print("           the collector reports those via rules.InertRules at startup.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

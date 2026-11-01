@@ -195,7 +195,7 @@ because it could not enrich it.
 
 ```
 cmd/collector/        the collector binary (sources + spool + ship loop)
-cmd/central/          the central service (ingest, baseline, fleet view)
+cmd/central/          the central service (ingest, baseline, console: fleet + roster)
 cmd/manifest/         inventory manifest generator
 internal/schema/      the versioned event/action schema (public contract)
 internal/telemetry/   SOURCES: auditd, eBPF, Docker + Engine + MultiSource + Timeline

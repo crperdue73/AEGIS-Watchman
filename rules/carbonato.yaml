@@ -64,15 +64,26 @@ rules:
       with a recent identity change it is the exfil leg.
     match:
       type: net.egress
+      # NOTE (open, pack owner's call — FINDING-2026-10-26-endpoint-containment):
+      #   * Two globs below are SHADOWED by a broader sibling and can never widen coverage:
+      #     "*hooks.slack.com*" is covered by "*slack.com*"; "*api.telegram.org*" is covered by
+      #     "*telegram.org*". A miss, not an exploit — but it reads more precise than it is.
+      #   * Every glob here is a bare "*x*" shape, and the engine's contains fallback is a
+      #     SUBSTRING test on the whole endpoint string, so "*slack.com*" also matches
+      #     "evil-slack.com.evil:443". Noise, not a blind spot. Anchoring (leading-dot / full
+      #     host form) is the pack's problem, not the collector's.
+      #   * "*/api/v2/events*" cannot fire at all against a "host:port" endpoint — see
+      #     FINDING-2026-10-24-endpointfire (beat 546).
+      # Instrument: scripts/endpointglob_test.py. Changing these lines changes rule semantics.
       endpoint_glob_any:
         - "*slack.com*"
         - "*discord.com*"
         - "*telegram.org*"
-        - "*hooks.slack.com*"
-        - "*api.telegram.org*"
+        - "*hooks.slack.com*"      # shadowed by *slack.com*
+        - "*api.telegram.org*"     # shadowed by *telegram.org*
         - "*pastebin.com*"
         - "*transfer.sh*"
-        - "*/api/v2/events*"
+        - "*/api/v2/events*"        # dead against host:port (beat 546)
 
   - id: carbonato.exec.shell_spawn
     title: Agent process spawns a shell or script interpreter
@@ -338,7 +349,13 @@ rules:
       exe_any: [docker, podman, nerdctl]
       argv_any:
         - "*--privileged*"
-        - "*-v /*:/"
+        # Was "*-v /*:/", which had an INTERIOR star: substringNeedle refuses those, and path.Match
+        # cannot span a command line's slashes, so it never fired once (beat 611). This form carries
+        # needle "-v /:" and targets the case that matters -- SOURCE exactly "/", i.e. the host root.
+        # Verified against 6 docker invocations: catches -v /:/host and -v /:/data, silent on
+        # -v /etc:/etc, -v /app:/app and every other absolute-source bind. See
+        # docs/FINDING-2026-10-27-host-root-mount-rule.md
+        - "*-v /:*"
         - "*--pid=host*"
         - "*--net=host*"
 
@@ -416,7 +433,16 @@ rules:
       type: container.start
       detail_glob_any:
         binds:
-          - "*:/host*"
+          # REMOVED beat 614: "*:/host*" fired on ANY destination segment containing "host", so
+          # `docker run -v /etc:/host` -- mounting the host's /etc INTO the container, the OPPOSITE of
+          # an escape -- tripped a CRITICAL rule (beat 611 defect 1).
+          # I first tried tightening it to "*/:/host*" (source pinned to "/"). Measured, then deleted
+          # it instead: '*/:/host*' had ZERO unique witnesses. Every host-root bind it matched --
+          # /:/host, /:/host/etc, /:/host/home/u -- is already matched by "/:/", whose needle "/:/"
+          # is a plain substring of "/:/host". The glob was doing no work.
+          # So the false positive was not a too-broad glob needing a narrower one: it was a redundant
+          # glob whose ONLY distinct effect was the false positive. Deleting it removes both.
+          # "/:/" covers the host root; keep it.
           - "/:/"
           - "*/var/run/docker.sock*"
 

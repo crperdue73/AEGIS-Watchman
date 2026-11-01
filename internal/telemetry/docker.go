@@ -146,8 +146,17 @@ func ContainerStartAction(ev *ContainerEvent, cfg *ContainerConfig) schema.Actio
 			detail["host_network"] = "true"
 		}
 		if len(cfg.Binds) > 0 {
-			// Bind mounts joined for a single detail value; rules glob on
-			// "*:/" to catch the host-root mount specifically.
+			// Bind mounts joined into a single detail value, comma-separated. Rules glob on the
+			// joined string: "/:/" catches a host-root mount, "*/var/run/docker.sock*" catches the
+			// daemon socket. Neither is a destination test -- see the next note.
+			//
+			// This comment used to say "rules glob on *:/ to catch the host-root mount". Both halves
+			// were wrong: *:/ is not a live pack value, and if it were it would fire on essentially
+			// every mount spec (/var/lib/pg:/var/lib/pg, /app:/app), while still missing the host root
+			// -- "/:/" has no trailing ":/". A source/destination-aware test is not expressible here:
+			// Binds is a []string and the rules see one joined string, so no rule can tell a mount's
+			// SOURCE from its DESTINATION. That is Defect 2 in
+			// docs/FINDING-2026-10-27-host-root-mount-rule.md -- a schema change, not a comment fix.
 			detail["binds"] = strings.Join(cfg.Binds, ",")
 		}
 	}

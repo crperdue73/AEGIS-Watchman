@@ -5,8 +5,12 @@ All notable changes to watchman are recorded here. The format follows
 
 ## Versioning stance
 
-watchman is **pre-1.0**: there are no tagged releases yet, and changes land on
-`main`. When the first public cut is tagged it will appear here as `0.1.0`. The
+watchman is **pre-1.0**. `0.1.0` is the initial public import — the tree at the
+first push, 2026-10-01; work since lands on `main` and is listed under
+**Unreleased** below. **Published tags are never re-pointed**: a tag is a claim
+about a fixed set of bytes, so moving one would break every clone, mirror, and
+pin that already resolved it — the exact failure this project exists to catch.
+A new cut gets a **new** version. The
 **event wire format is versioned separately** — `watchman.event/v1` — and its
 change policy lives in [`docs/event-schema.md`](docs/event-schema.md): breaking
 changes bump the schema version; additive optional fields do not.
@@ -102,6 +106,14 @@ opt-in design.
   `unsigned`, or `unverified` (no manifest on record) — and each row a `manifest`
   bool. One query then answers both halves of agent hygiene: *what every agent
   is* and *whether it is approved.*
+- **The roster gets a page — `GET /agents`.** The identity roster now has the
+  same human face the fleet view has: a plain server-rendered HTML table (no JS,
+  no build step) rendered from the exact `agentsView` the JSON endpoint returns,
+  so the page and the endpoint cannot disagree. Each agent block spans its files
+  — path, shortened sha256 (full hash in the `title`), human-readable size, UTC
+  mtime, and a colour-coded `trust` pill — with a dashed `no` badge for a root
+  that has no approval manifest (a state to notice, not an alarm). It honours the
+  same `host=`/`root=` filters and links to both `/api/v1/agents` and `/`.
 - **Derived signals are marked in the fleet view.** Central copies a behavior
   event's `action.detail.source` onto the retained record as `action_source`, so
   the rollup carries a `by_source` count per host and the HTML page badges each
@@ -201,11 +213,47 @@ opt-in design.
 - **`scripts/publish-scan.sh`** (`make publish-scan`, and a CI job) — the repo is
   public under Apache-2.0 and was built in a private workspace, so a credential,
   a real operator home path, or private infrastructure left in a tracked file
-  would ship. The scan greps the tracked tree for those three classes and fails
-  the build. It found and cleared the last real-username fixture paths
-  (a specific operator home directory in three test files and two worklog lines,
-  neutralised to `/home/agent/...`). See [`docs/PUBLISH-READINESS.md`](docs/PUBLISH-READINESS.md)
-  for the checklist and the decisions that are Rob's, not code.
+  would ship. The scan greps **both the tracked tree and the commits a push
+  would newly publish** (`@{upstream}..HEAD`) for those three classes and fails
+  the build. The history half exists because the tree is not the whole of what
+  ships: `git push` publishes commits, a `git rm`-ed file stays retrievable from
+  any clone, and the earlier tree-only pass had neutralised the operator home
+  paths (`/home/agent/...` in three test files and two worklog lines) while the
+  real values stayed in the commits — a clean tree over a dirty history. A
+  second, informational scope is **`make publish-audit`**
+  (`scripts/publish-scan.sh --public-audit`): the whole reachable history,
+  reported but not fatal, because content already on a pushed branch cannot be
+  un-published by a local fix — remediation (a history rewrite before it is
+  public, or accepting the exposure) is a human call, not a build failure. See
+  [`docs/PUBLISH-READINESS.md`](docs/PUBLISH-READINESS.md) for the checklist and
+  the decisions that are Rob's, not code.
+- **`scripts/publish-scan-check.sh`** (`make publish-scan-check`, wired into
+  preflight and the CI `publish` job) — exercises the history scope in a
+  throwaway repo: a secret committed *and then removed* must still fail the
+  gate, an absent upstream must be tolerated, and already-public content must
+  warn rather than fail. It exists so the history coverage cannot silently
+  regress — disabling the history scope makes its removed-secret case pass, and
+  the check then fails on it.
+- **`scripts/cut-release.sh`** (`--go <version>`) — the cut,
+  as a script rather than a paragraph: it enforces the tag rules and refuses on a
+  dirty tree, a version that already exists, or a failed preflight, then pushes
+  `main` and tags the tip it just pushed, so the tag and the pushed commit are
+  the same bytes by construction. **`scripts/cut-release-check.sh`**
+  (`make cut-release-check`, run in preflight and the CI `publish` job) runs a
+  clean cut *and fires every refusal* end to end in a throwaway clone, so a broken
+  refusal cannot wait until a real cut to reveal itself. See [`docs/PUBLISH-READINESS.md`](docs/PUBLISH-READINESS.md).
+- **`scripts/preflight.sh`** (`make preflight`) — runs every CI job's local
+  equivalent, in order, stopping at the first failure, so "push-ready" is one
+  verdict instead of eight claims made from memory. Its last step is a
+  **fresh-clone check** (`scripts/clone-check.sh`): CI runs on a clean
+  checkout, so this verifies the committed tree from a fresh clone — the failure
+  a working-tree build cannot see. It also runs the release-tooling self-check
+  (`make cut-release-check`), so the script that performs the cut is exercised by
+  the very verdict that gates it. A companion **`scripts/ci-parity-check.sh`**
+  (`make ci-parity-check`, in `lint`) asserts preflight still reaches every
+  command CI runs, so the two cannot drift apart (the class that bit once, when
+  the rule-pack pin went red on the first CI run while every local claim was
+  individually true).
 - **Fuzz targets for the untrusted-input parsers and the matcher**
   (`internal/telemetry/fuzz_test.go`, `internal/rules/fuzz_test.go`;
   `make fuzz` via `scripts/fuzz.sh`, and a CI job). Every stream this tool reads
@@ -231,6 +279,24 @@ opt-in design.
   capabilities; the exact `CAP_BPF`/`CAP_PERFMON` delta for the optional eBPF
   adapter is documented in a commented block. `docs/deploy-collector.md` gained
   §5 "Running as a service".
+
+### Docs
+
+- **Repo-recovery runbook** ([`docs/RECOVERY.md`](docs/RECOVERY.md)). The procedure
+  for the case this project has now actually hit: the working tree survives but `.git`
+  does not. It says to reconcile **to** the public baseline by SHA (never a
+  post-incident "N commits ahead" memory), to let `git status` — not a file listing —
+  decide the delta (an ignored file is not work to replay), to verify with the non-git
+  guards before replaying, and to treat replay-vs-squash as an owner decision because
+  it changes public history. Linked from the README's Maintenance note.
+
+- **README figure set** (`assets/*.jpg`). Seven chapter-break graphics across the
+  why / layers / deployment / rules / console / blind-spots sections. The plates
+  are generated **text-free**, and every label is composited from a single
+  grounded source (`graphics/watchman/LABELS.md`), so no fabricated metadata can
+  reach the page — the failure mode (a baked-in `confidence:` field, invented
+  rule ids) that kept the first plate set out of the repo. Palette and wording
+  traceable to `internal/schema/`, `rules/carbonato.yaml`, and this README.
 
 ### Fixed
 
@@ -423,3 +489,15 @@ opt-in design.
 - **Managed/cloud agents** (G6) — no agent-native log source yet, so `scope.change`
   is heuristic, not ground truth.
 - **Windows/macOS collectors** — Linux first.
+
+## [0.1.0] — 2026-10-01
+
+Initial public import. The three detection layers — **identity drift** (content
+hashes and unified diffs), **provenance** (Ed25519-signed approval manifests),
+and **behavior rules** over real host telemetry — plus the central service with
+its `RecordStore` fleet view and agent roster, the `watchman-manifest` /
+`watchman-rules` operator tooling, and the docs (quickstart, architecture,
+rules, deploy, event schema). The **event wire format** ships as
+`watchman.event/v1`. The `[Unreleased]` section above is the build narrative as
+written before this tag; it describes the same tree and the work landed since,
+and is not yet split by release.

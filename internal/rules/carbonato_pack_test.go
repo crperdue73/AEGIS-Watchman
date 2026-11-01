@@ -287,3 +287,80 @@ func TestContainerRuleQuietOnOrdinaryContainer(t *testing.T) {
 		t.Errorf("ordinary container fired %s; container rules must stay quiet", ev.Rule.ID)
 	}
 }
+
+// TestPersistDirectoryItselfIsMissed pins FINDING-2026-10-26e as executable fact.
+//
+// persist.file_write watches four directories, but every path_glob_any value ends
+// in "/*" or names a leaf file -- none names a directory. auditd reports the
+// directory as the target when the syscall acts on the directory rather than on a
+// file inside it: nametype=DELETE on `rm -rf /etc/cron.d`, nametype=CREATE on
+// `mkdir /etc/cron.d`. telemetry.firstTargetPath passes that path through and
+// WriteAction emits it, so the engine is handed "/etc/cron.d" -- and matches
+// nothing.
+//
+// Removal is the anti-forensics move: an agent that wants its tracks gone deletes
+// the directory, not the file. The rule is severity high and is silent on it.
+//
+// This test asserts the CURRENT, NOT-DESIRED behaviour on purpose. When the pack
+// is fixed (adding "*/etc/cron.d" and siblings as directory globs), the four
+// "must stay silent" assertions below will fail. That failure is the signal: flip
+// the expectations, and update this comment and the finding doc together.
+func TestPersistDirectoryItselfIsMissed(t *testing.T) {
+	p, err := LoadPack(filepath.Join("..", "..", "rules", "carbonato.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := NewEngine(p)
+	host := schema.Host{ID: "h"}
+
+	fired := func(path, nametype string) []string {
+		var out []string
+		for _, ev := range e.Match(host, nil, schema.Action{
+			Type: "file.write", Detail: map[string]any{
+				"path": path, "syscall": "unlinkat", "nametype": nametype,
+			},
+		}, nil, timeNow()) {
+			out = append(out, ev.Rule.ID)
+		}
+		return out
+	}
+	has := func(ids []string, want string) bool {
+		for _, id := range ids {
+			if id == want {
+				return true
+			}
+		}
+		return false
+	}
+
+	// The gap: a directory DELETE, exactly what `rm -rf <dir>` reports.
+	for _, dir := range []string{
+		"/etc/cron.d",
+		"/etc/cron.daily",
+		"/etc/cron.hourly",
+		"/etc/systemd/system",
+	} {
+		if got := fired(dir, "DELETE"); has(got, "carbonato.persist.file_write") {
+			t.Errorf("persist.file_write fired on directory %s -- the pack was tightened; "+
+				"flip this assertion and update FINDING-2026-10-26e (got: %v)", dir, got)
+		}
+	}
+
+	// Same for a directory CREATE -- the first half of remove-then-recreate.
+	if got := fired("/etc/cron.d", "CREATE"); has(got, "carbonato.persist.file_write") {
+		t.Errorf("persist.file_write fired on mkdir /etc/cron.d -- pack was tightened; "+
+			"flip this assertion and update FINDING-2026-10-26e (got: %v)", got)
+	}
+
+	// The asymmetry being documented: a FILE delete in the same directory IS caught.
+	for _, file := range []string{
+		"/etc/cron.d/payload",
+		"/etc/cron.daily/backdoor",
+		"/etc/systemd/system/beacon.service",
+		"/etc/crontab",
+	} {
+		if got := fired(file, "DELETE"); !has(got, "carbonato.persist.file_write") {
+			t.Errorf("file.delete of %s did not fire persist.file_write: %v", file, got)
+		}
+	}
+}
