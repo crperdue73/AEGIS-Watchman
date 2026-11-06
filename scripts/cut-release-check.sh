@@ -53,6 +53,13 @@ fi
 echo "== clone HEAD to a scratch dir =="
 git clone -q "$repo" "$tmp/work"
 cd "$tmp/work"
+# A release cut commits and tags. CI runners have no git identity configured, and git refuses
+# to tag without one: "fatal: empty ident name ... not allowed". Measured on the first CI run
+# after the 2026-11-06 push -- the check passed on every workstation and failed on every runner,
+# because "it works where I am" was baked into the fixture. The identity is set LOCALLY in the
+# scratch clone only, so it cannot leak into a real release or a developer's config.
+git config user.name  "release-check"
+git config user.email "release-check@example.invalid"
 git remote remove origin
 git init -q --bare "$tmp/scratch.git"
 git remote add scratch "$tmp/scratch.git"
