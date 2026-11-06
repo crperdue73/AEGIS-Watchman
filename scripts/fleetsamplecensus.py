@@ -100,20 +100,31 @@ def check_a_cap_exists_and_is_unsurfaced():
         return
     ok("A: defaultFleetLimit = %d caps the scan, justified in-comment as a cost guard "
        "(store is already retention-bounded)" % EXPECTED_CAP)
-    if not re.search(r"Limit:\s+atoiDefault\(r\.URL\.Query\(\)\.Get\(\"limit\"\), defaultFleetLimit\)", src):
-        fail("A: the limit is no longer applied to the RecordQuery — re-derive")
+    # BEAT 790: this check used to require the literal
+    # `Limit: atoiDefault(...Get("limit"), defaultFleetLimit)` and to FAIL if fleetView grew a
+    # Truncated/Sampled field -- i.e. it asserted the defect and would go red on the fix. That is
+    # correct for a census (it forces re-derivation instead of silent drift), but the re-derivation
+    # has now happened: the handler asks for scanLimit+1 and labels the view. So the check asks the
+    # question the cause still poses -- is the cap applied, and is it now HONEST about itself?
+    if not re.search(r"Limit:\s+scanLimit \+ 1,", src):
+        fail("A: the handler no longer asks for limit+1 — the at-the-cap vs over-the-cap "
+             "distinction is gone (finding 2026-11-01n option 1, beat 790)")
         return
-    ok("A: the cap is applied to the actual RecordQuery, so the sample comes from the store")
-    # Is the sampling surfaced? Quote the view struct, not a word near it (beat 731/732 rule).
+    ok("A: the cap is applied to the actual RecordQuery, requesting one over the cap so "
+       "'exactly at the cap' and 'over the cap' are distinguishable")
     m = re.search(r"type fleetView struct \{(.*?)\n\}", src, re.S)
     body = m.group(1) if m else ""
-    for marker in ("Truncated", "LimitApplied", "Sampled", "Scanned"):
-        if marker in body:
-            fail("A: fleetView now carries %s — the sampling may be labelled; the gap may "
-                 "be closing; re-derive" % marker)
-            return
-    ok("A gap: fleetView carries no Truncated/LimitApplied/Sampled field — a reader of 5000 "
-       "events cannot tell a full fleet from a full quota")
+    if "Truncated" not in body:
+        fail("A: fleetView no longer carries Truncated — a reader of %d events cannot tell a "
+             "full fleet from a full quota (this was the OPEN gap; it has reopened)"
+             % EXPECTED_CAP)
+        return
+    if "*bool" not in body:
+        fail("A: Truncated is not a *bool — absent and false are now indistinguishable to a "
+             "JSON reader, so an older client cannot tell 'complete' from 'old server'")
+        return
+    ok("A resolved: fleetView carries Truncated *bool, so a capped view says it is a sample "
+       "instead of rendering a quota as a total")
 
 
 def check_b_all_backends_apply_limit():
@@ -171,19 +182,54 @@ def check_c_total_is_the_sample():
 
 def check_d_page_matches_api():
     pg = read("internal/central/fleetpage.go")
-    if re.search(r"s\.records\.Recent\(r\.Context\(\), \"\", defaultFleetLimit\)", pg):
-        ok("D: the HTML console uses the same cap — page and API agree, and both are a "
-           "sample; the agreement does not make either complete")
-    else:
-        fail("D: the console's record fetch changed — re-derive")
+    # BEAT 790: the console now probes limit+1 and slices, so it can say "sample" instead of
+    # "retained". The old check asserted the single-call fetch; re-derived to require the probe
+    # AND the label, because a page that fetches correctly but never sets Truncated is exactly
+    # the gap this beat closed.
+    # BEAT 799: the console no longer scans at all. `rosterView` rolls up every retained
+    # record per host, so D stops being "does the page label its sample" and becomes "does the
+    # page still take a sample". The old assertions are not deleted to make the gate green:
+    # each one is replaced by the claim that superseded it.
+    if re.search(r"s\.records\.Recent\(r\.Context\(\)", pg):
+        fail("D: the console is back on records.Recent — that is the capped global scan this "
+             "beat removed; the roster is the only exact path")
+        return
+    if not re.search(r"rosterView\(r\.Context\(\), s\.records,", pg):
+        fail("D: the console does not call rosterView — the page has no exact rollup")
+        return
+    # Both flags must be independent. Reusing Truncated for the detail caveat is the mistake I
+    # actually made wiring this (see WORKLOG beat 799): it printed "capped at 0 — this is a
+    # sample" over an exact total. A file-level check cannot prove the template keys on the
+    # right field, so ask it directly.
+    if re.search(r"view\.Truncated = ", pg):
+        fail("D: the console sets Truncated — on this path the totals are exact, so Truncated "
+             "is false here; the only trim left is the per-host detail column (DetailCapped)")
+        return
+    if not re.search(r"view\.DetailCapped = &\w+", pg):
+        fail("D: the console never sets DetailCapped — the five-event detail column IS trimmed, "
+             "so a page with no DetailCapped flag hides a trim that really happens")
+        return
+    if not re.search(r"\{\{if deref \.DetailCapped\}\}", pg):
+        fail("D: the page template does not dereference DetailCapped — text/template treats "
+             "ANY non-nil *bool as true, so absent deref means the caveat branch never renders "
+             "(measured beat 790, same trap)")
+        return
+    ok("D resolved: the HTML console rolls up the whole store via rosterView, sets "
+       "DetailCapped (not Truncated) and dereferences it — the counts are exact and the only "
+       "thing admitted as trimmed is the per-host detail sample")
 
 
 def check_e_ordering_asserted_not_enforced():
     src = read("internal/central/fleet.go")
+    # Beat 789: this check used to go GREEN on the presence of the defect ("the guarantee is a
+    # COMMENT"). That inverts it -- it reported health while the thing it named was wrong, and
+    # would have gone red on the fix. Rewritten to ask the question the cause actually poses.
     if re.search(r"// Records are newest-first", src):
-        ok("E: the newest-first guarantee is a COMMENT at the point of use")
-    else:
-        fail("E: the ordering comment is gone — is the assumption now enforced or dropped?")
+        fail("E: the newest-first guarantee is asserted in a comment again at the point of use — "
+             "is the sort still there, or did the comment come back to replace it?")
+    elif re.search(r"SortRecordsNewestFirst\(recs\)", src):
+        ok("E resolved: the newest-first ordering is ESTABLISHED in buildFleetView, not asserted "
+           "in a comment (beat 789, finding 2026-11-01n option 4)")
     es = read("internal/central/eventstore.go")
     if re.search(r"func SortRecordsNewestFirst\(", es):
         users = []
@@ -197,8 +243,25 @@ def check_e_ordering_asserted_not_enforced():
             ok("E gap: SortRecordsNewestFirst still has ZERO callers — the helper written "
                "for unordered backends guards nothing, and fleet.go:126 relies on the "
                "comment instead (beat 725, unchanged)")
+        elif "fleet.go" in users:
+            # Beat 789: finding 2026-11-01n option 4 was applied. buildFleetView now calls this
+            # before populating Recent, so the assumption is ENFORCED rather than documented.
+            # What must hold now: the call is present, and it runs on the path that builds Recent.
+            fleet = read("internal/central/fleet.go")
+            if "SortRecordsNewestFirst(recs)" not in fleet:
+                fail("E: fleet.go now references the helper but does not sort recs with it — "
+                     "re-derive")
+            elif not re.search(r"if recentN > 0 \{\s*(?://[^\n]*\n\s*)*SortRecordsNewestFirst\(recs\)",
+                               fleet):
+                fail("E: the sort is not on the recentN>0 path — Recent may be built unsorted; "
+                     "re-derive")
+            else:
+                ok("E resolved: SortRecordsNewestFirst is now called by buildFleetView on the "
+                   "path that builds Recent (finding 2026-11-01n option 4, beat 789). The order "
+                   "Recent depends on is now established by this function, not promised by the "
+                   "caller. fleetorder_test.go holds this from an unordered backend's records")
         else:
-            fail("E: SortRecordsNewestFirst now has callers (%s) — the ordering assumption "
+            fail("E: SortRecordsNewestFirst has callers (%s) — the ordering assumption "
                  "may be enforced; re-derive" % ", ".join(users))
     else:
         fail("E: the helper is gone — re-derive what now protects fleet.go:126")

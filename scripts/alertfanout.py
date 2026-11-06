@@ -97,9 +97,9 @@ def main():
         "schema": "aegis.event/v1", "event": "behavior.rule_match",
         "ts": "2026-10-29T12:00:00.123456789Z",
         "host": {"id": "dept-crperdue-tech", "name": "dept-crperdue-tech"},
-        "agent": {"id": "vivi", "root": "/home/u"},
+        "agent": {"id": "vivi", "root": "/home/svc-example"},
         "action": {"type": "process.exec", "argv": ["cat", ".ssh/id_rsa"],
-                   "exe": "/usr/bin/cat", "cwd": "/home/u"},
+                   "exe": "/usr/bin/cat", "cwd": "/home/svc-example"},
         "rule": {"id": "carbonato.secret.read_after_shell", "severity": "high"},
         "actor": {"kind": "agent", "id": "vivi"},
         "severity": "high",
@@ -107,7 +107,7 @@ def main():
     n = (MB // len(json.dumps(ev, separators=(",", ":")))) + 1  # the 413 threshold
     a = {"when": "2026-10-29T16:00:00Z",
          "host": {"id": "dept-crperdue-tech"},
-         "agent": {"id": "vivi", "root": "/home/u"},
+         "agent": {"id": "vivi", "root": "/home/svc-example"},
          "events": [ev] * n}
     payload = len(json.dumps(a, separators=(",", ":")))
     print(f"ok   {n} events (the count that trips the batch 413) -> alert payload "

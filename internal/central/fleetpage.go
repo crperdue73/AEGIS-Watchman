@@ -4,6 +4,7 @@ import (
 	"html/template"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // The fleet page is deliberately plain: server-rendered HTML, one embedded
@@ -11,7 +12,18 @@ import (
 // GET /api/v1/fleet — the page is a second view of one source of truth, not a
 // second implementation. Anything the page can show, the endpoint returns, so an
 // operator can script the same console. Polish is v2 (see PHASE1-PLAN "not v1").
+// BEAT 790: the header line used to read "N event(s) retained" -- a claim about RETENTION
+// computed from a CAPPED SCAN. With the default 5000-record limit and a larger store, the page
+// stated as fact a number that was really "the first 5000 I looked at". The JSON view grew a
+// `truncated` flag this beat; the page is the surface an operator actually reads, so it must not
+// keep asserting the old sentence. (Template comments cannot contain "{{" -- it terminates them
+// early, which is why this note lives in Go and not in the template.)
 var fleetPageTmpl = template.Must(template.New("fleet").Funcs(template.FuncMap{
+	// deref exists because Truncated is a *bool: the pointer lets the JSON encoder
+	// distinguish "absent" from "false", but text/template treats ANY non-nil pointer as
+	// true -- {{if .Truncated}} would take the truncated branch on a complete view. Measured
+	// beat 790, after it printed "sample, not the store's total" over 5 records.
+	"deref": func(b *bool) bool { return b != nil && *b },
 	"sevClass": func(s string) string {
 		switch s {
 		case "critical":
@@ -59,16 +71,30 @@ func (s *Service) handleFleetPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	var recs []Record
-	if s.records != nil {
-		got, err := s.records.Recent(r.Context(), "", defaultFleetLimit)
-		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "record query failed")
-			return
-		}
-		recs = got
+	// BEAT 799: this page used to roll up the store's newest defaultFleetLimit records and print
+	// the result as the fleet. Beat 790 fixed the HEADER for that ("scanned, capped at N") but the
+	// table underneath was still a host LIST computed from a global recent window -- finding
+	// 2026-11-03t, measured at beat 793: 21 hosts, 10,003 events, 10 rows shown, and the 11 missing
+	// ones had no marker saying they were missing at all. The caveat sentences beat 792 added were
+	// true, and true sentences under an incomplete table are still an incomplete table.
+	//
+	// The roster supplies exact per-host AGGREGATES (Total, MaxSeverity, LastSeen, every By*
+	// bucket) over each host's retained records, and keeps the five-event detail sample a sample.
+	// That difference is why the header can now say "retained" again without the beat-790 lie: the
+	// number is no longer a restatement of a LIMIT clause.
+	view, err := rosterView(r.Context(), s.records, 5, time.Now())
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "record query failed")
+		return
 	}
-	view := buildFleetView(recs, 5)
+	// BEAT 799: DetailCapped, not Truncated. The aggregate here is exact -- every retained record
+	// is rolled up -- so Truncated (which means "the numbers describe a window") would be false.
+	// What really is trimmed is the five-event detail column, and that is the only caveat the
+	// template renders on this path. ScanLimit stays 0: there is no scan limit here, and printing
+	// a number would invent one.
+	detailCapped := true
+	view.DetailCapped = &detailCapped
+	view.DroppedUnnamed = s.DroppedUnnamed()
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := fleetPageTmpl.Execute(w, view); err != nil {
 		// Response already partly written; log-only is the only option here.
@@ -154,10 +180,42 @@ const fleetHTML = `<!doctype html>
 <body>
 <header>
   <h1>watchman · fleet view</h1>
-  <span class="muted">{{.TotalEvents}} event(s) retained
-    · {{len .Hosts}} host(s)</span>
+  {{if deref .Truncated}}
+  <span class="muted">{{.TotalEvents}} event(s) scanned (capped at {{.ScanLimit}} — this is a
+    sample, not the store's total)</span>
+  {{else}}
+  <span class="muted">{{.TotalEvents}} event(s) retained</span>
+  {{end}}
+  <span class="muted">· {{len .Hosts}} host(s)</span>
   <span class="muted" style="margin-left:auto">generated {{.GeneratedAt}}</span>
 </header>
+{{if deref .DetailCapped}}
+{{/* BEAT 799: the two caveats that used to live here (beat 791 "ranking is over the scanned
+     window" and beat 792 "hosts can be missing entirely") described a page that rolled up a
+     global newest-first slice. That slide is GONE -- the table is now an exact per-host rollup
+     over every retained record -- so those sentences are no longer merely stale, they would be
+     libel against a page that is complete. A caveat that outlives its cause teaches an operator
+     to ignore caveats, which is the same failure as a permanent "0 dropped".
+     What IS still capped is the five-event detail column, and it is capped per host, so it can
+     never make a host disappear -- only under-report one host's recent activity. That is the
+     only thing left to admit, and it is what this replaces them with. */}}
+<div class="derived" role="note" data-testid="detail-capped"
+     style="margin:10px 24px">Hosts and their counts are complete: every retained record is
+  rolled up. The detail column is capped at the five most recent events <em>per host</em>, so a
+  host's row can show fewer recent events than it has — that is the only thing trimmed here.</div>
+{{end}}
+{{/* BEAT 795 (finding 2026-11-02g option 3): events central RECEIVED and discarded are invisible
+     on every surface -- IngestActions skips an unnamed event and returns (0, nil) on a total drop,
+     so the collector's 202 means "received", not "stored". This note is deliberately OUTSIDE the
+     Truncated block: a drop happens whether or not the scan was capped, and tying it to the cap
+     would hide exactly the case where a small fleet silently loses records. It is also silent
+     when the count is zero -- a permanent "0 dropped" is training material for ignoring it. */}}
+{{if .DroppedUnnamed}}
+<div class="derived" role="alert" data-testid="dropped-unnamed"
+     style="margin:10px 24px">⚠ {{.DroppedUnnamed}} event(s) were received and discarded because they
+  carried no event name. Those events are NOT in this store and NOT in these counts, and the
+  collector that sent them was told the batch was accepted.</div>
+{{end}}
 <main>
 {{if .Hosts}}
 <table>

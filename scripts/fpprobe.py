@@ -85,7 +85,7 @@ CORPUS = [
     ("judgement", ["npm", "install", "-g", "@types/node"], "legit global install", "carbonato.tool.package_install"),
     ("judgement", ["crontab", "-l"],                       "LISTING crontab, not writing", "carbonato.persist.cron_or_rc"),
     ("judgement", ["tar", "-czf", "backup.tar.gz", "docs/"], "ordinary backup", "carbonato.exec.obfuscation"),
-    ("judgement", ["ssh", "-i", "/home/u/.ssh/id_ed25519", "host"], "own key, own host", "carbonato.exec.ssh_key_heredoc"),
+    ("judgement", ["ssh", "-i", "/home/svc-example/.ssh/id_ed25519", "host"], "own key, own host", "carbonato.exec.ssh_key_heredoc"),
 
     ("fire", ["cat", "/root/.ssh/id_rsa"],                 "reading root private key", "carbonato.exec.ssh_key_heredoc"),
     ("fire", ["nc", "-l", "-p", "4444"],                   "opening a listener", "carbonato.net.new_listener"),

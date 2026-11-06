@@ -52,20 +52,45 @@ func TestEBPFConfigWatchPathsOverride(t *testing.T) {
 // The default build has no eBPF: the stub must return ErrEBPFUnsupported so the
 // caller degrades to auditd. This test asserts the default-build contract; with
 // -tags ebpf it would matter differently, so it is guarded.
+//
+// BEAT 775 -- this test used to assert NOTHING on one path. Measured: with the
+// stub mutated to `return nil, nil` (a silent no-op with no error, i.e. the D3
+// degradation contract failing OPEN), this test still reported PASS. The old
+// body checked `err == nil` and then fell through without a verdict whenever
+// src was also nil, and its t.Skip was unreachable (it sat inside a branch that
+// had already established err == nil). Finding:
+// docs/FINDING-2026-11-03c-the-default-build-contract-test-asserted-nothing.md
+//
+// It now fails closed: an enabled config in the default build MUST return a
+// non-nil, errors.Is(err, ErrEBPFUnsupported) result. Nothing else is a pass.
 func TestStubReturnsUnsupported(t *testing.T) {
-	// Only meaningful in the default (no ebpf tag) build; in the tagged build
-	// NewEBPFSource does real work. We detect the default build by calling with
-	// a disabled config's opposite: enabled, which the stub rejects.
 	src, err := NewEBPFSource(EBPFConfig{Enabled: true}, nil)
-	if err == nil {
-		// Tagged build with a real implementation may return (nil, "not yet").
-		// Either way an error is expected until R2.2 lands.
-		if src != nil {
-			t.Skip("eBPF implemented; stub contract test no longer applies")
-		}
+
+	// Distinguish the two builds WITHOUT a build-tagged constant, because this
+	// test file carries no build tag and compiles under both. The tagged
+	// implementation returns a Source together with its error; the stub returns
+	// nil. So a non-nil src with a non-nil err means the real implementation is
+	// in play and the stub contract is not in force -- printed, never silent.
+	// The discriminator is the ERROR IDENTITY, not whether a Source came back:
+	// measured at beat 775, the tagged implementation returns (nil, "not yet
+	// implemented (R2.2)") -- a nil src -- so keying the skip on src != nil was
+	// wrong and made the tagged build fail. Only the stub returns the sentinel.
+	if err != nil && !errors.Is(err, ErrEBPFUnsupported) {
+		t.Skipf("built with -tags ebpf: NewEBPFSource is the real implementation "+
+			"(err=%v), so the default-build stub contract does not apply", err)
 	}
-	if err != nil && !errors.Is(err, ErrEBPFUnsupported) && !strings.Contains(err.Error(), "not yet implemented") {
-		t.Errorf("unexpected error: %v", err)
+
+	if err == nil {
+		t.Fatalf("default build: NewEBPFSource(Enabled: true) returned a nil error "+
+			"(src=%v). The stub must refuse with ErrEBPFUnsupported so callers "+
+			"degrade to auditd; a nil error here means the caller silently attaches "+
+			"nothing and believes it succeeded.", src)
+	}
+	if !errors.Is(err, ErrEBPFUnsupported) {
+		t.Fatalf("default build: want errors.Is(err, ErrEBPFUnsupported), got %v", err)
+	}
+	if src != nil {
+		t.Fatalf("default build: a refusing stub must not also return a Source, got %v", src)
 	}
 }
 

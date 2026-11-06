@@ -13,8 +13,16 @@
 # named in SELFHARNESS below. The lesson is that the gate's file selection was a NAME PATTERN, which is
 # the same class of defect as a check that greps for a comment: it looks like coverage and isn't.
 #
-# Three failure modes it catches that `make test` cannot (the Go toolchain is absent on
-# this box, so `go test ./...` is dark):
+# THE TOOLCHAIN IS BACK (2026-11-01, beat 740; this paragraph said otherwise for 20+ beats):
+# `go test ./...` runs on this box again. This script still does NOT run it -- it is the PYTHON gate.
+# That is a deliberate split (`make test` owns Go), but it had a consequence I did not notice until
+# beat 785: I was reporting "gate green: N suites" while `go test ./...` had a FAILING PACKAGE the
+# whole time. The number I quoted measured scripts. Nothing I quoted measured the engine.
+# goall.py (wired below as a SELFHARNESS entry) now runs `go test ./...` and reports its verdict in
+# this script's own summary, so "gate green" cannot mean "the scripts are fine, ask someone else
+# about the product."
+#
+# Three failure modes it catches that `make test` cannot:
 #   1. a suite that fails cases but exits 0            (pkgcheck_test.sh under `sh`)
 #   2. a suite that crashes before printing any verdict (a vacuous green)
 #   3. a suite that reports FEWER passing checks than it did before (see below)
@@ -77,7 +85,7 @@ files=$(ls "$HERE"/*_test.py "$HERE"/*_test.sh 2>/dev/null | grep -v "/suitechec
 # wirediff.py added beat 638. It counts matched rule values that have no local fixture, and goes red on
 # its own structural claims (proven by neutering the both-families check: rc=1, "path=30 endpoint=32").
 # It is the file that turns "56 unguarded values" into a work queue with a denominator.
-SELFHARNESS="$HERE/pathfixture.py $HERE/endpointfixture.py $HERE/argvfixture.py $HERE/windowfixture.py $HERE/jsonfidelity.py $HERE/clockfidelity.py $HERE/timelinemem.py $HERE/timelineprecedence.py $HERE/prunereap.py $HERE/spoolwedge.py $HERE/centralreject.py $HERE/batchsize.py $HERE/alertfanout.py $HERE/alertwiring.py $HERE/feedblind.py $HERE/classvocab.py $HERE/recordloss.py $HERE/healthprobe.py $HERE/auditsplit.py $HERE/gapsilence.py $HERE/durabilitygap.py $HERE/trimfloor.py $HERE/opaqueupstream.py $HERE/blockship.py $HERE/appendcost.py $HERE/pruneprefix.py $HERE/direntsource.py $HERE/scanblind.py $HERE/redundant_mut.py $HERE/pathmatchdiff.py $HERE/docsindex.py $HERE/wirediff.py $HERE/packvanished.py $HERE/fixtureledger.py $HERE/matcherblind.py $HERE/ruleclaims.py $HERE/docclaims.py $HERE/listenpred.py $HERE/eventclock.py $HERE/replaywarn.py $HERE/scopekey.py $HERE/claimcensus.py $HERE/timelinecap.py $HERE/retentioncensus.py $HERE/hostclaim.py $HERE/hostidshape.py $HERE/agentclaim.py $HERE/baselinekey.py $HERE/seencensus.py $HERE/livenesscensus.py $HERE/provenancecensus.py $HERE/fleetsamplecensus.py $HERE/contractruncensus.py $HERE/capordercensus.py $HERE/inplacefiltercensus.py $HERE/sqlitetrimcensus.py $HERE/retainpathcensus.py"
+SELFHARNESS="$HERE/pathfixture.py $HERE/endpointfixture.py $HERE/argvfixture.py $HERE/windowfixture.py $HERE/jsonfidelity.py $HERE/clockfidelity.py $HERE/timelinemem.py $HERE/timelineprecedence.py $HERE/prunereap.py $HERE/spoolwedge.py $HERE/centralreject.py $HERE/batchsize.py $HERE/alertfanout.py $HERE/alertwiring.py $HERE/feedblind.py $HERE/classvocab.py $HERE/recordloss.py $HERE/healthprobe.py $HERE/auditsplit.py $HERE/gapsilence.py $HERE/durabilitygap.py $HERE/trimfloor.py $HERE/opaqueupstream.py $HERE/credpath.py $HERE/blockship.py $HERE/appendcost.py $HERE/pruneprefix.py $HERE/direntsource.py $HERE/scanblind.py $HERE/redundant_mut.py $HERE/pathmatchdiff.py $HERE/docsindex.py $HERE/wirediff.py $HERE/packvanished.py $HERE/fixtureledger.py $HERE/matcherblind.py $HERE/windowblind.py $HERE/sweepclaim.py $HERE/ruleclaims.py $HERE/docclaims.py $HERE/listenpred.py $HERE/eventclock.py $HERE/replaywarn.py $HERE/scopekey.py $HERE/claimcensus.py $HERE/timelinecap.py $HERE/retentioncensus.py $HERE/hostclaim.py $HERE/hostidshape.py $HERE/agentclaim.py $HERE/baselinekey.py $HERE/seencensus.py $HERE/livenesscensus.py $HERE/provenancecensus.py $HERE/fleetsamplecensus.py $HERE/contractruncensus.py $HERE/capordercensus.py $HERE/inplacefiltercensus.py $HERE/sqlitetrimcensus.py $HERE/retainpathcensus.py $HERE/ingestceilingcensus.py $HERE/fleetcoveragecensus.py $HERE/manifestkeycensus.py $HERE/keycollisioncensus.py $HERE/walkerrorcensus.py $HERE/modtimecensus.py $HERE/alertbulkcensus.py $HERE/retainfailcensus.py $HERE/gateaudit.py $HERE/spoolackcensus.py $HERE/pathtable.py $HERE/shlexparity.py $HERE/staleclaim.py $HERE/unmirrored.py $HERE/coverfloor.py $HERE/goall.py $HERE/gomutate_scan_test.py $HERE/needlescope_test.py"
 for f in $SELFHARNESS; do
   [ -f "$f" ] || continue
   files="$files"$'\n'"$f"
@@ -124,7 +132,16 @@ for f in $files; do
     continue
   fi
 
-  out=$(timeout 300 "$runner" "$f" 2>&1)
+  # BEAT 797: a census script whose findings only become a FAIL under --check is a census the gate
+  # never reads. Measured: `unmirrored.py` printed 9 UNMIRRORED lines, zero FAIL lines and exited 0
+  # when run bare -- so the gate counted it as ok with nine live findings on the floor. Scripts built
+  # to be asked a question must be asked it. The list is explicit so the flag is not sprayed at
+  # scripts that do not take one; a script that gains --check belongs here.
+  check_flag=""
+  case "$b" in
+    unmirrored.py|staleclaim.py|coverfloor.py|goall.py) check_flag="--check" ;;
+  esac
+  out=$(timeout 300 "$runner" "$f" $check_flag 2>&1)
   rc=$?
   oks=$(printf '%s\n' "$out" | grep -cE '^ *ok')
   fails=$(printf '%s\n' "$out" | grep -cE '^ *(FAIL|not ok)')
@@ -218,11 +235,4 @@ if [ "$bad_suites" -ne 0 ] || [ "$regress" -ne 0 ]; then
 fi
 
 echo "suitecheck: $count suites held, $total_ok checks ok, 0 reported failures, none below baseline"
-# This note used to read "no toolchain here". That was a hardcoded caveat describing a
-# local breakage, and it went stale the moment Go was reinstated (beat 739) -- a comment
-# that asserts a fact about the box will eventually assert a false one. Ask instead.
-if command -v go >/dev/null 2>&1; then
-  echo "Note: this proves the script tests ran and passed. The Go tests are a SEPARATE gate -- run 'make test'."
-else
-  echo "Note: this proves the script tests ran and passed, NOT that the Go tests do -- no Go toolchain on this box."
-fi
+echo "Note: this proves the script tests ran and passed; Go tests are a separate gate (toolchain present since beat 740)."

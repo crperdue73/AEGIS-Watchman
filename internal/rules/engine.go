@@ -31,7 +31,16 @@ func NewEngine(packs ...*Pack) *Engine {
 	return &Engine{rules: rs}
 }
 
-// NewEngineRules builds an engine directly from rules (used by tests).
+// NewEngineRules builds an engine directly from rules.
+//
+// STALECLAIM cause=toolchain since=2026-10-08 checked=2026-11-04 pending=decide next=cross-package-use-or-removal
+// ^ MEASURED 2026-11-03 (beat 784): this said "(used by tests)" and NO test calls it -- `grep
+//
+//	-rn "NewEngineRules(" --include=*.go .` returns this declaration and nothing else, in-tree or
+//	cross-package. `go test -cover` reports 0.0%. Every test in the package builds engines with
+//	NewEngine(p). So the comment was the only thing keeping the function alive, and the comment was
+//	false. Kept (removing exported API is the pack owner's call, not mine) and annotated so the
+//	untruth stops being invisible.
 func NewEngineRules(rs []Rule) *Engine { return &Engine{rules: rs} }
 
 // WithTimeline returns the engine with a timeline attached. Correlation rules
@@ -350,7 +359,14 @@ func detailStringSlice(action schema.Action, key string) []string {
 	}
 }
 
-// normalizePathGlobs is a small helper used by tests to keep globs portable.
+// normalizePathGlobs rewrites Windows separators to '/'.
+//
+// STALECLAIM cause=toolchain since=2026-10-08 checked=2026-11-04 pending=decide next=caller-or-removal
+// ^ MEASURED 2026-11-03 (beat 784): claimed "used by tests"; no test calls it, nothing calls it.
+//
+//	`go test -cover` = 0.0%. Unlanguaged dead code inside the package that decides path matching,
+//	which is the last place an unexercised function should be parked. Removal is the pack owner's
+//	call; the false claim in the doc comment was mine to fix.
 func normalizePathGlobs(globs []string) []string {
 	out := make([]string, len(globs))
 	for i, g := range globs {

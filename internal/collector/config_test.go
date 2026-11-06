@@ -318,3 +318,69 @@ func TestConfigPinsValidation(t *testing.T) {
 		t.Errorf("pins = %q, want %q", cfg.Behavior.Pins, pins)
 	}
 }
+
+// TestConfigAcceptsCoherentPinsAndPubKey pins config.go:181 in the ACCEPT direction.
+//
+// TestConfigPinsValidation above checks that pin_pubkey WITHOUT pins is refused -- but it never
+// builds the pair that is supposed to WORK, so flipping the :181 guard to != passed the suite:
+// the invalid config was still refused, just by the neighbouring reads, while a fully valid
+// config (pins + pin_pubkey, both files present) was rejected with the nonsense message
+// "behavior.pin_pubkey requires behavior.pins" even though pins was set.
+//
+// This is the direction that matters operationally. Pins + a signing key is the hardened
+// configuration -- signed rule packs, the thing an operator turns on deliberately. A build that
+// refuses it with a misleading reason is a build that gets downgraded to unsigned packs to make
+// the agent start, which is the opposite of what the operator asked for.
+func TestConfigAcceptsCoherentPinsAndPubKey(t *testing.T) {
+	dir := t.TempDir()
+	rulesDir := filepath.Join(dir, "rules")
+	if err := os.MkdirAll(rulesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pins := filepath.Join(dir, "packs.pins")
+	if err := os.WriteFile(pins, []byte("# empty\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pub := filepath.Join(dir, "pack.pub")
+	if err := os.WriteFile(pub, []byte("k\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := tryLoad(t, "agent_roots:\n  - path: /x\nbehavior:\n  rules_dir: "+rulesDir+
+		"\n  pins: "+pins+"\n  pin_pubkey: "+pub+"\n")
+	if err != nil {
+		t.Fatalf("a coherent pins+pin_pubkey block was refused: %v", err)
+	}
+	if cfg.Behavior.Pins != pins {
+		t.Errorf("Pins = %q, want %q", cfg.Behavior.Pins, pins)
+	}
+	if cfg.Behavior.PinPubKey != pub {
+		t.Errorf("PinPubKey = %q, want %q", cfg.Behavior.PinPubKey, pub)
+	}
+}
+
+// TestConfigRefusesMissingPubKeyFile pins config.go:184 -- the os.Stat check on pin_pubkey.
+//
+// The mutant (err != nil -> err == nil) inverts the check: a pin_pubkey path that DOES NOT EXIST
+// is accepted, and one that does exist is refused. Accepting a missing key is the dangerous half:
+// the agent starts with signing configuration it cannot possibly verify against, so every rule
+// pack is either silently unverified or the whole chain is dead while the config claims it is on.
+// A trust root that fails open is worse than no trust root, because nobody goes looking for it.
+func TestConfigRefusesMissingPubKeyFile(t *testing.T) {
+	dir := t.TempDir()
+	rulesDir := filepath.Join(dir, "rules")
+	if err := os.MkdirAll(rulesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pins := filepath.Join(dir, "packs.pins")
+	if err := os.WriteFile(pins, []byte("# empty\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	body := "agent_roots:\n  - path: /x\nbehavior:\n  rules_dir: " + rulesDir +
+		"\n  pins: " + pins + "\n  pin_pubkey: " + filepath.Join(dir, "absent.pub") + "\n"
+	if _, err := tryLoad(t, body); err == nil {
+		t.Fatal("a pin_pubkey pointing at a file that does not exist was accepted; the agent " +
+			"would start claiming signed-pack verification it cannot perform")
+	}
+}

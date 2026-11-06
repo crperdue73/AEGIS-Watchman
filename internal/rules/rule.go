@@ -23,7 +23,17 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Format version for the on-disk rule document.
+// FormatVersion is the intended schema version of the on-disk rule document.
+//
+// WARNING: this constant is currently declared and never read. Nothing writes
+// it into a pack, and no loader compares a pack against it -- not ParsePack,
+// not LoadPacks, not the central filestore. A pack that declares an unsupported
+// format version is accepted silently. Do not treat its presence as evidence
+// that format versioning is enforced.
+//
+// (Measured in internal/rules/packversion_test.go; finding
+// docs/FINDING-2026-11-02p. Whether to wire it up or delete it is an open
+// decision -- see that finding for the options.)
 const FormatVersion = 1
 
 // Rule is one detection rule.

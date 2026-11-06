@@ -31,7 +31,42 @@ echo "== building binaries (make build) =="
 rm -rf out
 mkdir -p out
 # A pristine persona file copy each run, so Layer 1 has something to watch.
-git checkout -- agent-root/SOUL.md 2>/dev/null || true
+#
+# BEAT 836: this was `git checkout -- agent-root/SOUL.md` and nothing else. In
+# the authored tree -- which has no .git since the 2026-10-08 migration -- that
+# command fails, `|| true` swallows it, and the demo leaves its "attacker" edit
+# in the fixture. `make preflight` runs this demo, so every `make preflight` left
+# the tree dirtier than it found it and the NEXT run started from an already
+# overwritten persona. The guard (TestShippedDemoPersonaIsClean) caught it; the
+# demo was the thing that had to be fixed.
+#
+# The baseline is kept as a file so the restore does not depend on git at all.
+demo_soul="agent-root/SOUL.md"
+demo_soul_base="agent-root/SOUL.md.pre-demo"
+# Rebuild the baseline on EVERY run, and take it from git (the committed,
+# pristine fixture) whenever git is available. Caching it as "if it does not
+# exist yet, save whatever is there" was WRONG: the first run in a dirty tree
+# recorded the DIRTY file as the baseline, and every later restore faithfully
+# restored the attacker's edit. A backup that captures whatever it finds is not
+# a baseline, it is a copy of the bug. Beat 836, caught by
+# TestShippedDemoPersonaIsClean on the very next preflight.
+if command -v git >/dev/null 2>&1; then
+  git rev-parse --git-dir >/dev/null 2>&1 \
+    && git show :"demo/$demo_soul" >"$demo_soul_base" 2>/dev/null || true
+fi
+if [[ ! -s "$demo_soul_base" ]]; then
+  # No git here: the only safe baseline is one that does not contain the marker
+  # pass 2 appends. Refuse rather than snapshot a possibly-dirty file.
+  if grep -q 'overwritten by attacker' "$demo_soul"; then
+    rm -f "$demo_soul_base"
+    echo "demo: agent-root/SOUL.md already carries the attacker edit and there is no git" >&2
+    echo "demo: to recover a pristine baseline — restore the committed fixture first" >&2
+    exit 1
+  fi
+  cp "$demo_soul" "$demo_soul_base"
+fi
+restore_soul() { cp "$demo_soul_base" "$demo_soul"; }
+restore_soul
 
 central_pid=""
 cleanup() {
@@ -40,8 +75,9 @@ cleanup() {
     wait "$central_pid" 2>/dev/null || true
   fi
   # Restore the stand-in persona file so the demo never leaves a dirty tree —
-  # pass 2 appends an "attacker" edit to it on purpose.
-  git checkout -- agent-root/SOUL.md 2>/dev/null || true
+  # pass 2 appends an "attacker" edit to it on purpose. Copy, not `git
+  # checkout`: the authored tree has no .git (beat 836).
+  restore_soul
 }
 trap cleanup EXIT
 

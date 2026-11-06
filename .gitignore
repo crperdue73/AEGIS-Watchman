@@ -40,6 +40,9 @@ secrets/
 .vscode/
 *.swp
 
-# Python bytecode (a `make preflight` run stages 155 .pyc files otherwise)
+.coverfloor.out
+.goall-history.jsonl
+demo/agent-root/SOUL.md.pre-demo
+.coverfloorinternal-*.out
 __pycache__/
 *.pyc

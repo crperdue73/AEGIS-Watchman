@@ -266,6 +266,19 @@ if __name__ == "__main__":
 # Section 8: the finding must live in the project's real Go suite too, not only in this Python
 # transcription. No Go toolchain here, so we can't compile -- we can insist the test exists, names the
 # right rule, and still asserts the DEFECT (if someone "fixes" it by deleting the assertion, we notice).
+#
+# SUPERSEDED 2026-11-03 (beat 783): "no Go toolchain here" was true from 2026-10-08 and false from
+# 2026-11-01 (beat 740). Verified this beat: `go test ./internal/rules -run
+# TestPersistDirectoryItselfIsMissed` RUNS and PASSES, so the claim this section exists to keep
+# honest is now measured, not read.
+# STALECLAIM cause=toolchain since=2026-10-08 checked=2026-11-03 resolved=2026-11-03 by=internal/rules/carbonato_pack_test.go
+#
+# This section is NOT retired and should not be. It checks a different thing from the Go test: that
+# the Go test still names the rule, still asserts the defect, and still warns the next fixer. A
+# compiled test that compiles and passes tells you nothing about whether someone deleted the
+# assertion inside it and left a green shell -- which is exactly what the checks below catch. Source
+# reading is the right instrument for "the shape of the test", just not for "the behaviour of the
+# engine". Those are two questions and they want two tools.
 # ------------------------------------------------------------------------------------------------------
 def _go_pack_test():
     with open(os.path.join(ROOT, "internal", "rules", "carbonato_pack_test.go"), encoding="utf-8") as fh:

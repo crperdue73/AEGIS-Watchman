@@ -176,7 +176,24 @@ def check_f_helper_unused():
             continue
         if "SortRecordsNewestFirst(" in p.read_text(errors="replace"):
             users.append(p.name)
-    if users:
+    if "fleet.go" in users:
+        # Beat 789: applied finding 2026-11-01n option 4. The helper is no longer an unused
+        # token; it is the mechanism. Held to the same standard as the gap it replaced: the
+        # call must be in buildFleetView and must precede the Recent append.
+        fleet = (ROOT / "internal/central/fleet.go").read_text(errors="replace")
+        call = fleet.find("SortRecordsNewestFirst(recs)")
+        recent = fleet.find("h.Recent = append(h.Recent, rec)")
+        if call < 0:
+            fail("F: fleet.go mentions the helper but never calls it")
+        elif recent < 0:
+            fail("F: no Recent append found — re-derive what needed the order")
+        elif not call < recent:
+            fail("F: the sort happens after Recent is built — it cannot be enforcing anything")
+        else:
+            ok("F resolved: SortRecordsNewestFirst guards the Recent append by construction "
+               "(sort at offset %d, append at %d, same function). Finding 2026-11-01n option 4"
+               % (call, recent))
+    elif users:
         fail("F: SortRecordsNewestFirst has callers now (%s) — re-derive" % ", ".join(users))
     else:
         ok("F gap: SortRecordsNewestFirst — written for backends that cannot promise order "

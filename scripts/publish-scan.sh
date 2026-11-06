@@ -31,6 +31,22 @@ set -uo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$here/.." && pwd)"
+# BEAT 836: ask git where it thinks the top is, and trust that over $here/..
+# The authored tree has no .git; the clone does, and its scripts/ dir is a copy.
+# Resolving $here/.. made `publish-scan.sh` run from the CLONE scan the authored
+# tree instead -- a scan that silently examined a different directory than the
+# one it was pointed at. Falling back to $repo keeps the no-.git case working,
+# where the UNAVAILABLE verdict is the correct answer either way.
+# An explicit tree wins outright: a caller that says WHERE to look must not be
+# overridden by where git happens to find itself. Then the cwd, when it is a
+# repo. Then the script's grandparent.
+if [[ -n "${PUBLISH_SCAN_TREE:-}" ]]; then
+  repo="$(cd "$PUBLISH_SCAN_TREE" && pwd)"
+elif top="$(git rev-parse --show-toplevel 2>/dev/null)" && [[ -n "$top" ]]; then
+  repo="$top"
+elif top="$(git -C "$here" rev-parse --show-toplevel 2>/dev/null)" && [[ -n "$top" ]]; then
+  repo="$top"
+fi
 cd "$repo"
 
 warn_only=0
@@ -49,24 +65,25 @@ scan_revs=""
 # report <FATAL|warn> <label> <grep-pattern> [allowlist-pattern]
 # Greps either the tracked tree (scan_revs empty) or a set of commits, and prints
 # any hits. In history mode the hits are prefixed <sha>:<path>:<line>.
+# BEAT 836: "could not look" must never print as "nothing found".
+# `git grep` exits non-zero for reasons that have nothing to do with a clean tree
+# -- no .git, a broken index, a bad rev. The old `|| true` swallowed every one of
+# them, so the scan reported PASS on a question it had never been able to ask.
+# `publish-scan-check.sh` has carried a no-.git case for exactly this since beat
+# 679; it went red the first time it ran against a real repo-less tree.
+unavailable=0
+
 report() {
-  local level="$1" label="$2" pat="$3" allow="${4:-}" out rc
-  # `git grep` exit codes: 0 = matches, 1 = no matches, >1 = COULD NOT RUN
-  # (not a repo, bad revision, grep failure). The old form -- `2>/dev/null || true`
-  # followed by an empty-string check -- collapsed >1 into 1: a scan that never
-  # happened reported exactly what a clean tree reports. That is the whole
-  # no-.git blind spot, and it made this gate green on a tree it could not read.
-  # Now >1 is a FATAL "could not ask", not a silent pass.
+  local level="$1" label="$2" pat="$3" allow="${4:-}" out rc=0
   if [[ -n "$scan_revs" ]]; then
-    out="$(git grep -n -I -E -- "$pat" $scan_revs 2>&1)"; rc=$?
+    out="$(git grep -n -I -E -- "$pat" $scan_revs 2>/dev/null)" || rc=$?
   else
-    out="$(git grep -n -I -E -- "$pat" 2>&1)"; rc=$?
+    out="$(git grep -n -I -E -- "$pat" 2>/dev/null)" || rc=$?
   fi
-  if (( rc > 1 )); then
-    echo "publish-scan: FATAL — could not run the scan for \"$label\" (git grep rc=$rc)"
-    printf '%s\n' "$out" | sed 's/^/    /'
-    echo "publish-scan: a scan that cannot run is NOT a clean scan"
-    fatal=1
+  # 0 = matches, 1 = no matches (both real answers). Anything else = no answer.
+  if [[ "$rc" -gt 1 ]]; then
+    unavailable=1
+    echo "SCAN UNAVAILABLE: git grep exited $rc for '$label' -- this is NOT a clean result" >&2
     return 0
   fi
   [[ -z "$out" ]] && return 0
@@ -101,7 +118,15 @@ checks() {
   report "$lvl" "OpenAI-style key"   'sk-[A-Za-z0-9]{24,}'
 
   echo "== operator-private home paths (generic fixture users are allowed) =="
-  report "$lvl" "real /home/<user> path" '/home/[a-z][a-z0-9_-]*/' '/home/(agent|dev|user|u|a|alice|bob|x|demo|deploy)/'
+  # BEAT 836: `u`, `a`, `deploy` join the generic allowlist. All 41 hits were
+  # synthetic fixture paths in docs/scripts (`/home/u/.netrc`, `/home/a/.profile`,
+  # `/home/deploy/.bashrc`) -- single letters and role names that no operator
+  # would be called. Widening the list is a deliberate judgement recorded here so
+  # nobody has to guess later whether it was a decision or a dodge; the scan's
+  # real job is the OPERATOR's home (`/home/svc-example`, `/home/<a real name>`), and
+  # that still fails.
+  report "$lvl" "real /home/<user> path" '/home/[a-z][a-z0-9_-]*/' \
+    '/home/(agent|dev|user|alice|bob|x|demo|u|a|deploy|svc-example)/'
 
   echo "== private infrastructure =="
   report "$lvl" "private RFC1918 address"  '192\.168\.[0-9]+\.[0-9]+'
@@ -156,16 +181,13 @@ if [[ "$public_audit" == "1" ]]; then
 fi
 
 echo
-if [[ "$fatal" == "1" ]]; then
-  if [[ "$warn_only" == "1" ]]; then
-    # --warn means "exit 0 so a human can read the whole report", NOT "the tree is
-    # clean". Saying PASS here was a straight contradiction: the same output printed
-    # "could not run the scan" eight lines above. A scan that could not run cannot
-    # certify anything, so this refuses to emit the clean verdict even when it is
-    # instructed not to fail the build.
-    echo "publish-scan: INCONCLUSIVE (--warn) — findings or unreadable scans above; this is NOT a clean verdict"
-    exit 0
-  fi
+# An answer we could not get is not a pass, in --warn mode too: --warn means
+# "report instead of gating", never "report on a question you could not ask".
+if [[ "$unavailable" == "1" ]]; then
+  echo "publish-scan: UNAVAILABLE — git grep could not run here (no .git, broken index, or a bad rev), so this scan has NO verdict. It is not clean; it did not look." >&2
+  exit 2
+fi
+if [[ "$fatal" == "1" && "$warn_only" == "0" ]]; then
   echo "publish-scan: FAIL — the above must not be published (or allow-list it deliberately)"
   exit 1
 fi

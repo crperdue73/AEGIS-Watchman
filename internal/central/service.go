@@ -2,8 +2,11 @@ package central
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log"
 	"sort"
+	"sync/atomic"
 	"time"
 
 	"github.com/crperdue73/AEGIS-Watchman/internal/collector"
@@ -36,7 +39,32 @@ type Service struct {
 	records RecordStore
 	// now stubs the clock for retention/record timestamps in tests. Nil = time.Now.
 	now func() time.Time
+	// droppedUnnamed counts events this service RECEIVED and did not retain because
+	// they carried no event name. It exists because the drop path was invisible: IngestActions
+	// `continue`s past an unnamed event and, if that empties the batch, returns
+	// (0, nil) -- so the collector's 202 meant "received", the finding 2026-11-02g
+	// gap, and nothing anywhere recorded that evidence had gone.
+	//
+	// This does not close that gap (the handler still answers 202 for a total
+	// drop; changing that is a wire-contract decision, Dad's call). It makes the
+	// loss COUNTABLE and visible instead of silent -- option 3 of the finding.
+	// droppedUnnamed counts events this service RECEIVED and did not retain because
+	// they carried no event name. It exists because the drop path was invisible: IngestActions
+	// `continue`s past an unnamed event. Finder 2026-11-02g: a batch empty after those
+	// drops used to return (0, nil) -- so the collector's 202 meant "received"
+	// and the spool deleted evidence it had only delivered. That half is now
+	// closed (IngestActions returns ErrTotalDrop). This counter remains the
+	// other half: partial drops stay successful, so they are counted here and
+	// surfaced on the fleet view -- option 3 of the finding, alongside option 1.
+	droppedUnnamed atomic.Int64
 }
+
+// ErrTotalDrop is returned when central received a non-empty batch and retained
+// none of it. Callers must not read it as a transport failure: the request was
+// well-formed, the payload was garbage. It is deliberately an error because the
+// collector's spool deletes on success, and deleting a batch nobody stored is
+// the evidence-loss shape this whole product exists to catch.
+var ErrTotalDrop = errors.New("no events accepted")
 
 // Logger is the minimal logging surface config wiring needs, so callers can
 // pass *log.Logger (or a test double) without importing log in the config path.
@@ -180,6 +208,13 @@ func (s *Service) alert(ctx context.Context, host schema.Host, agent schema.Agen
 //
 // The events are stamped with the submitting host/agent if they arrive without
 // one, so an alert is always attributable even if a collector forgot.
+//
+// A batch this function accepts NOTHING from returns ErrTotalDrop, not (0, nil).
+// Finder 2026-11-02g: the collector's spool treats a nil submit (i.e. any 2xx)
+// as proof central took the batch and deletes it -- so a 202 on a total drop was
+// evidence loss wearing a success code. Partial drops stay successful (a
+// collector must not retry a poison batch forever); only accepting zero out of a
+// non-empty batch is refused.
 func (s *Service) IngestActions(ctx context.Context, host schema.Host, agent schema.Agent, events []schema.Event) (int, error) {
 	if len(events) == 0 {
 		return 0, nil
@@ -187,7 +222,10 @@ func (s *Service) IngestActions(ctx context.Context, host schema.Host, agent sch
 	accepted := make([]schema.Event, 0, len(events))
 	for _, ev := range events {
 		if ev.Event == "" {
-			continue // not an event; drop rather than alert on garbage
+			// Not an event; drop rather than alert on garbage. Counted, because
+			// "dropped rather than alerted" is still evidence leaving the system.
+			s.droppedUnnamed.Add(1)
+			continue
 		}
 		if ev.Host.ID == "" {
 			ev.Host = host
@@ -199,7 +237,7 @@ func (s *Service) IngestActions(ctx context.Context, host schema.Host, agent sch
 		accepted = append(accepted, ev)
 	}
 	if len(accepted) == 0 {
-		return 0, nil
+		return 0, fmt.Errorf("%w: %d event(s) received, none accepted", ErrTotalDrop, len(events))
 	}
 	s.resolveActors(accepted)
 	s.retain(host, agent, accepted)
@@ -208,6 +246,15 @@ func (s *Service) IngestActions(ctx context.Context, host schema.Host, agent sch
 	}
 	return len(accepted), nil
 }
+
+// DroppedUnnamed reports how many ingested events have been discarded because
+// they carried no event name. Monotonic for the process lifetime.
+//
+// It is a plain accessor on purpose: this is the number an operator needs when a
+// collector's 202 stops meaning "central has it" (finding 2026-11-02g). Surfacing
+// it is the whole point -- an unread counter would be the same silence with extra
+// state.
+func (s *Service) DroppedUnnamed() int64 { return s.droppedUnnamed.Load() }
 
 func pathOf(e schema.Event) string {
 	if e.File != nil {

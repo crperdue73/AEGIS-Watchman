@@ -2,6 +2,7 @@ package rules
 
 import (
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -469,3 +470,31 @@ func TestDetailGlobAnyMatchesComposite(t *testing.T) {
 }
 
 var _ = normalizePathGlobs
+
+// TestMatchOneIgnoredErrIsEquivalent pins the three `err == nil` survivors at engine.go:262,
+// :267, :272 (beat 831). Mutating any of them to `err != nil` changes nothing, because
+// path.Match's contract is: on failure ok is false. So `err == nil && ok` and `err != nil && ok`
+// both reduce to `ok` -- the err half is dead weight in the expression, not a guard.
+//
+// Measured, not assumed: path.Match("[" , x) returns (false, syntax error) for every malformed
+// glob tried. The check below asserts that stdlib invariant directly, so if Go ever changed it
+// (returning true with an error) this goes red and the three survivors become real.
+//
+// Also pins the behaviour that makes it matter: a malformed glob must not match anything.
+func TestMatchOneIgnoredErrIsEquivalent(t *testing.T) {
+	for _, bad := range []string{"[", "a[", "[]", "\\"} {
+		ok, err := path.Match(bad, "anything")
+		if err == nil {
+			t.Fatalf("path.Match(%q) returned no error; the equivalence this test pins rests on "+
+				"erroring globs never returning ok=true", bad)
+		}
+		if ok {
+			t.Fatalf("path.Match(%q) returned ok=true WITH an error; engine.go:262/267/272 are no "+
+				"longer equivalent and need real tests", bad)
+		}
+		// The product behaviour: a syntactically broken glob matches nothing.
+		if matchOne(bad, "anything", "anything", pathSuffixes("anything")) {
+			t.Errorf("matchOne matched a malformed glob %q; a broken rule glob must not fire", bad)
+		}
+	}
+}

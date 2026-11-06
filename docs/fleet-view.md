@@ -129,8 +129,8 @@ Query parameters (all optional):
 | `host` | *(all)* | Restrict the rollup to one host id. |
 | `since` | *(unbounded)* | Only records at or after this time. **RFC 3339**; a malformed value returns `400`, not a silent empty view. |
 | `min_severity` | *(none)* | Only records at or above this severity (`info` < `low` < `medium` < `high` < `critical`). |
-| `limit` | `5000` | Max records scanned. A second guard on top of retention, so a query stays cheap. |
-| `recent` | `10` | Max recent records embedded per host. |
+| `limit` | `5000` | Max records **read from the store**. A second guard on top of retention, so a query stays cheap. ⚠️ The store applies this *before* the rollup, so a small `limit` bounds the totals too — not just the cost. See *Bounded by limit* below. |
+| `recent` | `10` | Max recent records embedded per host. `0` does **not** disable the sample — every value `<= 0` (and any parse failure) falls back to the default. |
 
 Response shape:
 
@@ -151,9 +151,42 @@ Response shape:
       "by_pack": { "carbonato@7": 12 },
       "recent": [ /* the newest Records for this host */ ]
     }
-  ]
+  ],
+  // Present only when the detail sample was trimmed. NOT the same claim as `truncated`.
+  "detail_capped": true,
+  // Present when the store stopped early because of `limit`.
+  "truncated": false,
+  "scan_limit": 5000
 }
 ```
+
+### Two caveat flags, and why they are separate
+
+They look interchangeable and they are not — they tell an operator to do
+opposite things:
+
+| Field | Means | What to do about it |
+|---|---|---|
+| `truncated: true` | The store returned more rows than `limit` allowed, so **the totals describe a window**. | Ask again with a bigger `limit`. The numbers you have are a floor, not a total. |
+| `detail_capped: true` | The counts are **exact**; only the embedded `recent` event list was trimmed to `recent` per host. | Nothing. The number you are reading is already final. |
+
+Collapsing them into one field was a real bug (beat 799): reusing `truncated` for
+the detail caveat printed "capped at 0" above a complete rollup. A field that can
+say "look again" and "this is final" at the same time says nothing.
+
+### Bounded by `limit`
+
+At the default `limit` (5000) and a retained store smaller than that, the rollup
+covers **every retained record**, so a host that fired three criticals and then
+went quiet still appears with its exact counts — under the older newest-N window
+it vanished entirely, which is the worst way to lose a host.
+
+A caller-supplied small `limit` is different, and it is honest about being
+different: the store stops reading at `limit` rows, so the totals cover those
+rows and `truncated` reports `true`. The endpoint cannot total records it did not
+read, and it does not pretend otherwise. Whether a caller should be able to
+understate a fleet by asking for a small `limit` is an open question on the public
+API, not a behaviour decided in the handler.
 
 Hosts are ordered **worst-first** — by max severity, then by total — so the
 console leads with what an operator has to look at. A `severity` floor becomes

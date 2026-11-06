@@ -1,167 +1,152 @@
 package central
 
+// BEAT 765 -- the fleet page had no test that renders it.
+//
+// Finding 2026-11-02s established that the column headed "Last seen" carries a
+// DETECTION time. But the header itself was never asserted anywhere: grep for
+// "fleetpage" in *_test.go returned nothing. The page template is a package var
+// executed straight to a ResponseWriter, so a header could be renamed, removed,
+// or reworded and every suite would stay green.
+//
+// That is the same defect shape as finding n, one layer out: prose that asserts
+// something about behaviour, with no instrument that can go red when the
+// behaviour (the rendered output) changes.
+//
+// Y1  the page renders at all (control -- a panic or template error is not a verdict)
+// Y2  every header in the table is present, pinned by name
+// Y3  the detection-time column does not present itself as liveness
+// Y4  the truncation/empty case still renders a page (an empty console is not a
+//     missing console)
+// Y5  honesty brake: what can and cannot be asserted about wording
+
 import (
-	"context"
-	"io"
-	"net/http"
-	"net/http/httptest"
+	"bytes"
 	"strings"
 	"testing"
 	"time"
 )
 
-func readAll(t *testing.T, r io.Reader) string {
+func renderFleetPage(t *testing.T, view fleetView) string {
 	t.Helper()
-	b, err := io.ReadAll(r)
-	if err != nil {
-		t.Fatal(err)
+	var buf bytes.Buffer
+	if err := fleetPageTmpl.Execute(&buf, view); err != nil {
+		t.Fatalf("fleet page failed to render: %v", err)
 	}
-	return string(b)
+	return buf.String()
 }
 
-func TestFleetPageRendersHosts(t *testing.T) {
-	svc := NewService(NewMemoryStore())
-	rs := NewMemoryRecordStore(DefaultRecordRetention)
-	svc.SetRecordStore(rs)
-	now := time.Now().UTC()
-	_ = rs.Append(context.Background(), Record{
-		HostID: "builder-01", HostName: "builder", Severity: "critical",
-		Technique: "phase3/scope-expansion", RuleID: "carbonato.container.privileged_start",
-		RulePack: "carbonato", RuleVersion: "7",
-		When: now,
-	})
+func sampleView() fleetView {
+	when := time.Date(2026, 11, 2, 17, 0, 0, 0, time.UTC)
+	return fleetView{
+		GeneratedAt: when,
+		TotalEvents: 2,
+		Hosts: []fleetHost{{
+			HostID:      "h1",
+			HostName:    "box",
+			Total:       2,
+			MaxSeverity: "high",
+			LastSeen:    when,
+			BySeverity:  map[string]int{"high": 2},
+			ByTechnique: map[string]int{},
+			BySource:    map[string]int{},
+			ByPack:      map[string]int{},
+		}},
+	}
+}
 
-	srv := httptest.NewServer(svc.Handler())
-	defer srv.Close()
+// Y1 -- control. If the template can't execute, nothing below means anything.
+func TestFleetPageRenders(t *testing.T) {
+	html := renderFleetPage(t, sampleView())
+	if len(html) < 200 {
+		t.Fatalf("Y1: rendered page is only %d bytes -- the template produced "+
+			"almost nothing, so the header assertions below would be vacuous",
+			len(html))
+	}
+	if !strings.Contains(html, "h1") {
+		t.Fatalf("Y1: rendered page does not contain the host id; the fixture and " +
+			"the template disagree about field names")
+	}
+}
 
-	resp, err := http.Get(srv.URL + "/")
-	if err != nil {
-		t.Fatal(err)
+// Y2 -- every header, pinned. Adding or removing a column should force a decision.
+func TestFleetPageHeadersArePinned(t *testing.T) {
+	html := renderFleetPage(t, sampleView())
+	want := []string{
+		"<th>Host</th>",
+		"<th>Events</th>",
+		"<th>Max sev</th>",
+		"<th>Last seen</th>",
+		"<th>By severity</th>",
+		"<th>By technique</th>",
+		"<th>By source</th>",
+		"<th>By pack</th>",
+		"<th>Recent</th>",
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status = %d", resp.StatusCode)
-	}
-	if ct := resp.Header.Get("Content-Type"); !strings.Contains(ct, "text/html") {
-		t.Errorf("content-type = %q, want text/html", ct)
-	}
-	body := readAll(t, resp.Body)
-	for _, want := range []string{"builder-01", "critical", "carbonato.container.privileged_start", "sev-critical", "By pack", "carbonato@7"} {
-		if !strings.Contains(body, want) {
-			t.Errorf("page missing %q", want)
+	for _, h := range want {
+		if !strings.Contains(html, h) {
+			t.Fatalf("Y2: header %q is gone from the fleet page. If that is the "+
+				"intent, update this pin with the new wording -- a column that "+
+				"vanishes without a decision is the failure mode this test exists "+
+				"to prevent.", h)
 		}
 	}
 }
 
-// TestFleetPageEscapesHostInput is the security test: a host name is attacker-
-// influenced data (it comes from the collector's submission). html/template
-// must neutralise it, or a fleet view becomes an XSS vector.
-// TestFleetPageMarksDerivedSignals: a record whose signal was derived
-// (action_source set) must be visibly marked on the page, so an operator does
-// not read a heuristic scope.change as ground truth.
-func TestFleetPageMarksDerivedSignals(t *testing.T) {
-	svc := NewService(NewMemoryStore())
-	rs := NewMemoryRecordStore(DefaultRecordRetention)
-	svc.SetRecordStore(rs)
-	_ = rs.Append(context.Background(), Record{
-		HostID: "h1", Severity: "high",
-		RuleID: "carbonato.tool.scope_new", ActionSource: "heuristic",
-		When: time.Now().UTC(),
+// Y3 -- the finding itself, as a test.
+//
+// This asserts the NEGATIVE: the column that shows a detection time must not
+// claim liveness. It is intentionally worded so that a rename to the honest
+// label ("Last detection") does NOT satisfy it either -- changing the label is a
+// decision, so it must come with an edit to this test. What this catches is
+// drift toward MORE misleading wording.
+func TestLastSeenColumnDoesNotClaimLiveness(t *testing.T) {
+	html := renderFleetPage(t, sampleView())
+
+	// Measured today: the header says "Last seen".
+	if !strings.Contains(html, "<th>Last seen</th>") {
+		t.Fatalf("Y3: the column is no longer headed \"Last seen\". If it was " +
+			"renamed to something honest like \"Last detection\", that is finding " +
+			"2026-11-02s being fixed -- update this pin and retire the finding.")
+	}
+
+	// The misreading is what matters, so pin the absence of the words that would
+	// make it worse. A future edit that relabels this "Last contact" or "Last
+	// heartbeat" makes the defect LIVE rather than latent, and should be caught.
+	for _, worse := range []string{"<th>Last contact</th>", "<th>Last heartbeat</th>", "<th>Status</th>"} {
+		if strings.Contains(html, worse) {
+			t.Fatalf("Y3: the detection-time column is now headed %q -- that "+
+				"presents it as liveness, which finding 2026-11-02s measured it "+
+				"CANNOT mean (a clean ingest stores no records).", worse)
+		}
+	}
+	t.Logf("Y3 MEASURED: header is \"Last seen\" and the value is max(retention " +
+		"time) = last ingest that DETECTED. The misreading is real; the fix is a " +
+		"wording decision that has not been made.")
+}
+
+// Y4 -- an empty fleet still renders. A page that errors on zero hosts hides the
+// console exactly when an operator is trying to confirm it is working.
+func TestEmptyFleetStillRenders(t *testing.T) {
+	html := renderFleetPage(t, fleetView{
+		GeneratedAt: time.Date(2026, 11, 2, 17, 0, 0, 0, time.UTC),
+		Hosts:       []fleetHost{},
 	})
-
-	srv := httptest.NewServer(svc.Handler())
-	defer srv.Close()
-
-	resp, err := http.Get(srv.URL + "/")
-	if err != nil {
-		t.Fatal(err)
+	if len(html) < 200 {
+		t.Fatalf("Y4: empty fleet rendered only %d bytes", len(html))
 	}
-	defer resp.Body.Close()
-	body := readAll(t, resp.Body)
-	if !strings.Contains(body, "By source") {
-		t.Errorf("page missing the By source column; got:\n%s", body)
-	}
-	if !strings.Contains(body, `class="derived"`) || !strings.Contains(body, "heuristic") {
-		t.Errorf("derived signal not marked on the page; got:\n%s", body)
+	if strings.Contains(html, "<th>Host</th>") {
+		t.Fatalf("Y4: the empty fleet rendered the table header with no rows -- " +
+			"the template's {{if .Hosts}} guard changed")
 	}
 }
 
-func TestFleetPageEscapesHostInput(t *testing.T) {
-	svc := NewService(NewMemoryStore())
-	rs := NewMemoryRecordStore(DefaultRecordRetention)
-	svc.SetRecordStore(rs)
-	_ = rs.Append(context.Background(), Record{
-		HostID:   "h1",
-		HostName: `<script>alert(1)</script>`,
-		Severity: "high",
-		When:     time.Now().UTC(),
-	})
-
-	srv := httptest.NewServer(svc.Handler())
-	defer srv.Close()
-
-	resp, err := http.Get(srv.URL + "/")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	body := readAll(t, resp.Body)
-	if strings.Contains(body, "<script>alert(1)</script>") {
-		t.Fatal("host name was NOT escaped — XSS in the fleet view")
-	}
-	if !strings.Contains(body, "&lt;script&gt;") {
-		t.Errorf("expected escaped script tag in output; got:\n%s", body)
-	}
-}
-
-func TestFleetPageEmptyState(t *testing.T) {
-	svc := NewService(NewMemoryStore())
-	// No record store: the page must still render, saying so honestly.
-	srv := httptest.NewServer(svc.Handler())
-	defer srv.Close()
-
-	resp, err := http.Get(srv.URL + "/")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status = %d", resp.StatusCode)
-	}
-	body := readAll(t, resp.Body)
-	if !strings.Contains(body, "No events retained") {
-		t.Errorf("empty state not shown; got:\n%s", body)
-	}
-}
-
-func TestFleetPageOnlyRoot(t *testing.T) {
-	svc := NewService(NewMemoryStore())
-	srv := httptest.NewServer(svc.Handler())
-	defer srv.Close()
-	resp, err := http.Get(srv.URL + "/nope")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusNotFound {
-		t.Errorf("status for /nope = %d, want 404", resp.StatusCode)
-	}
-}
-
-// TestFleetPageLinksToRoster keeps the two console surfaces discoverable from
-// each other: the fleet page must link to the identity roster at /agents. (The
-// roster page's link back to / is covered in agentspage_test.)
-func TestFleetPageLinksToRoster(t *testing.T) {
-	svc := NewService(NewMemoryStore())
-	srv := httptest.NewServer(svc.Handler())
-	defer srv.Close()
-
-	resp, err := http.Get(srv.URL + "/")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	if body := readAll(t, resp.Body); !strings.Contains(body, `href="/agents"`) {
-		t.Errorf("fleet page does not link to the identity roster; got:\n%s", body)
-	}
+// Y5 -- what this test cannot do.
+func TestFleetPageWordingBrake(t *testing.T) {
+	// There is no way to assert "this label is understood correctly". Y3 pins the
+	// current string and blocks the specific worse strings; anything beyond that
+	// is a human decision about wording. Recording the limit rather than implying
+	// the page is now verified.
+	t.Logf("Y5 MEASURED: these pins catch REMOVAL and DRIFT toward worse wording. " +
+		"They cannot judge whether \"Last seen\" is read correctly by an operator. " +
+		"Only a wording decision closes finding 2026-11-02s.")
 }

@@ -122,13 +122,13 @@ so it never matched — I had tested `tar czf` *without* the dash and read the r
 had the modern one. Fixed the samples, not the verdict. **The tool was right and I had been wrong for an
 hour, in writing.**
 
-**Once, a real discrimination.** `* -O /tmp/*` fires on `curl -O /tmp/x` but not `curl -O /home/u/x`.
+**Once, a real discrimination.** `* -O /tmp/*` fires on `curl -O /tmp/x` but not `curl -O /home/svc-example/x`.
 Same glob family, same rule, different answer — because `*` cannot cross `/`, so it only matches when
 **exactly one segment** follows the last literal. Confirmed three ways:
 
 ```
 '* -O /home/*'  vs  'curl -O /home/x'      FIRES
-'* -O /home/*'  vs  'curl -O /home/u/x' does NOT fire
+'* -O /home/*'  vs  'curl -O /home/svc-example/x' does NOT fire
 '*-v /*:/'      vs  '-v /:/'                FIRES
 '*-v /*:/'      vs  '-v /:/host'            does NOT fire
 ```

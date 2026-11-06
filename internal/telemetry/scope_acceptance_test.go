@@ -15,10 +15,20 @@ import (
 // carbonato rule pack, fires carbonato.tool.scope_new — and a benign, repeated
 // action does not. It runs against the shipped pack on disk, not a fixture, so
 // the rule and the shim cannot drift apart in a test that still passes.
+//
+// The pack is TRACKED IN THIS REPOSITORY. If it is missing, that is rot in the
+// tree, not an environment this test happens to lack -- so this fails instead of
+// skipping. (Beat 774, finding docs/FINDING-2026-11-03b. Measured: deleting
+// rules/carbonato.yaml left this suite PASS, with the acceptance criterion for
+// P1.3 silently no longer tested. A check that reports clean when its subject is
+// absent is the failure mode the test itself exists to prevent.)
 func TestScopeChangeFiresPackRule(t *testing.T) {
 	packPath := filepath.Join("..", "..", "rules", "carbonato.yaml")
 	if _, err := os.Stat(packPath); err != nil {
-		t.Skipf("rule pack not found at %s: %v", packPath, err)
+		t.Fatalf("the shipped rule pack is missing at %s: %v. This file is tracked "+
+			"in the repository; its absence is tree rot, and skipping here would "+
+			"let the P1.3 acceptance criterion stop being tested while the suite "+
+			"stays green.", packPath, err)
 	}
 	pack, err := rules.LoadPack(packPath)
 	if err != nil {

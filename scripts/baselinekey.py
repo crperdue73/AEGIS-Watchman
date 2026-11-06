@@ -201,7 +201,7 @@ def check_the_mangle_is_real():
     """Not asserted from memory: run the port over concrete keys and require the mangle."""
     cases = [
         # (host, root, expect_compile_free_roundtrip)
-        ("web-01", "/home/u/.openclaw", True),    # absolute: ':/' present, must survive
+        ("web-01", "/home/svc-example/.openclaw", True),    # absolute: ':/' present, must survive
         ("::1", "ws-a", False),                       # colon host + relative root: mangles
         ("::1", "ws-b", False),
         ("::1", "/home/x", True),                     # colon host + ABSOLUTE root: survives

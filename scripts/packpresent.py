@@ -53,6 +53,29 @@ PACK_REL = os.path.join("rules", "carbonato.yaml")
 # Scripts allowed to exit 0 with the rule pack absent, each with the reason it does not need parsed
 # rules. These were verified by HAND, one at a time, by reading what each does -- not assumed.
 KNOWN_PACK_FREE = {
+    # BEAT 815: gomutate.py mutates Go SOURCE and runs `go test`; it never loads the rule pack and
+    # never should. Its subject is whether the Go suite can FAIL, which is a property of the source
+    # tree, not of carbonato.yaml. Cost of the exemption, stated: with the pack deleted entirely it
+    # still reports green -- and that is correct, because the pack is not what it measures.
+    "gomutate.py": "mutates Go source and runs go test; the rule pack is not its subject",
+    # Added 2026-11-04 (beat 811). stripnoncode_test tests `strip_go_noncode` / `strip_py_noncode`
+    # in scripts/unmirrored.py -- a comment/string STRIPPER. Its inputs are Go and Python source
+    # text; it never opens rules/carbonato.yaml, so with the pack deleted it still reports, correctly,
+    # because the question it asks ("does this stripper delete evidence?") has nothing to do with the
+    # pack's contents. Measured, not assumed: the guard flagged it by name on its first full run, which
+    # is the behaviour this guard exists for -- a new script cannot be silently pack-free.
+    # The cost is stated: with the pack gone this still reports green. That is not a blind spot in the
+    # pack, because the pack is not its subject; the stripper is what manufactures every "0 hits"
+    # verdict unmirrored.py produces, and it was wrong twice before it had a test.
+    "stripnoncode_test.py": "tests the comment/string stripper in unmirrored.py; the rule pack is not an input.",
+    # Added 2026-11-04 (beat 812). coverunmirrored_test asks whether `unmirrored.py`'s NAME-based
+    # verdict is outranked by MEASURED statement coverage. Its inputs are a Go coverage profile and a
+    # Python docstring; it never opens rules/carbonato.yaml. Measured, not assumed -- this guard
+    # named it on its first run, which is the behaviour it exists for.
+    # The cost is stated: with the pack gone this still reports green. That is correct -- the pack is
+    # not its subject. What it defends is the credibility of every "untested helper" claim the
+    # toolchain makes, which is a property of the SOURCE TREE and not of the rule data.
+    "coverunmirrored_test.py": "re-measures Go statement coverage against unmirrored.py's name verdict; the rule pack is not an input.",
     # Added 2026-10-27 (beat 620). greenprobe reads SOURCE TEXT of scripts/ and never opens the
     # rule pack, so it is structurally unable to notice a broken pack. Its own output always said
     # "limit: source read, not behavioural proof" -- this exemption is that sentence, enforced.
@@ -77,6 +100,12 @@ KNOWN_PACK_FREE = {
     # asks (does anything invoke this file?) has nothing to do with the pack's contents. Declared, not
     # silent: the alternative -- letting it pass unexplained -- is the failure mode this guard exists for.
     "debriscensus.py": "classifies scripts/ by reference graph; the rule pack is not an input.",
+    # Added 2026-10-28 (beat 637). pathmatchdiff compares neargo's transcription of Go's path.Match
+    # against known-Go answers. Its inputs are the Go spec and neargo.stop; it never opens
+    # rules/carbonato.yaml, so it cannot observe a broken pack and correctly keeps its verdict with the
+    # pack deleted. It was invisible to this guard until beat 637 because nothing ran it -- being added
+    # to suitecheck's SELFHARNESS is what surfaced the missing declaration. Declared now, with the cost
+    # stated: with the pack gone this file still reports 20/20, because the pack is not its subject.
     "pathmatchdiff.py": "compares neargo vs Go path.Match answers; the rule pack is not an input.",
     # Added 2026-10-30 (beat 680) in one batch, by READING each file's opening statement -- not by
     # assuming, and not by letting the guard's silence decide it. These 17 stayed green with the pack
@@ -111,6 +140,11 @@ KNOWN_PACK_FREE = {
                        "the pack is not its subject (measured: still 6/6 matcher-dependent with the "
                        "pack deleted -- it exercises globmatch, not rules). Its suites read the pack; "
                        "this harness does not.",
+    # Added 2026-10-27 (beat 628). priorcheck searches docs/ to answer "has this been investigated?"
+    # before a beat starts work. It reads findings, never rules/carbonato.yaml. Its test drives the
+    # shipped docs/ and temp doc trees, also never the pack. Declared here rather than left silent:
+    # the guard's question is "does this script prove anything about the pack?" and for these the
+    # honest answer is no -- which is why they are exempt, not why they are wrong.
     "priorcheck.py": "searches docs/ findings for a subject; the rule pack is not an input.",
     "priorcheck_test.py": "drives priorcheck over shipped and temp docs trees; no pack read.",
     "globmatch.py": "pure matcher reference impl; fixtures are inline strings",
@@ -131,6 +165,61 @@ KNOWN_PACK_FREE = {
     "covermap_test.py": "greps text for rule ids -- MUST be in this list only because its fixtures "
                         "are inline; with a real but empty pack it reports 14 ok over nothing. "
                         "See the NOTE below.",
+    # Added 2026-11-04 (beat 811, second pass). These 27 census instruments each read GO SOURCE or
+    # the tree's own records and never open rules/carbonato.yaml, so they correctly keep their verdict
+    # with the pack deleted. They were INVISIBLE until beat 811 because packpresent.py was never
+    # invoked by any gate: it is not in suitecheck.sh's SELFHARNESS, and no Makefile target calls it.
+    # Its own comment in suitecheck.sh:223 mentions it only in passing, while explaining a different
+    # defect. So a guard that asks a good question ("does this script prove anything about the pack,
+    # or is it silently checking nothing?") has been asking it into an empty room.
+    # Declared here by READING each file's opening docstring line, not by trusting the guard's silence:
+    #   alertbulkcensus  - the alert has no size cap (Go source)   baselinekey - baseline keyed by path
+    #   capordercensus   - capability ordering                     claimcensus - claim counting
+    #   contractruncensus- contract truncation                     eventclock  - poll instant vs event
+    #   fleetcoverage*   - fleet coverage                          fleetsample* - fleet sampling
+    #   gateaudit        - the gate's own reporting                hostclaim   - host claim shape
+    #   hostidshape      - host id shape                           ingestceiling* - ingest ceiling
+    #   inplacefilter*   - in-place filtering                      keycollision* - key collisions
+    #   livenesscensus   - liveness                                manifestkey* - manifest keys
+    #   modtimecensus    - mtimes                                  replaywarn  - replay warnings
+    #   retainfailcensus - retention failures                      retainpath* - retention paths
+    #   retentioncensus  - retention                               scopekey    - scope capability keys
+    #   seencensus       - seen/queued accounting                  spoolackcensus - spool acks
+    #   sqlitetrimcensus - sqlite trimming                         timelinecap - timeline cap
+    #   walkerrorcensus  - walk errors
+    # THE COST, STATED: with the pack deleted all 27 still report green. That is correct for these
+    # questions and is NOT a blind spot in the pack. The real finding is the one above: the guard
+    # itself is not wired into the gate. That is a separate decision (Dad's call on gate time --
+    # packpresent copies the whole repo and runs every script twice).
+
+    "alertbulkcensus.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "baselinekey.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "capordercensus.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "claimcensus.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "contractruncensus.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "eventclock.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "fleetcoveragecensus.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "fleetsamplecensus.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "gateaudit.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "hostclaim.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "hostidshape.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "ingestceilingcensus.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "inplacefiltercensus.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "keycollisioncensus.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "livenesscensus.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "manifestkeycensus.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "modtimecensus.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "replaywarn.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "retainfailcensus.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "retainpathcensus.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "retentioncensus.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "scopekey.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "seencensus.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "spoolackcensus.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "sqlitetrimcensus.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "timelinecap.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+    "walkerrorcensus.py": "census instrument over Go source / tree records; the rule pack is not an input.",
+
 }
 
 # NOTE on guardreach.py / guardreach_test.py (declared beat 631): both are pack-free by subject. The

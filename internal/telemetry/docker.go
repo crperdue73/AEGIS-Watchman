@@ -202,12 +202,25 @@ func NewDockerSourceFromReader(r io.Reader) *DockerSource {
 	return &DockerSource{rdr: r, scanner: sc}
 }
 
+// newDockerCmd builds the process a DockerSource will run. It is a package
+// variable, not a direct exec.Command call, so tests can substitute a recorder
+// and assert the ARGV this package chooses.
+//
+// BEAT 794: before this, NewDockerSource and NewDockerSourceFromCommand were
+// both declared zero-coverage with next=inject-a-command-runner. The gap was
+// not "it runs docker" -- a test may legitimately not want to. The gap was
+// that NOTHING could check which command it decided to run, so a regression
+// that dropped --format or swapped the subcommand had no instrument at all.
+// Recording the argv is the assertion that was missing; whether the real
+// binary exists is a separate question and stays out of the unit test.
+var newDockerCmd = exec.Command
+
 // NewDockerSourceFromCommand spawns `docker events` (or any argv) and reads its
 // output. The process is started lazily on the first Actions call and stopped by
 // Close. This keeps construction side-effect-free so the collector can build the
 // source unconditionally and only pay for it if it polls.
 func NewDockerSourceFromCommand(name string, args ...string) *DockerSource {
-	return &DockerSource{cmd: exec.Command(name, args...)}
+	return &DockerSource{cmd: newDockerCmd(name, args...)}
 }
 
 // SetInspector attaches a config inspector for enrichment.
@@ -368,7 +381,9 @@ func (c CLIDockerInspector) Inspect(id string) (*ContainerConfig, error) {
 	if bin == "" {
 		bin = "docker"
 	}
-	cmd := exec.Command(bin, "inspect", "--format", "{{json .HostConfig}}", id)
+	// Same seam as newDockerCmd, for the same reason: the ARGV is this
+	// package's decision and must be assertable without a daemon.
+	cmd := newDockerCmd(bin, "inspect", "--format", "{{json .HostConfig}}", id)
 	cmd.Stderr = nil
 	out, err := cmd.Output()
 	if err != nil {

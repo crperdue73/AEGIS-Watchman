@@ -36,8 +36,19 @@ It does not judge the pack against the real engine. It judges it against
 packcheck.go_path_match + match_one, which is a transcription, and a
 transcription is a mirror, not a reference (beat 642). At minimum there are TWO
 independent ports in this tree and they agree on everything the pack uses
-(beat 643). That is corroboration, not measurement. The Go toolchain is the only
-path to measurement and this host does not have it.
+(beat 643). That is corroboration, not measurement.
+
+SUPERSEDED 2026-11-03 (beat 779): this paragraph used to end "The Go toolchain
+is the only path to measurement and this host does not have it." The toolchain
+returned on 2026-11-01 (beat 740) and that sentence sat here unread for two days,
+which is the same stale-provenance defect beat 776 fixed in a Go test file. The
+measurement now exists: `internal/rules/argvfixture_engine_test.go` runs all 100 of
+these rows through the COMPILED engine and all 100 agree with the declarations
+below. So this file remains a mirror -- but it is no longer an UNVERIFIED mirror.
+It also cannot reproduce the engine's question exactly on its own: see the argv
+join note in that test file (10 of 100 rows lose quoting on the join).
+
+The host sentence is corrected rather than deleted so the correction is visible.
 """
 
 import os

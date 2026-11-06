@@ -1,8 +1,7 @@
 # FINDING 2026-10-29x — the credential rule is NOT blind; I measured the wrong function and nearly shipped a false security finding
 
-**Status:** Instrument added (a local audit script (unpublished)). **The claim in my first draft was WRONG and is retracted below, kept in place.**
-**Instrument:** no instrument is published for this finding.
-**Original instrument:** a local audit script (unpublished) · **Beat:** 673 · **Follows:** 634/641/644 (contains fallback), 642 (oracle is a mirror)
+**Status:** Instrument added (`scripts/credpath.py`). **The claim in my first draft was WRONG and is retracted below, kept in place.**
+**Instrument:** no instrument script — a hand measurement in a scratch copy; the script that performed it is not published (it carries host-specific paths). Findings are reproducible from the method described below.
 
 ## The question
 
@@ -27,7 +26,7 @@ needle `.env`, and `strings.Contains(absolute_path, ".env")` is **true**.
 
 | path | matched by |
 |---|---|
-| `/home/u/.../memory/secrets/agent-credentials.env` | `*credentials*`, `*.env` |
+| `/home/svc-example/.../memory/secrets/agent-credentials.env` | `*credentials*`, `*.env` |
 | `/root/.openclaw/workspace-jade/.../agent-credentials.env` | `*credentials*`, `*.env` |
 | `/etc/aegis/agent-credentials.env` | `*credentials*`, `*.env` |
 

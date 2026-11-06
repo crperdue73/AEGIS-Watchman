@@ -27,6 +27,13 @@ WHAT THIS PROVES — and what it cannot
   to the same globs the mirror sees. No Go toolchain on this host, so this is a reading of the
   source, not a compiled run. That limit is printed, not hidden.
 
+  SUPERSEDED 2026-11-03 (beat 781): the toolchain returned 2026-11-01 (beat 740), and
+  `internal/rules/needle_engine_test.go` now exercises `substringNeedle` against the COMPILED engine,
+  including the load-bearing claim that the contains fallback is the only reason `*domain.com*`
+  fires on a full URL. This probe's role is now the cross-check (does the source-reading mirror still
+  agree with the compiled behaviour?), not the sole source of measurement. The limit above is kept
+  as history and is no longer a limit of the host.
+
 Exit 0 = mirror agrees with engine on every glob tested, on BOTH the needle and the verdict, and the
 premise guard still works.
 
@@ -197,7 +204,9 @@ def main():
 
     print(f"needleprobe: {len(cases)} needle globs, {len(verdict_diffs)} verdict differences "
           f"— divergence confirmed, not yet fixed")
-    print("     (no Go toolchain on this host; engine claims are read from source, not compiled)")
+    print("     (engine claims are read from source, not compiled — this probe has no Go bridge.\n"
+          "      The toolchain returned 2026-11-01; that is now a LIMIT OF THE PROBE, not of the host,\n"
+          "      so 'no toolchain' is the wrong sentence and nothing here should be read as compiled.)")
     return 0
 
 

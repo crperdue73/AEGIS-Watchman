@@ -24,7 +24,7 @@ payload is unbounded too.** At the batch count that trips 413 (2,468 events at t
 | `EmailAlerter` (email.go) | renders **every** event into the plain-text body plus a JSON attachment. Many MTAs refuse a message this size at SMTP. |
 | `LogAlerter` (alert.go:149-155) | prints **only** `a.Summary()`. Every event discarded. |
 
-`Summary()` is `"2520 rule matches on dept-crperdue-tech:/home/vivi (max=high)"` — it counts classes and nothing else.
+`Summary()` is `"2520 rule matches on dept-crperdue-tech:/home/svc-example (max=high)"` — it counts classes and nothing else.
 **Verified: it never names a rule id, a path, or an argv.**
 
 ## The asymmetry that makes it a finding

@@ -186,8 +186,14 @@ clone-check:
 # Fail if any tracked file carries a credential, an operator home path, or
 # private infrastructure — the repo is public, the work was done in private.
 # See scripts/publish-scan.sh.
+#
+# BEAT 836: this used to be `./scripts/publish-scan.sh` from the authored tree,
+# which has no .git — so the scan exited 2 UNAVAILABLE and the step read as a
+# pass for weeks. It now runs against a tree it can actually read: the durable
+# clone when one exists, else this tree (where UNAVAILABLE is the honest answer).
+WM_SCAN_TREE ?= $(shell test -d ../watchman-git/.git && echo ../watchman-git || echo .)
 publish-scan:
-	./scripts/publish-scan.sh
+	PUBLISH_SCAN_TREE=$(WM_SCAN_TREE) $(CURDIR)/scripts/publish-scan.sh
 
 # Audit the *whole* reachable history for the same classes publish-scan gates on
 # (informational, always exit 0). A value committed once and later removed, or a

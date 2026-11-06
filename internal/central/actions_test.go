@@ -149,3 +149,72 @@ func TestHTTPActionsRejectsBadInput(t *testing.T) {
 		t.Errorf("no-events status = %d, want 400", resp.StatusCode)
 	}
 }
+
+// TestHTTPActionsTotalDropIsNotAccepted pins the contract beat 746 measured: a
+// batch central takes ZERO events from must not answer 202. The collector's
+// spool treats a nil submit (i.e. a 2xx) as proof of ACCEPTANCE and deletes the
+// batches it "shipped" -- so a 202 on a total drop is evidence loss wearing a
+// success code. This guards the handler half; it does not say the collector
+// half is fixed (option 2 of the finding, still Dad's call).
+func TestHTTPActionsTotalDropIsNotAccepted(t *testing.T) {
+	svc := NewService(NewMemoryStore())
+	cap := &captureAlerter{}
+	svc.SetAlerter(cap)
+	srv := httptest.NewServer(svc.Handler())
+	defer srv.Close()
+
+	body, _ := json.Marshal(ActionsRequest{
+		Host:  host,
+		Agent: agent,
+		Events: []schema.Event{
+			{Severity: "high"}, // no Event name -> dropped by IngestActions
+			{Severity: "low"},  // same
+		},
+	})
+	resp, err := http.Post(srv.URL+"/api/v1/actions", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusAccepted {
+		var out map[string]int
+		_ = json.NewDecoder(resp.Body).Decode(&out)
+		t.Fatalf("total drop answered 202 with accepted=%d: a batch central accepted "+
+			"nothing must not report receipt-as-success to a collector that deletes on 2xx",
+			out["accepted"])
+	}
+	if len(cap.alerts) != 0 {
+		t.Errorf("alerts = %d, want 0", len(cap.alerts))
+	}
+}
+
+// TestHTTPActionsPartialDropStillAccepted is the counterweight: dropping SOME
+// garbage must stay a 202. A guard that turns every drop into a 4xx would make
+// the collector retry poison batches forever, so both directions are pinned.
+func TestHTTPActionsPartialDropStillAccepted(t *testing.T) {
+	svc := NewService(NewMemoryStore())
+	cap := &captureAlerter{}
+	svc.SetAlerter(cap)
+	srv := httptest.NewServer(svc.Handler())
+	defer srv.Close()
+
+	body, _ := json.Marshal(ActionsRequest{
+		Host:  host,
+		Agent: agent,
+		Events: []schema.Event{
+			{Severity: "high"},
+			ruleMatchEvent("h-1", "carbonato.exec.ssh_key_heredoc"),
+		},
+	})
+	resp, err := http.Post(srv.URL+"/api/v1/actions", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202 (partial accept must not become a retry loop)", resp.StatusCode)
+	}
+	if len(cap.alerts) != 1 {
+		t.Errorf("alerts = %d, want 1", len(cap.alerts))
+	}
+}

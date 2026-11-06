@@ -46,9 +46,16 @@ func NewManifestRegistry(dir string, keys []provenance.TrustKey) (*ManifestRegis
 	}
 	for _, path := range matches {
 		// The manifest dir may also hold other JSON (e.g. trust-keys.json). Only
-		// files that parse as an watchman manifest are treated as manifests; a
-		// JSON file whose content fails the version check is skipped rather than
-		// aborting startup, so an unrelated .json does not take down the service.
+		// files whose top level carries a non-empty agent_id and a files map are
+		// treated as manifests (looksLikeManifest); everything else is ignored.
+		//
+		// Note that this is a SHAPE test, not a validity test: once a file looks
+		// like a manifest, any failure to load or verify it is fatal. In
+		// particular a manifest with an unsupported version ABORTS STARTUP -- it
+		// is not skipped. Only files that fail the shape test are skipped.
+		// (Measured in internal/central/manifestskip_test.go; see finding
+		// docs/FINDING-2026-11-02n. An earlier version of this comment claimed
+		// a bad-version manifest was skipped, which was never true.)
 		if !looksLikeManifest(path) {
 			continue
 		}

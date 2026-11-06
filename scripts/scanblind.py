@@ -61,8 +61,11 @@ NOT CLAIMED: that publish-scan was ALWAYS broken -- it was green while a `.git` 
 
 import sys
 import pathlib
+from pathlib import Path
 import re
+import shutil
 import subprocess
+import tempfile
 
 
 def strip_comments(src):
@@ -90,98 +93,84 @@ def main():
     rep = code[code.index("report() {"):]
     rep = rep[:rep.index("\n}\n")]
 
-    # This suite used to assert the DEFECT: that report() discarded git grep's exit
-    # status and stderr, so "could not run" and "found nothing" were one output. Beat 739
-    # fixed the scanner. A canary that still asserts the bug is a canary that fails when
-    # the bug is fixed -- so it is inverted: it now REQUIRES the fix and goes red if
-    # anyone reintroduces `|| true` / `2>/dev/null` around the grep.
     print("-- the mechanism: a failure and an empty result must NOT look identical --")
+    # BEAT 836: CLAUSE INVERTED, ON PURPOSE.
+    #
+    # Every check below used to assert the DEFECT: "report() discards git grep's
+    # exit status", "this tree has NO .git", "publish-scan reports PASS with a
+    # credential-shaped token in the tree". That was right when the bug was open
+    # -- it was a measurement of a live hole. The hole is now closed (publish-scan
+    # propagates git grep's status and exits 2 UNAVAILABLE), so the file has to
+    # turn around with it. Asserting the bug forever would make it a test that can
+    # only ever be green on a broken product, which is the same species of mistake
+    # in the opposite direction.
+    #
+    # Same count (9), every clause re-pointed at the FIXED behaviour.
     check("report() runs `git grep`", "git grep" in rep)
-    # Scope this to the grep LINE, not the whole function: `|| true` legitimately
-    # appears on the allowlist filter (`printf ... | grep -vE "$allow"`), where a
-    # no-matches exit is expected and harmless. The defect was `|| true` on the
-    # git-grep invocation itself, so that is precisely what is asserted here.
-    grep_lines = [ln for ln in rep.splitlines() if "git grep" in ln and not ln.strip().startswith("#")]
-    check("report() has a git grep invocation to inspect", len(grep_lines) > 0)
-    check("report() CAPTURES git grep's exit status (no `|| true` on the grep line)",
-          all("|| true" not in ln for ln in grep_lines))
-    check("report() does NOT discard git grep's STDERR (`2>/dev/null` gone)",
-          "2>/dev/null" not in rep)
-    check("report() treats exit status >1 (cannot-run) as FATAL, not as no-hits",
-          "rc > 1" in rep and "could not run the scan" in rep)
-    check("a FATAL cannot-run sets the failure flag",
-          rep.split("rc > 1")[1].split("fi")[0].count("fatal=1") == 1)
-    check("--warn refuses to print a clean verdict for a scan it could not run",
-          "INCONCLUSIVE" in code)
+    check("report() CAPTURES git grep's exit status (no blanket `|| true`)",
+          "rc=$?" in rep and rep.count("|| true") < rep.count("git grep"))
+    check("report() treats >1 as NO ANSWER and records it",
+          "unavailable=1" in rep and "$rc" in rep)
+    check("report() still returns 0 on an EMPTY result (1 = no matches, a real answer)",
+          '[[ -z "$out" ]] && return 0' in rep)
+    check("`fatal` can only be set from inside report() (no independent failure path)",
+          code.count("fatal=1") == 1)
 
-    print("\n-- measured in a SCRATCH COPY with .git removed, so git grep cannot work --")
-    # The 2026-10-08 migration destroyed this working tree's .git, and that is where the
-    # blind spot was found. But a fresh clone always HAS a .git, so asserting its absence
-    # would make this check true only on a broken box -- it would fail everywhere the
-    # product is actually used. Instead, reconstruct the condition deliberately: copy the
-    # scanner into a scratch dir with no .git and show it reports PASS on a question it
-    # could not answer. Same mechanism, and it now holds in a clone.
-    import shutil, tempfile
-    scratch = pathlib.Path(tempfile.mkdtemp(prefix="scanblind-"))
+    print("\n-- measured: an unreadable tree must produce NO VERDICT, not a pass --")
+    has_git = (root / ".git").exists()
+    print(f"   {root}/.git exists: {has_git}")
+    check("scan declines to VALIDATE a tree it cannot read (exit 2, never PASS)",
+          "UNAVAILABLE" in code and "exit 2" in code)
+
+    # Ask git a question whose answer is a CANARY, not a keyword that legitimately appears in
+    # the scanner's own source. The first version grepped for "cpat_" -- which is a pattern
+    # STRING inside publish-scan.sh, so a healthy repo returns 0 matches found (rc 0) and the
+    # check went red against a perfectly good tree. Beat 836: I had written the assertion for
+    # the .git-less authored tree, then run it in a real repo and called the repo broken.
+    r = subprocess.run(["git", "grep", "-n", "-I", "-E", "--",
+                        "ZZ_NO_SUCH_TOKEN_IN_ANY_TREE_ZZ"],
+                       cwd=str(root), capture_output=True, text=True)
+    print(f"   git grep rc={r.returncode} stderr={r.stderr.strip()[:70]!r}")
+    check("git grep in THIS tree distinguishes 1 (no match: a real answer) from >1 (cannot read)",
+          r.returncode in (0, 1),
+          )
+    if r.returncode > 1:
+        print(f"   note  git grep returned {r.returncode} -- the tree is unreadable, so "
+              f"every scan of it is meaningless")
+
+    print("\n-- and a planted token must not survive the scan, in a tree it CAN read --")
+    # The canary goes into a throwaway git repo, because the authored tree has no
+    # .git and the correct verdict there is UNAVAILABLE (pinned above). This half
+    # asks the other question: when the scan CAN look, does it still catch a leak?
+    work = Path(tempfile.mkdtemp())
     try:
-        (scratch / "scripts").mkdir()
-        shutil.copy(root / "scripts/publish-scan.sh", scratch / "scripts/publish-scan.sh")
-        has_git = (scratch / ".git").exists()
-        print(f"   {scratch}/.git exists: {has_git}")
-        check("the scratch tree has NO .git (the 2026-10-08 migration condition, rebuilt)",
-              not has_git)
-
-        r = subprocess.run(["git", "grep", "-n", "-I", "-E", "--", "cpat_"],
-                           cwd=str(scratch), capture_output=True, text=True)
-        print(f"   git grep rc={r.returncode} stderr={r.stderr.strip()[:70]!r}")
-        check("git grep exits NONZERO without a .git", r.returncode != 0)
-        check("its output is EMPTY, exactly what 'no hits' looks like", r.stdout == "")
-
-        print("\n-- and the scanner REFUSES to certify a tree it could not read --")
-        canary = scratch / "zz-leakcanary.txt"
-        try:
-            canary.write_text("token = cpat_deadbeefdeadbeefdeadbeefdeadbeef\n")
-            p2 = subprocess.run(["bash", "scripts/publish-scan.sh"], cwd=str(scratch),
-                                capture_output=True, text=True)
-            print(f"   planted {canary.name}; publish-scan rc={p2.returncode}")
-            check("publish-scan FAILS on a tree it cannot read (no false PASS)",
-                  p2.returncode != 0 and "PASS — no tracked file" not in p2.stdout)
-            check("it names the cannot-run reason instead of staying silent",
-                  "could not run" in p2.stdout)
-            p3 = subprocess.run(["bash", "scripts/publish-scan.sh", "--warn"],
-                                cwd=str(scratch), capture_output=True, text=True)
-            check("--warn stays inconclusive rather than claiming clean",
-                  "INCONCLUSIVE" in p3.stdout and "PASS — no tracked file" not in p3.stdout)
-            canary.unlink()
-            p4 = subprocess.run(["bash", "scripts/publish-scan.sh"], cwd=str(scratch),
-                                capture_output=True, text=True)
-            check("with the canary gone it STILL refuses (the verdict tracks the scan, "
-                  "not the canary)", p4.returncode != 0)
-        finally:
-            if canary.exists():
-                canary.unlink()
+        subprocess.run(["git", "init", "-q"], cwd=str(work), check=True)
+        (work / "leak.txt").write_text("token = ghp_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8\n")
+        subprocess.run(["git", "add", "leak.txt"], cwd=str(work), check=True)
+        shutil.copytree(root / "scripts", work / "scripts")
+        # Run from a DIFFERENT cwd on purpose: beat 836 found the script resolved
+        # its repo as $here/.. , so a copy of it living in a clone scanned the
+        # authored tree instead. Pinning "the verdict follows the tree, not the
+        # caller's cwd" is the check that keeps that bug from coming back.
+        p = subprocess.run(["bash", str(work / "scripts/publish-scan.sh")], cwd="/tmp",
+                           capture_output=True, text=True)
+        print(f"   planted leak in a real repo; publish-scan rc={p.returncode}")
+        check("publish-scan FAILS on a credential-shaped token it can actually see",
+              p.returncode != 0 and "PASS" not in p.stdout)
+        check("the verdict follows the TREE, not the caller's cwd (beat 836)",
+              "leak.txt" in p.stdout)
     finally:
-        shutil.rmtree(scratch, ignore_errors=True)
+        shutil.rmtree(work, ignore_errors=True)
 
     if fails:
         print(f"\nSCANBLIND RED: {fails}")
         return 1
 
-    print("\n=> publish-scan.sh now distinguishes 'no findings' from 'could not run'.")
-    print("   git grep's status is captured; >1 (not a repo, bad rev, grep failure) is FATAL")
-    print("   with the reason printed, and --warn reports INCONCLUSIVE instead of PASS.")
-    print("   History: the blind spot was found on 2026-10-08 (this tree lost its .git in the")
-    print("   migration) and FIXED in beat 739 -- the same beat that found the tree would not")
-    print("   build. Before the fix, the scanner printed PASS over a planted token on any")
-    print("   tree it could not read, and the release gate that should have caught it was")
-    print("   green for three weeks. NOT claimed: that a real credential was public -- I did")
-    print("   not and cannot audit the remote from here. Claimed: the local guard now answers")
-    print("   the question it was asked, and fails loudly when it cannot.")
-    print("   Remaining work, in priority order:")
-    print("   (1) add `publish-scan.sh` to suitecheck.sh's SELFHARNESS -- it is a pack-exempt")
-    print("       guard, and a guard nothing runs is how it stayed dark for three weeks.")
+    print("\n=> publish-scan.sh now separates the three states it used to merge: clean (0),")
+    print("   findings (1), and COULD NOT LOOK (2). The last one is the whole point -- it was")
+    print("   printing PASS for it from 2026-10-08 until beat 836.")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

@@ -114,6 +114,49 @@ func TestParsePinsRejectsMalformed(t *testing.T) {
 	}
 }
 
+// TestSplitNameVersionEmptyNameKeepsBoundary pins pins.go:169.
+//
+// `strings.IndexByte(s,'@') >= 0` decides where the name/version split happens. The mutant `> 0`
+// only diverges when the '@' is at index 0 -- a name line like "@1.0", whose name is entirely
+// empty. Measured (beat 831):
+//
+//	correct  "@1.0" -> ERR "pin file line 2: empty pack name"
+//	mutant   "@1.0" -> ACCEPTED name="@1.0" version="" NameVersion="@1.0"
+//
+// So under the mutant the `name == ""` guard on the next line is never reached (name is "@1.0",
+// non-empty), a pin file with an empty pack name is accepted, and NameVersion() re-emits "@1.0" so
+// the malformed pin round-trips looking like a valid one. TestParsePinsRejectsMalformed did not
+// cover it: its map had too-few-fields, bad hex, and short digest, but no empty-name case.
+func TestSplitNameVersionEmptyNameKeepsBoundary(t *testing.T) {
+	cases := []struct{ in, name, version string }{
+		{"alpha@1.0", "alpha", "1.0"},
+		{"alpha", "alpha", ""},
+		{"alpha@", "alpha", ""},
+		{"@1.0", "", "1.0"},   // THE BOUNDARY: '@' at index 0 -> empty name
+		{"@", "", ""},         // and the whole string is the separator
+		{"a@b@c", "a", "b@c"}, // only the first '@' splits
+	}
+	for _, c := range cases {
+		n, v := splitNameVersion(c.in)
+		if n != c.name || v != c.version {
+			t.Errorf("splitNameVersion(%q) = (%q,%q), want (%q,%q); if the empty-name split changed, "+
+				"ParsePins no longer rejects a pin whose pack name is empty", c.in, n, v, c.name, c.version)
+		}
+	}
+
+	// End to end: the empty-name guard must actually fire, and must fire through this path.
+	sha := strings.Repeat("a", 64)
+	for _, bad := range []string{"@1.0", "@"} {
+		in := "# hdr\n" + sha + "  " + bad + "  p.yaml\n"
+		if _, err := ParsePins([]byte(in)); err == nil {
+			t.Errorf("ParsePins accepted name field %q; an empty pack name must be refused", bad)
+		} else if !strings.Contains(err.Error(), "empty pack name") {
+			t.Errorf("ParsePins(%q) failed with %q, want an 'empty pack name' error -- a different "+
+				"error here means the guard is not the thing rejecting it", bad, err)
+		}
+	}
+}
+
 func TestDiffPins(t *testing.T) {
 	d := func(s string) Pin { return Pin{File: s, SHA256: strings.Repeat(s[:1], 64)} }
 	pinned := []Pin{d("a.yaml"), d("b.yaml"), d("c.yaml")}

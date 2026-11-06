@@ -24,6 +24,17 @@ Exit 0 every claim holds · 1 a claim is wrong · 2 could not read the engine or
 
 No Go toolchain on this host: the engine semantics are mirrored from the cited lines, not compiled.
 When the toolchain returns, this should be replaced by a Go test that calls the real `matches`.
+
+    # DELIVERED 2026-11-03 (beat 780) -- this note used to say "when the toolchain returns, this
+    # should be replaced by a Go test". The toolchain returned 2026-11-01 and
+    # internal/rules/exeanchor_engine_test.go now calls the real `exeMatches`, proving the
+    # literal-only claim against the compiled engine. The original sentence is kept as history;
+    # it is resolved, not deleted.
+    #
+    # scripts/staleclaim.py caught this note as STALE before the Go test existed. It is left
+    # watchable for one reason: if that test is ever deleted, the unverified mirror comes back
+    # silently, and a guard that watched the excuse once should keep watching it.
+    # STALECLAIM cause=toolchain since=2026-10-08 checked=2026-11-03 resolved=2026-11-03 by=internal/rules/exeanchor_engine_test.go
 """
 import os
 import posixpath

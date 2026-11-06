@@ -19,6 +19,22 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$here/.." && pwd)"
 
+# BEAT 836: the authored tree has no .git (destroyed in the 2026-10-08
+# migration), so `git clone "$repo"` died with "repository does not exist" and
+# this check reported a red on a question about a directory that was never a
+# repo. Honor an explicit tree first, then the clone beside the authored tree,
+# then this tree -- and refuse loudly rather than cloning something that is not
+# a repository.
+if [[ -n "${RELEASE_CHECK_REPO:-}" ]]; then
+    repo="$(cd "$RELEASE_CHECK_REPO" && pwd)"
+elif ! git -C "$repo" rev-parse --git-dir >/dev/null 2>&1; then
+    if git -C "$here/../../watchman-git" rev-parse --git-dir >/dev/null 2>&1; then
+        repo="$(cd "$here/../../watchman-git" && pwd)"
+    fi
+fi
+git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 \
+    || fail "no git repository at $repo -- this check clones HEAD, so it needs one"
+
 tmp="$(mktemp -d)"
 cleanup() { rm -rf "$tmp"; }
 trap cleanup EXIT

@@ -3,6 +3,7 @@ package central
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -252,6 +253,24 @@ func (s *Service) handleActions(w http.ResponseWriter, r *http.Request) {
 
 	n, err := s.IngestActions(ctx, req.Host, req.Agent, req.Events)
 	if err != nil {
+		// A total drop is the sender's problem, not ours: the request was well-
+		// formed and every event in it was unusable. It must NOT be a 5xx -- the
+		// collector's spool retries on 5xx, so a 500 here would hold a poison
+		// batch on disk forever. 400 is the honest code and it stops the delete
+		// (finding 2026-11-02g).
+		if errors.Is(err, ErrTotalDrop) {
+			log.Printf("central: actions ingest refused: %v", err)
+			// The count still rides the response: a collector that logs it can
+			// tell "refused garbage" from "refused because we are broken".
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"error":    err.Error(),
+				"accepted": 0,
+				"received": len(req.Events),
+			})
+			return
+		}
 		log.Printf("central: actions ingest error: %v", err)
 		writeErr(w, http.StatusInternalServerError, "ingest failed")
 		return

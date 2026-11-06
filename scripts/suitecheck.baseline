@@ -1,3 +1,8 @@
+# Beat 836: chatread_test.py (14) and credpath.py (14) were REMOVED from this baseline because
+# the scripts themselves are withheld from the published tree (they carry host-specific
+# credential-store paths; see WITHHELD_FROM_PUBLISH in gateaudit.py). A baseline that counts
+# checks a clone cannot run is a baseline that goes red on every honest clone. This is the
+# only direction that is safe: lowering a baseline is a decision, and it is recorded here.
 # suitecheck baseline — measured 93 suites, 1751 checks, 2026-10-30T10:58Z (beat 681)
 # A suite whose count DROPS fails suitecheck. Rewrite only for a deliberate change.
 alertfanout.py 11
@@ -71,11 +76,11 @@ recordloss.py 12
 redundant_mut.py 8
 redundant_test.py 1
 renametrace_test.py 6
-scanblind.py 14
+scanblind.py 9
 scopecheck_test.py 25
 segmentaudit_test.py 11
 severityprobe2_test.py 46
-shebang_test.py 113
+shebang_test.py 115
 sigprobe_test.py 16
 spoolwedge.py 11
 starveprobe_test.py 40

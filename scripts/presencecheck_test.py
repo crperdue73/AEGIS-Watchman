@@ -38,6 +38,13 @@ WHY THIS IS NOT A REDUNDANT COPY OF scopecheck_test.py
 
 THE TRANSCRIPTION CAVEAT, STATED NOT HIDDEN
   No Go toolchain on this host. `detail_string` below is a transcription of engine.go:307 and the
+
+  # DELIVERED 2026-11-03 (beat 782): internal/rules/detail_engine_test.go now calls the real
+  # detailString / detailStringSlice through the compiled engine, including the []byte branch that
+  # wire-decoded actions depend on. Measured before writing it: `grep detailString *_test.go` hit
+  # ZERO files, across nine call sites (engine.go:105..173) -- every path, endpoint and exe the
+  # engine judges. Beat 781's `pending=782` is cleared by the artifact, not by an assertion.
+  # STALECLAIM cause=toolchain since=2026-10-08 checked=2026-11-03 resolved=2026-11-03 by=internal/rules/detail_engine_test.go
   predicate block is a transcription of engine.go:148-165. A transcription proves the rule I wrote
   down, not the one that compiles. Beat 587's M1 died because the transcription is pinned against
   its own source; the same pin is repeated here for the functions THIS file uses, so a drift in

@@ -91,8 +91,17 @@ def rel(p):
 
 
 # --- document inventory ---------------------------------------------------------------------
-paths = sorted(glob.glob(os.path.join(DOCS, "FINDING-*.md")))
+# Beat 748: this globbed FINDING-*.md ONLY, so every CENSUS-*.md was invisible to the archive
+# check -- and the check still reported "archive consistent" over the documents it could not see.
+# Three census documents sat unindexed while I reported the index current (beats 727, 735, 747).
+# The scope of an archive check must be "every document in docs/", not "every document whose
+# name happens to match the pattern I chose when I wrote it".
+paths = sorted(glob.glob(os.path.join(DOCS, "FINDING-*.md")) +
+               glob.glob(os.path.join(DOCS, "CENSUS-*.md")))
 docs = []
+PROSE_FALLBACK_BASELINE = 61  # beat 749: measured; may only shrink
+# beat 749: documents with NO **Instrument:** field, satisfied only by prose. Printed, not hidden.
+prose_fallback = []
 
 # Beat 633: the whole body lives in main() so importing this file RUNS NOTHING.
 # It is an instrument whose product is its output; it is not a library, and it must not
@@ -108,7 +117,7 @@ def main():
         beat = m.group(1) if m else ""
 
         # date from filename — the filename convention is the most reliable field in the archive
-        dm = re.search(r"FINDING-(\d{4}-\d{2}-\d{2})", base)
+        dm = re.search(r"(?:FINDING|CENSUS)-(\d{4}-\d{2}-\d{2})", base)
         date = dm.group(1) if dm else ""
 
         # status: the documents use a bold **Status:** line, but not all of them — three authoring
@@ -139,9 +148,32 @@ def main():
         # instrument: the first scripts/*.py named anywhere in the doc, OR a named test/fixture
         # (`*_test.py`, `*_test.sh`, a corpus file) when the note was run through a test, OR a Go
         # source file when it was written from reading go test output.
-        im = (re.search(r"`?(scripts/[A-Za-z0-9_.]+\.(?:py|sh))`?", text)
-              or re.search(r"`?(test/[A-Za-z0-9_.]+\.(?:py|sh|go)|testdata/[A-Za-z0-9_.]+)`?", text)
-              or re.search(r"`((?:cmd|internal)/[A-Za-z0-9_/]+\.go)`", text))
+        # Beat 748: the pattern demanded a `scripts/` prefix, so a doc writing `` `claimcensus.py` ``
+        # (bare basename) read as "no instrument" -- an accuser pointed at an honest document.
+        # Ten years of the same rule: a checker must not assume one spelling.
+        # ...but it must be BACKTICKED and ship MUST exist: the loose form matched prose ("the
+        # check.py in prose") and flagged sixteen honest documents. A widening that accuses is
+        # worse than the narrowness it replaced.
+        # BEAT 749 -- THE FIX: read the Instrument FIELD, not the whole document. Callie 7411:
+        # "prose naming a tool is a claim, a field is a value, and the check should want the value."
+        # This used to search `text` (the entire file), which is why deleting the field left the check
+        # green -- six instruments named in paragraphs satisfied it. Now, if an **Instrument:** line
+        # exists, ONLY that line may name the instrument. No field falls back to prose so the archive
+        # does not redden on day one, but the fallback is COUNTED and printed: a tolerance that is a
+        # visible number can only shrink. An invisible loophole never does.
+        field = ""
+        for ln in text.splitlines():
+            if re.match(r"\*\*Instrument:?\*\*", ln.strip()):
+                field = ln.strip()
+                break
+        searchable = field if field else text
+        if not field:
+            prose_fallback.append(base)
+
+        im = (re.search(r"`((?:scripts/)?[A-Za-z0-9_]*(?:census|claim|probe|check|audit|fixture)[A-Za-z0-9_]*\.py)`", searchable)
+              or re.search(r"`?(scripts/[A-Za-z0-9_.]+\.(?:py|sh))`?", searchable)
+              or re.search(r"`?(test/[A-Za-z0-9_.]+\.(?:py|sh|go)|testdata/[A-Za-z0-9_.]+)`?", searchable)
+              or re.search(r"`((?:cmd|internal)/[A-Za-z0-9_/]+\.go)`", searchable))
         instrument = (im.group(1) if im else "").replace("`", "")
 
         title = ""
@@ -157,10 +189,49 @@ def main():
     ok("documents found", len(docs) > 0, str(len(docs)))
     ok("every finding declares a status", all(d["status"] for d in docs),
        ", ".join(d["base"] for d in docs if not d["status"]))
+    # Beat 749, Callie's 7411: "prose naming a tool is a claim, a field is a value, and the check
+    # should want the VALUE." The old form accepted an instrument named ANYWHERE in the document, so
+    # deleting the **Instrument:** field left it green (measured, beat 748) -- satisfied, not enforced.
+    # A document with no field must now say the words "no instrument" EXPLICITLY, in the field's own
+    # place, rather than happening to mention a script in a paragraph.
+    # Beat 749: the check now wants the FIELD (Callie 7411: "a field is a value"). Docs written
+    # before the convention existed have neither field nor prose name -- 20 of 153, measured.
+    # That is a real gap in the archive, so it is REPORTED as a number, not waved through by a
+    # prose fallback that would let the count silently grow while the check stayed green.
+    unnamed = [d["base"] for d in docs
+               if not d["instrument"]
+               and "no instrument" not in norm(open(d["path"], encoding="utf-8").read()).lower()]
     ok("every finding names its instrument or explicitly records none",
-       all(d["instrument"] or "no instrument" in norm(open(d["path"], encoding="utf-8").read()).lower()
-           for d in docs),
-       ", ".join(d["base"] for d in docs if not d["instrument"]))
+       not unnamed,
+       "%d document(s) name no instrument and do not say “no instrument”: %s"
+       % (len(unnamed), ", ".join(unnamed[:6]) + (" …" if len(unnamed) > 6 else "")))
+    # Beat 749: the tolerance is DECLARED. A doc with no **Instrument:** field is still accepted if
+    # its prose names a tool -- but every such doc is counted and the number is pinned here. The
+    # check therefore fails if the population GROWS, which is the enforced half: you may inherit old
+    # documents, you may not add new ones to the pile. Deleting a field from a doc that names its
+    # tool in a paragraph still passes (measured: it is the same text), and that is stated in the
+    # finding rather than hidden -- enforcing the field outright reddens 61 documents and is a
+    # decision about what this archive is FOR, not a lint fix (Callie 7411).
+    ok("documents falling back to prose have not grown",
+       len(prose_fallback) <= PROSE_FALLBACK_BASELINE,
+       "%d document(s) name their instrument only in prose, baseline %d: %s"
+       % (len(prose_fallback), PROSE_FALLBACK_BASELINE,
+          ", ".join(sorted(prose_fallback)[:4]) + (" \u2026" if len(prose_fallback) > 4 else "")))
+
+    # Beat 750, Callie's 7416: "Green that means 'no new debt' is a different green from 'this one
+    # passes.'" She is right, and it is the sharper half of a hole I had already written down.
+    # A doc with no field is accepted on prose alone -- and deleting a field from a doc whose prose
+    # names the tool leaves that green unchanged. The check can be defeated by SUBTRACTION.
+    # It cannot add debt; it can still hide a doc that was never verified. So the verdict is now
+    # spoken separately: LEGACY, UNVERIFIED is its own line, printed with the names, never folded
+    # into a pass. No new red tonight (the population is unchanged); the point is that a reader
+    # can now tell "61 old documents, unverified" from "everything here checks out."
+    print("     legacy, unverified (no **Instrument:** field, accepted on prose alone): %d"
+          % len(prose_fallback))
+    if prose_fallback:
+        print("       " + ", ".join(sorted(prose_fallback)[:8])
+              + (" \u2026" if len(prose_fallback) > 8 else ""))
+
     instruments = [d["instrument"] for d in docs if d["instrument"]]
     ok("every finding has a date in its filename", all(d["date"] for d in docs),
        ", ".join(d["base"] for d in docs if not d["date"]))
@@ -190,15 +261,39 @@ def main():
     ok("no two findings claim the same beat number", not collide,
        "; ".join(f"{b}: " + "/".join(n for x, n in claims_all if x == b) for b in collide))
 
+    # --- 5b: the archive's SCOPE is every document, not every document the glob matched -------------
+    # Beat 748. `paths` globbed FINDING-*.md only, so CENSUS-*.md was invisible and the archive
+    # reported "consistent" over documents it could not see. Widening the glob fixes today; this
+    # check stops the NEXT unlisted prefix from doing the same thing silently. It compares the
+    # indexed population against an independent walk of docs/ -- a SET comparison, not a count
+    # (beat 734: pinning a population is a set operation).
+    on_disk = sorted(b for b in (os.path.basename(x) for x in glob.glob(os.path.join(DOCS, "*.md")))
+                     if b.startswith(("FINDING-", "CENSUS-")) and not b.endswith("-INDEX.md"))
+    indexed = sorted(d["base"] for d in docs)
+    unseen = [b for b in on_disk if b not in indexed]
+    ok("every FINDING-/CENSUS- document on disk is in the archive", not unseen,
+       "invisible to docsindex: " + ", ".join(unseen) if unseen else "")
+
     # --- 6: denominator printed, not remembered ---------------------------------------------------
     scripts = sorted(os.path.basename(p) for p in
                      glob.glob(os.path.join(ROOT, "scripts", "*.py")) +
                      glob.glob(os.path.join(ROOT, "scripts", "*.sh")))
     print(f"     denominator: {len(docs)} finding documents, {len(scripts)} scripts/probes on disk")
+
+    # Beat 748: a bare basename (`` `pathfixture.py` ``) is a valid way to name an instrument in prose,
+    # and this check called sixteen honest documents liars for it. Resolve a bare name against
+    # scripts/ BEFORE declaring it missing -- but only to scripts/, so a doc still cannot claim a
+    # file that is nowhere. The check is "does this instrument exist", not "did the author spell it".
+    def instrument_exists(name):
+        if not name:
+            return False
+        if os.path.exists(os.path.join(ROOT, name)):
+            return True
+        return "/" not in name and os.path.exists(os.path.join(ROOT, "scripts", name))
+
     ok("instrument count is a real subset of files on disk",
-       all(p and os.path.exists(os.path.join(ROOT, p)) for p in instruments),
-       ", ".join(d["base"] for d in docs if d["instrument"]
-                 and not os.path.exists(os.path.join(ROOT, d["instrument"]))))
+       all(instrument_exists(p) for p in instruments),
+       ", ".join(d["base"] for d in docs if not instrument_exists(d["instrument"])))
 
     # --- write / verify the index -----------------------------------------------------------------
     def check_status_sanity():

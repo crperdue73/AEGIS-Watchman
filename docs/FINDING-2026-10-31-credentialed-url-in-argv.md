@@ -1,13 +1,13 @@
 # FINDING — 2026-10-31: the pack cannot see a credentialed URL in argv, and that is how 247 files leaked
 
 **Status:** measured, **not fixable with the current rule language**. Needs an engine capability, not another glob.
-**Instrument:** no instrument is published for this finding (the audit script is local-only).
+**Instrument:** no instrument script — a hand measurement in a scratch copy; the script that performed it is not published (it carries host-specific paths). Findings are reproducible from the method described below.
 **Severity of the blind spot:** high — this is the single largest observed secret-leak vector on this fleet.
 **Raised by:** beat 711's fleet measurement; written up beat 712.
 
 ## What was measured (not hypothesised)
 
-a local audit script (unpublished), run against the real workspace, found the vault push credential
+`scripts/secretledger.py`, run against the real workspace, found the vault push credential
 (`http://user:pass@host`) in **251 files**. Classifying the context around each occurrence:
 
 | context | files |
@@ -33,7 +33,7 @@ cross `/` (`path.Match` semantics, `internal/rules/engine.go:231`). Measured thr
 "*://*@*"  vs  "https://user:pass@vault.example/x.git"   -> False
 "*://*@*"  vs  "git clone https://u:p@h/r.git"           -> False
 "*://*@*"  vs  "git clone https://github.com/r.git"      -> False   (correct)
-"*://*@*"  vs  "curl -s http://198.51.100.7/x"            -> False   (correct)
+"*://*@*"  vs  "curl -s http://203.0.113.7/x"            -> False   (correct)
 ```
 
 **The obvious glob fails on the obvious true positive.** `://` then `user:pass@` are separated by an arbitrary

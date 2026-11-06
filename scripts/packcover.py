@@ -53,7 +53,7 @@ CLAIMS = {
         ([ "/etc/systemd/system/x.service" ], "/etc/systemd",     "the systemd unit drop"),
         ([ "/var/spool/cron/root" ],          "/var/spool/cron",  "the spool crontab"),
         ([ "crontab", "-e" ],                 "crontab",          "the crontab command"),
-        ([ "/home/u/.bashrc" ],            ".bashrc",          "the bash rc"),
+        ([ "/home/svc-example/.bashrc" ],            ".bashrc",          "the bash rc"),
     ],
     "carbonato.infra.privileged_container": [
         ([ "docker", "run", "-v", "/:/host", "img" ], "/:",         "the host-root bind mount"),
@@ -62,11 +62,11 @@ CLAIMS = {
     "carbonato.tool.package_install": [
         ([ "pip", "install", "evil" ],          "pip install",   "pip install"),
         ([ "npm", "install", "-g", "evil" ],    "npm install -g", "the global npm install"),
-        ([ "curl", "-O", "/home/u/x" ],      "/home/",        "the download to home"),
+        ([ "curl", "-O", "/home/svc-example/x" ],      "/home/",        "the download to home"),
     ],
     "carbonato.exec.ssh_key_heredoc": [
         (["cat", "/root/.ssh/id_rsa"],           ".ssh/id_",     "the private key read"),
-        (["cat", "/home/u/.ssh/id_ed25519"],  ".ssh/id_",     "the ed25519 key read"),
+        (["cat", "/home/svc-example/.ssh/id_ed25519"],  ".ssh/id_",     "the ed25519 key read"),
         (["base64", "/root/.ssh/id_rsa"],        "id_rsa",       "the key through base64"),
         (["cat", "/root/.ssh/known_hosts"],      "known_hosts",  "known_hosts"),
     ],

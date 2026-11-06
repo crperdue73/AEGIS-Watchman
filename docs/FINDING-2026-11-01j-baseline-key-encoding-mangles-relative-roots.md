@@ -46,7 +46,7 @@ IPv6 literal as a real case — so I am not inventing the premise.
 
 | host | root | wire key | decodes to |
 |---|---|---|---|
-| `web-01` | `/home/u/.openclaw` | `web-01:/home/...` | correct |
+| `web-01` | `/home/svc-example/.openclaw` | `web-01:/home/...` | correct |
 | `::1` | `/home/x` | `::1:/home/x` | correct |
 | `::1` | `ws-a` | `::1:ws-a` | **`{"", "::1:ws-a"}`** |
 | `::1` | `ws-b` | `::1:ws-b` | **`{"", "::1:ws-b"}`** |
